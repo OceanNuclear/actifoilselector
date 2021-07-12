@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "foilselector"
+version = "0.1.0"
+description = "Tools and scripts used to read nuclear data and thus select foils used in irradiation"
+authors = ["OceanNuclear <annoyingamygdala@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.10"
+numpy = "^1.20.3"
+tqdm = "^4.61.1"
+matplotlib = "^3.4.2"
+pandas = "^1.2.4"
+seaborn = "^0.11.1"
+scipy = "^1.6.3"
+
+[tool.poetry.dev-dependencies]
+black = "^21.6b0"
+pylint = "^2.8.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
