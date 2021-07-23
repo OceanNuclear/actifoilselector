@@ -142,15 +142,27 @@ def Bateman_convolved_generator(branching_ratios, decay_constants, a, decay_cons
         return premultiplying_factor*(multiplying_factors@vector)
     return calculate_convoled_population
 
-# integrate(population * dt) (dimension: population * time) quantity obtained due to decay after a drawn out irradiation schedulde.
-# remember that decay_const*(integrate (population * dt)) = total number of decays experienced for that duration.
-# This is more robust than the num_decays = (population(t2) - population(t1)) equation because the latter breaks down in second order or above chains.
 def Bateman_num_decays_factorized(branching_ratios, decay_constants, a, b, c, DEBUG=False, decay_constant_threshold=1E-23):
     """
-    Calculates the amount of decay radiation measured using the Bateman equation.
+    Calculates the amount of decays experienced during the measurement period by integrating the Bateman equation.
     Created for comparison/benchmarking against the other two matrix equation to know that they're correct.
+
+
+    Algorithm
+    ---------
+    Integrate the convolved population expression (same as Bateman_convolved_generator above) over the desired time period (time=b to time=c)
+        to get a quantity with dimension: population * time;
+        and then multiply by the decay constant of the current isotope (i.e. last isotope in the chain).
+    remember that decay_const*(integrate (population * dt)) = total number of decays experienced for that duration.
+    This is more robust than the num_decays = (population(t2) - population(t1)) equation because the latter breaks down in second order or above chains.
+
+    Parameters
+    ----------
     branching_ratio : array
-        the list of branching ratios of all its parents, and then itself, in the order that the decay chain was created.
+        the list of branching ratios of all of its parents to the next isotope in the chain,
+        and then from its immediate parent to itself, in the order that they appear in the decay chain.
+    decay_constants : array
+        the list of decay constants of all of its parents, and then itself, in the order that they appear in the decay chain.
     a : scalar
         End of irradiation period.
         Irrdiation power = 1/a, so that total amount of irradiation = 1.
@@ -270,15 +282,30 @@ def mat_exp_num_decays(branching_ratios, decay_constants, a, b, c, decay_constan
     Calculates the number of decays experienced during time=b to time=c if the irradiation is drawn out from time=0 to time=a,
     Rather than having a flash irradiation at time=0.
 
-    
+    Assumption
+    ----------
+    As with other convolved algorithms:
+        The production of the root isotope is uniformly drawn out from time=0 to time=a.
+    And that we're interested in the number of decays that happened between time=b to time=c (i.e. the start and end measurement times).
+    0<a<=b<=c
 
     Algorithm
     ---------
+    Integrate(population * dt) (dimension: population * time) quantity obtained due to decay after a drawn out irradiation schedulde
+    (where population is already the population obtained by mat_exp_population_convolved.)
+    And then multilply by the decay constant of the current isotope (i.e. the last isotope in the chain).
+    (remember that decay_const*(integrate (population * dt)) = total number of decays experienced for that duration.)
+    This is more robust than the num_decays = (population(t2) - population(t1)) equation because the latter breaks down in second order or above chains.
+
     matrix exponentiation,
         plus two factorizations (pre-multiplied by two inverse matrices and a multiplier matrix) to account for:
         1. the convolution
             (drawn-outness of the irradiation)
         2. and the minusing between the two.
+
+    For details of how these two matrix exponentiation algorithms are derived,
+    please read convolving_Bateman.pdf in the same directory as this python program.
+
 
     Parameters
     ----------
