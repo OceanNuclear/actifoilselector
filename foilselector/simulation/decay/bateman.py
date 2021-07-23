@@ -180,7 +180,7 @@ def Bateman_num_decays_factorized(branching_ratios, decay_constants, a, b, c, DE
         # catch the cases where there are zeros in the decay_rates
         # in practice this should only happen for chains with stable parents, i.e.
         # this if-condition would only be used if the decay chain is of length==1.    
-        return 0 * np.product(decay_constants) * np.product(branching_ratio) * a * b * c
+        return 0 * np.product(branching_ratio) * a * b * c
     premultiplying_factor = np.product(decay_constants[:])*np.product(branching_ratios[1:])/a
     upside_down_matrix = np.diff(np.meshgrid(decay_constants, decay_constants)[::-1], axis=0)[0]
     # upside_down_matrix += np.diag(decay_constants)**2
@@ -220,12 +220,10 @@ def Bateman_num_decays_factorized(branching_ratios, decay_constants, a, b, c, DE
     return premultiplying_factor * (multiplying_factors @ vector)
 
 def create_lambda_matrix(l_vec, decay_constant_threshold=1E-23):
-    lambda_vec = []
-    for lamb_i in l_vec:
-        if isinstance(lamb_i, unc.core.AffineScalarFunc):
-            lambda_vec.append(lamb_i.n)
-        else:
-            lambda_vec.append(float(lamb_i))
+    """
+    Remove the uncertainties part because the scipy linalg matrix exponentiation can't deal with that.
+    """
+    lambda_vec = [unc.nominal_value(lamb_i) for lamb_i in l_vec]
     return - np.diag(lambda_vec, 0) + np.diag(lambda_vec[:-1], -1)
 
 _expm = lambda M: spln.expm(M)
@@ -245,16 +243,16 @@ def mat_exp_population_convolved(branching_ratios, decay_constants, a, t, decay_
     Algorithm
     ---------
     Matrix exponentiation,
-        with one factorizations (pre-multiplied by one inverse matrix and a multiplier matrix) to account for
+        with one factorization (pre-multiplied by one inverse matrix and a multiplier matrix) to account for
         the drawn-out irradiation.
 
     Parameters and Returns: see mat_exp_num_decays
     """
     # Separated cases out that that will cause singular matrix or 1/0's.
     if any(ary(decay_constants[:-1])<=decay_constant_threshold): # any stable isotope in the chain:
-        return 0
+        return 0 * np.product(branching_ratios) * a * t
     elif len(decay_constants)==1 and decay_constants[0]<=decay_constant_threshold: # single stable isotope in chain:
-        return 1.0
+        return 0 * np.product(branching_ratios) * a * t + 1.0
     elif decay_constants[-1]<=decay_constant_threshold: # last isotope is stable; rest of the chain is unstable:
         if t<a:
             raise NotImplementedError("The formula for population during irradiation hasn't been derived properly yet.")
@@ -323,7 +321,7 @@ def mat_exp_num_decays(branching_ratios, decay_constants, a, b, c, decay_constan
     if any(ary(decay_constants)<=decay_constant_threshold):
         # if any one nuclide in the chain is so slow to decay that the user considers as 'stable', then
         # there's no point in calculating the number of decays, because it will be effectively zero.
-        return 0 * np.product(branching_ratios) * np.product(decay_constants) * a * b * c
+        return 0 * np.product(branching_ratios) * a * b * c
         # Using the expression above because this will preserve the type:
         # if any of those data came in the form of uncertainties.core.Variable/similar, 
         # then we will output uncertainties.core.AffineScalarFunc.
