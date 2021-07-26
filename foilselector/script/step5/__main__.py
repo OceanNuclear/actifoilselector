@@ -12,6 +12,7 @@ This module is expected to be used after the following steps
 """
 import sys, os
 import json
+from numpy import array as ary
 
 import pandas as pd
 from foilselector.foldermanagement import *
@@ -35,25 +36,54 @@ def main(dirname):
         selected_foils = json.load(j)
     with open(os.path.join(dirname, "irradiation_schedule.txt")) as f:
         schedule_of_materials = read_fispact_irradiation_schedule(f.read())
-    sigma_df = get_microscopic_cross_sections_df(dirname)
-    gs = get_gs(dirname)
 
-    def get_macro(parents_product_mts, foil_num_density_dict):
+    gs = get_gs(dirname)
+    sigma_df = get_microscopic_cross_sections_df(dirname)
+    # the microscopic cross-sections in barns
+
+    parent_list, product_list = ary([name.split("-")[0:2] for name in sigma_df.index]).T
+
+    def get_macroscopic_xs_all_rx(isotope_number_densities):
         """
-        Calculate the macroscopic cross-section and partial reaction rate contribution variables.
+        Calculate the macroscopic cross-section of all reactions involved.
+        We start from the microscopic cross-section value stored in sigma_df,
+        and use the formula:
+        Formula
+        -------
+        Sigma(E) = sigma(E) * N_d # unit: cm^-1
+        
+        Returns
+        -------
+        Sigma(E) of each reaction, as a dataframe.
         starts with parents_product_mts, which is MULTIPLE parents giving the same product through MULTIPLE mts,
         And ends up with a SINGLE line of macroscopic.
         """
-        macroscopic_xs = np.zeros(len(gs))
-        for parent_product_mt in unpack_reactions(parents_product_mts):
-            microscopic_xs = sigma_df[sigma_df.index==parent_product_mt].values[0]*BARN
-            macroscopic_xs += microscopic_xs * foil_num_density_dict[parent_product_mt.split("-")[0]]
-        return macroscopic_xs, num_reactions
+
+        # create a cross-section accumulator that if there's no existing entry for the matching product,
+        # an all-zero cross-section vector will be created before the '+=' operation.
+        from collections import defaultdict
+        from functools import partial
+        import numpy as np
+        empty_xs_matching_gs = partial(np.zeros, len(sigma_df.columns))
+        macroscopic_xs = defaultdict(empty_xs_matching_gs)
+
+        for isotope_name, density in isotope_number_densities.items():
+            matching_parent = sigma_df[parent_list==isotope_name]
+
+            for reaction_name, xs_profile in sigma_df[matching_parent].iterrows():
+                product = reaction_name.split("-")[1]
+                macroscopic_xs[product] += xs_profile * (BARN * density) # accumulate cross-section
+
+        return macroscopic_xs
 
     for foil_name, foil in selected_foils.items():
         print("for foil =", foil_name)
+        num_density_dict = foil["number density (cm^-3)"]
+        for material in num_density_dict
+
             num_reactants = get_num_reactants_dict(foil)
             macroscopic_xs = get_macro(parents_product_mts, foil["number density (cm^-3)"])
+            get_macroscopic_xs_all_rx()
 
             num_decays_checksum = 0.0
             for step_contribution in schedule_of_materials[foil_name]
