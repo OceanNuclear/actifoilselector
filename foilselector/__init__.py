@@ -1,9 +1,10 @@
 # nested folders consisting of instructions
-from foilselector import decay
 from foilselector import fluxconversion
 from foilselector import openmcextension
 from foilselector import physicalparameters
+from foilselector import optimizer
 from foilselector import selfshielding
+from foilselector import simulation
 
 # the script folder
 from foilselector import script
