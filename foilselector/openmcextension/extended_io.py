@@ -13,7 +13,7 @@ import openmc
 2. load files as openmc class objects procedurally (load_endf_directories) # (wait no this should be a script?)
 """
 from tqdm import tqdm
-def load_endf_directories(folder_list):
+def load_endf_directories(*folder_list):
     """
     Typical usage of this function:
     # in script.py
@@ -27,7 +27,7 @@ def load_endf_directories(folder_list):
     """
     if len(folder_list)==0:
         print("usage:")
-        print("'python "+sys.argv[0]+" folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/ output/'")
+        print("'python "+sys.argv[0]+" output/ folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/'")
         print("Thus 'folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/' will be read.")
         # print("where the outputs-saving directory 'output/' is only requried when read_apriori_and_gs_df is used.")
         print("Use wildcard (*) to replace directory as .../*/ if necessary")

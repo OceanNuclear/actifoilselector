@@ -12,3 +12,16 @@ def ordered_set(sequence):
     # (x not in seen) -> add x to seen -> bracket returns False
     #   -> negated by "not" in front of bracket -> adds element to list
     # This should be an O(n) operation.
+
+def minmax(array):
+    """
+    Alias function to quickly return the minimum and maximum among all values in an array. 
+    parameters
+    ----------
+    array : any shaped array
+
+    returns
+    -------
+    tuple containing a min (scalar) and a max (scalar)
+    """
+    return min(array), max(array)

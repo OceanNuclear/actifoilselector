@@ -149,7 +149,7 @@ class ABCFoil():
         return detectable_reactions
 
 @dataclass
-class _Foil(ABCFoil):
+class FoilDataClass(ABCFoil):
     """
     Class that contains all the useful information about a foil.
     use CMS for all units (cm, cm^2, cm^-2 s^-1, etc.) for all numbers stated;
@@ -175,7 +175,7 @@ class _Foil(ABCFoil):
     def __repr__(self):
         return "<{} foil at {}>".format(self.material_name, id(self))
 
-class Foil(_Foil):
+class Foil(FoilDataClass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         """

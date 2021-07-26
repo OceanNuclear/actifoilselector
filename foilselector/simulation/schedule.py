@@ -28,7 +28,7 @@ def parse_fispact_input_text(text_block):
                 keywords_and_params += char
 
     # merge delimiters
-    keywords_and_params = [word.upper() for word in keywords_and_params.split() if len(word)>0]
+    keywords_and_params = [word for word in keywords_and_params.split() if len(word)>0]
     return keywords_and_params
 
 unit_conversion = {
@@ -86,7 +86,7 @@ class Schedule():
         self.is_irradiation = [isinstance(step, IrradiationStep) for step in step_list]
         self.is_gamma_measurement = [isinstance(step, GammaSpectrometryStep) for step in step_list]
 
-    def irradiation_sum_times(self):
+    def sum_irradiation_times(self):
         # number of gamma measurement steps = sum(self.is_gamma_measurement)
         times_list = [] # known as time a, time b and time c.
         for curr_step_num in range(len(self.is_gamma_measurement)):
@@ -103,16 +103,19 @@ class Schedule():
                         times_list.append(times_and_flux(flux*a, a, b, c))
         return times_list
 
-def keyword_and_param_reader(keywords_and_params):
+def process_one_material_schedule_text(keywords_and_params):
     """
     Turn the list of keywords and parameters str as read from the FISPACT-format input file
     into a Schedule object.
     """
     COOLING_ONLY = False
-    steps_schedule = [] # empty container to contain all steps
+    steps_schedule = [] # empty container to contain all steps for one material
+
+    keywords_and_params = [word.upper() for word in keywords_and_params] #set everything to upper case.
 
     while len(keywords_and_params)>0:
         keyword = keywords_and_params.pop(0)
+
         if keyword=="FLUX":
             assert not COOLING_ONLY, "Only allowed to change flux before the ZERO keyword."
             flux = float(keywords_and_params.pop(0))
@@ -121,10 +124,14 @@ def keyword_and_param_reader(keywords_and_params):
             numerical_duration = float(keywords_and_params.pop(0)) # expects a parameter
 
             units = keywords_and_params.pop(0) # expects a keyword
-            duration_seconds = numerical_duration * unit_conversion[units]
+            try:
+                duration_seconds = numerical_duration * unit_conversion[units]
+                time_end_kw = keywords_and_params.pop(0) # expects a keyword
+            except KeyError: # if the user chose to use the default unit of seconds
+                duration_seconds = numerical_duration * 1
+                time_end_kw = units
 
-            time_end_kw = keywords_and_params.pop(0) # expects a keyword
-            assert time_end_kw in end_step_kw, "Must end this irradiation step in one of the pre-approved keywords."
+            assert time_end_kw in end_step_kw, f"Must end this irradiation step in one of the pre-approved keywords, not {time_end_kw}, {len(keywords_and_params)}"
             if time_end_kw in gamma_acquisition_kw:
                 steps_schedule.append(GammaSpectrometryStep(duration_seconds))
             else: # if only a STEP keyword is used:
@@ -140,7 +147,44 @@ def keyword_and_param_reader(keywords_and_params):
 
     return steps_schedule
 
+def cut_text_at_sample(full_control_text):
+    """
+    Cut the list of keywords and parameters into lists of strings,
+    where each string is a keyword/parameter.
+    The order of str's in each word follows the order of the passage.
+    A new list is started whenever a "SAMPLE (sample_name)" pair is detected.
+
+    Returns
+    -------
+    A dictionary with the sample_name as key and word list as values.
+    The two keywords "SAMPLE (sample_name)" are already removed from these lists.
+    """
+    if full_control_text[0].upper()!="SAMPLE":
+        material_names.append("unknown_sample")
+        material_schedule_text.append([])
+        print("No material names found, using 'unknown_sample' as the default name.")
+
+    material_names, material_schedule_text = [], [] # container for the material names and the main text describing the material irradiation schedules.
+    while len(full_control_text)>0:
+        new_word = full_control_text.pop(0)
+        if new_word.upper()=="SAMPLE":
+            material_names.append(full_control_text.pop(0))
+            material_schedule_text.append([])
+            # create a new list
+        else:
+            material_schedule_text[-1].append(new_word)
+    return dict(zip(material_names, material_schedule_text))
+
 def read_fispact_irradiation_schedule(schedule_text_block):
-    keywords_and_params = parse_fispact_input_text(schedule_text_block)
-    steps_schedule = keyword_and_param_reader(keywords_and_params)
-    return Schedule(*steps_schedule)
+    """
+    Different samples ares separated using the SAMPLE keyword.
+    Otherwise the rest of the irradiation schedule follows the fispact input format:
+    use "FLUX number" to define the flux of this step;
+    use "TIME value SECS/MINS/HOURS/DAYS/YEARS" to define the duration of this step;
+    use "STEP/SPECTRUM/ATOM" to define the end of a step, and whether step involves gamma acquisition (SPECTRUM/ATOM) or not (STEP).
+    """
+    full_control_text = parse_fispact_input_text(schedule_text_block)
+
+    word_lists_sorted_by_sample = cut_text_at_sample(full_control_text)
+
+    return {name:Schedule(*process_one_material_schedule_text(texts)) for name, texts in word_lists_sorted_by_sample.items()}

@@ -4,9 +4,11 @@ import numpy as np
 from numpy import sqrt
 from numpy import array as ary, log as ln
 import uncertainties.unumpy as unpy
+import uncertainties as unc
+from foilselector.constants import MeV
 
 def exp(numbers):
-    if isinstance(numbers, uncertainties.core.AffineScalarFunc):
+    if isinstance(numbers, unc.core.AffineScalarFunc):
         return unpy.exp(numbers)
     else:
         return np.exp(numbers)
@@ -67,7 +69,7 @@ def HPGe_efficiency_curve_generator(file_location=default_file_path, deg=4, cov=
         print("The covariance matrix is\n", pcov)
 
     def efficiency_curve(E):
-        if isinstance(E, uncertainties.core.AffineScalarFunc):
+        if isinstance(E, unc.core.AffineScalarFunc):
             lnE = ln(E.n)
         else:
             lnE = ln(E)
@@ -76,12 +78,12 @@ def HPGe_efficiency_curve_generator(file_location=default_file_path, deg=4, cov=
         if cov:
             lnE_powvector = [lnE**i for i in range(len(p))][::-1]
             variance_on_lneff = (lnE_powvector @ pcov @ lnE_powvector) # variance on lneff
-            if isinstance(E, uncertainties.core.AffineScalarFunc):
+            if isinstance(E, unc.core.AffineScalarFunc):
                 error_of_lnE = E.s/E.n
                 variance_from_E = sum([p[::-1][i]*i*lnE**(i-1) for i in range(1, len(p))])**2 * (error_of_lnE)**2
                 variance_on_lneff += variance_from_E
             lneff_variance = exp(lneff)**2 * variance_on_lneff
-            return uncertainties.core.Variable( exp(lneff), sqrt(lneff_variance) )
+            return unc.core.Variable( exp(lneff), sqrt(lneff_variance) )
         else:
             return exp(lneff)
     return efficiency_curve

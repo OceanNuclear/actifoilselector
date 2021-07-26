@@ -136,7 +136,7 @@ name = "networkx"
 version = "2.6.1"
 description = "Python package for creating and manipulating graphs and networks"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 
 [package.dependencies]
@@ -306,7 +306,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "03e530cce2166594bbb622b13de97f48b4c6f486b01f78e82539c546f53abe22"
+content-hash = "23a7fcd274da611fa03637d05586f91ee67aae3380c38483901bd79aa1654055"
 
 [metadata.files]
 appdirs = [

@@ -1,6 +1,9 @@
 """default file paths to be used on functions"""
-HPGe_eff_file = '.physical_parameters/Absolute_photopeak_efficiencyMeV.csv'
+from os import path as _path
+local_dir = _path.abspath(_path.dirname(__file__))
 
-PHYSICAL_PROP_FILE = ".physical_parameters/elemental_frac_isotopic_frac_physical_property.csv"
+HPGe_eff_file = _path.join(local_dir, "photopeak_efficiency", "Absolute_photopeak_efficiencyMeV.csv")
 
-PRICE_FILE = ".physical_parameters/goodfellow_selected_elements.csv"
+PHYSICAL_PROP_FILE = _path.join(local_dir, "material_properties", "elemental_frac_isotopic_frac_physical_property.csv")
+
+PRICE_FILE = _path.join(local_dir, "price", "goodfellow_selected_elements.csv")

@@ -1,7 +1,7 @@
 """
 functions used to interact with the user
 """
-from os.path import join
+from os.path import join as _join
 
 from foilselector.fluxconversion.filereading import open_csv
 
@@ -22,7 +22,7 @@ def get_column_interactive(directory, datatypename, first_time_use=False):
             if not first_time_use:
                 prompt = "(Can be the same file as above)"
             fname = input(f"Which of the above file contains values for the {datatypename}?"+prompt)
-            df, col = open_csv(join(directory,fname))
+            df, col = open_csv(_join(directory,fname))
             print("Opened\n", df.head(), "\n...")
             colname = input(f"Please input the index/name of the column where {datatypename} is/are contained.\n(column name options include {list(col)})")
             if colname in col:
