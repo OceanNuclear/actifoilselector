@@ -77,7 +77,7 @@ def linearize_decay_chain(decay_file):
         for mode in decay_file['modes']:
             this_branch = linearize_decay_chain(mode['daughter']) # note that this is a list, so we need to unpack it.
             for subbranch in this_branch:
-                subbranch.branching_ratios[0] = mode['branching_ratio']
+                subbranch.branching_ratios[0] = mode['branching_ratio'] # only a 'mode["branching_ratio"]' number of them goes into this subbranch.
                 all_chains.append(self_decay+subbranch)
     return all_chains # returns a list
 

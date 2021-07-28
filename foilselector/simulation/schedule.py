@@ -86,7 +86,7 @@ class Schedule():
         self.is_irradiation = [isinstance(step, IrradiationStep) for step in step_list]
         self.is_gamma_measurement = [isinstance(step, GammaSpectrometryStep) for step in step_list]
 
-    def sum_irradiation_times(self):
+    def measurable_irradiation_effects(self):
         # number of gamma measurement steps = sum(self.is_gamma_measurement)
         times_list = [] # known as time a, time b and time c.
         for curr_step_num in range(len(self.is_gamma_measurement)):
@@ -95,12 +95,12 @@ class Schedule():
                     if self.is_irradiation[prev_step_num]:
                         zero = self.step_start_times[prev_step_num]
                         a = self.step_end_times[prev_step_num] - zero
-                        flux = self.fluxes[prev_step_num]
+                        fluence = self.fluxes[prev_step_num] * a
 
                         b = self.step_start_times[curr_step_num] - zero
                         c = self.step_end_times[curr_step_num] - zero
 
-                        times_list.append(times_and_flux(flux*a, a, b, c))
+                        times_list.append(times_and_flux(fluence, a, b, c))
         return times_list
 
 def process_one_material_schedule_text(keywords_and_params):
