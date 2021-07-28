@@ -27,6 +27,14 @@ class IsotopeDecay(namedtuple('IsotopeDecayTuple', ['names',
         return IsotopeDecay(self.names+subordinate.names, self.branching_ratios+subordinate.branching_ratios, self.decay_constants+subordinate.decay_constants, subordinate.countable_photons)
 
 class DecayInfo(dict):
+    """
+    e.g. since Pt190_e41 doesn't exist,
+    applying getitem('Pt190_e41') should fall back to the decay info of
+    Pt190 (unexcited),
+    i.e. we assume that the user would observe no meaningful difference between the decay of Pt190_e41 and Pt190
+    since the former will directly internal transition to the latter very quickly,
+    even before the user can take away the foil.
+    """
     def __init__(self):
         raise NotImplementedError("To be implemented at the revamp stage - when I invert the foilselector to do material selection as the first stage.")
 
@@ -47,20 +55,24 @@ def build_decay_chain_tree(decay_parent, decay_dict, decay_constant_threshold=1E
         the entire decay_dict containing all of material that forms the radiodict that there is.
     """
     if not decay_parent in decay_dict:
-        # decay_dict does not contain any decay data record about the specified isotope (decay_parent), meaning it is (possibly) stable.
-        return_dict = {'name':decay_parent, 'decay_constant':Variable(0.0,0.0), 'countable_photons':Variable(0.0,0.0), 'modes':{}}
-    else: # decay_dict contains the specified decay_parent
-        parent = decay_dict[decay_parent]
-        return_dict = {'name':decay_parent, 'decay_constant':parent['decay_constant'], 'countable_photons':parent['countable_photons']} # countable_photons per decay of this isotope
-        if decay_dict[decay_parent]['decay_constant']<=decay_constant_threshold:
-            # if this isotope is rather stable.
-            return return_dict
+        if "_" in decay_parent:
+            # is an excited isotope. So we assume it has instantaneously decayed, and return the ground-state decay info instead.
+            return build_decay_chain_tree(decay_parent.split("_")[0], decay_dict, decay_constant_threshold)
         else:
-            return_dict['modes'] = []
-            for name, branching_ratio in decay_dict[decay_parent]['branching_ratio'].items():
-                if name!=decay_parent:
-                    return_dict['modes'].append( {'daughter': build_decay_chain_tree(name, decay_dict), 'branching_ratio': branching_ratio} )
-    return return_dict
+            # decay_dict does not contain any decay data record about the specified isotope (decay_parent), meaning it is (possibly) stable.
+            return {'name':decay_parent, 'decay_constant':Variable(0.0,0.0), 'countable_photons':Variable(0.0,0.0), 'modes':{}}
+    # else: # decay_dict contains the specified decay_parent
+    parent = decay_dict[decay_parent]
+    tree = {'name':decay_parent, 'decay_constant':parent['decay_constant'], 'countable_photons':parent['countable_photons']} # countable_photons per decay of this isotope
+    if decay_dict[decay_parent]['decay_constant']<=decay_constant_threshold:
+        # if this isotope is rather stable.
+        return tree
+    else:
+        tree['modes'] = []
+        for name, branching_ratio in decay_dict[decay_parent]['branching_ratio'].items():
+            if name!=decay_parent:
+                tree['modes'].append( {'daughter': build_decay_chain_tree(name, decay_dict), 'branching_ratio': branching_ratio} )
+    return tree
 
 def linearize_decay_chain(decay_file):
     """

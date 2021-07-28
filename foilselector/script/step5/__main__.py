@@ -12,7 +12,11 @@ This module is expected to be used after the following steps
 """
 import sys, os
 import json
+from collections import defaultdict
+
 from numpy import array as ary
+import numpy as np
+from scipy.special import expm1
 
 import pandas as pd
 from foilselector.foldermanagement import *
@@ -32,13 +36,16 @@ from foilselector.simulation.decay import (
 def main(dirname):
     with open(os.path.join(dirname, "decay_info.json")) as j:
         decay_info = unserialize_dict(json.load(j))
-    with open(os.path.join(dirname, "final_selection.json")) as j:
+    with open(os.path.join(dirname, "selected_foils.json")) as j:
         selected_foils = json.load(j)
     with open(os.path.join(dirname, "irradiation_schedule.txt")) as f:
         schedule_of_materials = read_fispact_irradiation_schedule(f.read())
 
     gs = get_gs(dirname)
     sigma_df = get_microscopic_cross_sections_df(dirname)
+    apriori_flux = get_apriori(dirname, None)
+    neutron_energy_pdf_apriori = apriori_flux/apriori_flux.sum()
+
     # the microscopic cross-sections in barns
 
     parent_list, product_list = ary([name.split("-")[0:2] for name in sigma_df.index]).T
@@ -57,40 +64,96 @@ def main(dirname):
         Sigma(E) of each reaction, as a dataframe.
         starts with parents_product_mts, which is MULTIPLE parents giving the same product through MULTIPLE mts,
         And ends up with a SINGLE line of macroscopic.
+
+        DeprecationWarning: this method probably would only work for the current (2021-07-27 22:50:20) implementation
+            as I don't plan to keep a sigma_df (pd.DataFrame object) in a microscopic_xs.csv forever, because this will take up space.
         """
 
         # create a cross-section accumulator that if there's no existing entry for the matching product,
         # an all-zero cross-section vector will be created before the '+=' operation.
-        from collections import defaultdict
         from functools import partial
-        import numpy as np
         empty_xs_matching_gs = partial(np.zeros, len(sigma_df.columns))
         macroscopic_xs = defaultdict(empty_xs_matching_gs)
 
         for isotope_name, density in isotope_number_densities.items():
             matching_parent = sigma_df[parent_list==isotope_name]
 
-            for reaction_name, xs_profile in sigma_df[matching_parent].iterrows():
+            for reaction_name, xs_profile in matching_parent.iterrows():
                 product = reaction_name.split("-")[1]
-                macroscopic_xs[product] += xs_profile * (BARN * density) # accumulate cross-section
+                macroscopic_xs[product] += xs_profile.values * (BARN * density) # accumulate cross-section
 
         return macroscopic_xs
 
+    def calculate_num_decays_measured_per_product_present(root_product, schedule):
+        """
+        Calculate the number of decays measured during the measurement periods specified in schedule.
+        Parameters
+        ----------
+        root_product: a str name of the root product of interest created during the irradiation.
+        schedule: a foilselector.simulation.schedule.Schedule object
+                    containing information about the irradiation, cooling, and measurement schedule.
+
+        Output
+        ------
+        A dictionary showing the number of decays that each of the isotopes in the DAG decay graph experiences
+        during the measurement time.
+
+        Relies on decay_info to be read multiple times,
+        So I will have to revamp decay_info into a class of its own before I can make this function cleaner.
+        """
+        effective_step_list = schedule.measurable_irradiation_effects()
+        decay_tree = build_decay_chain_tree(root_product, decay_info)
+        collected_num_decays = defaultdict(float)
+
+        for subchain in linearize_decay_chain(decay_tree):
+            num_decays_during_measurement = sum(
+                        mat_exp_num_decays(
+                        subchain.branching_ratios, subchain.decay_constants,
+                        step.a, step.b, step.c
+                        ) * step.fluence
+                        for step in effective_step_list
+                    )
+
+            collected_num_decays[subchain.names[-1]] += num_decays_during_measurement
+
+        return pd.Series(collected_num_decays, name=root_product)
+
+    num_decays_sorted_by_root_product = {}
+
     for foil_name, foil in selected_foils.items():
-        print("for foil =", foil_name)
+        print("for foil =", foil_name, "a schedule is detected as the following:", schedule_of_materials)
+
+        thickness = foil["thickness (cm)"]
+        area = foil["area (cm^2)"]
         num_density_dict = foil["number density (cm^-3)"]
-        for material in num_density_dict
+        macroscopic_xs = get_macroscopic_xs_all_rx(num_density_dict) # is a dict
 
-            num_reactants = get_num_reactants_dict(foil)
-            macroscopic_xs = get_macro(parents_product_mts, foil["number density (cm^-3)"])
-            get_macroscopic_xs_all_rx()
+        macroscopic_xs_df = pd.DataFrame(macroscopic_xs).T
+        # dataframe currently contains macroscopic cross-section values (Sigma(E)):
+        # each row contains the macroscopic cross-section profile of reactions that generate 1 product,
+        # while each column denotes the bin number.
 
-            num_decays_checksum = 0.0
-            for step_contribution in schedule_of_materials[foil_name]
-                neutrons_per_cm2 = step_contribution.flux * step_contribution.a
-                num_decays_checksum += step_contribution.flux
-                neutrons_per_cm2 * macroscopic_xs
-    return
+        # now to calculate for the number of reactions that happened in a way that accounts for self-sheilding:
+        # P(E, interaction) = 1 - exp(-Sigma(E) * t)
+        # number of interactions = @ P(E, interactions)
+        num_reaction_per_unit_fluence = pd.Series(
+            (-expm1(-macroscopic_xs_df * thickness)).values @ neutron_energy_pdf_apriori,
+            index=macroscopic_xs_df.index,
+            name=foil_name
+        )
+
+        # number of decays of one type of root-product is given by
+        # = (number of root-products created per unit fluence) * (number of decays per root-product
+        # given the current irradiation-cooling-and-measurement schedule);
+        # where the fluence value is already embedded in the schedule.
+        num_decays_sorted_by_root_product[foil_name] = {root_product :
+            num_reactions * calculate_num_decays_measured_per_product_present(
+                root_product, schedule_of_materials[foil_name]
+                )
+            for root_product, num_reactions in num_reaction_per_unit_fluence.items()
+        }
+
+    return num_decays_sorted_by_root_product
 
 def main_old(dirname):
     # # get the user-defined foil selection, and their thicknesses
