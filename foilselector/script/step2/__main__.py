@@ -59,7 +59,7 @@ def main(output_directory, *read_from_endf_directories):
         # Save said decay records
         with open(os.path.join(sys.argv[-1], FULL_DECAY_INFO_FILE), 'w') as j:
             tprint("Saving the decay spectra as {} ...".format(FULL_DECAY_INFO_FILE))
-
+            json.dump(decay_dict, j)
 
         # turn decay records into number of counts
         tprint("Condensing each decay spectrum...")
@@ -68,7 +68,7 @@ def main(output_directory, *read_from_endf_directories):
 
         with open(os.path.join(sys.argv[-1], CONDENSED_DECAY_INFO_FILE), 'w') as j:
             tprint("Saving the condensed decay information as {} ...".format(CONDENSED_DECAY_INFO_FILE))
-
+            json.dump(decay_dict, j)
             
         # Then compile the Incident-neutron records
         tprint("Compiling the raw cross-section dictionary.")
