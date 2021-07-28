@@ -38,7 +38,7 @@ def extract_decay(dec_file):
     decay_constant = ln(2)/(half_life)
     modes = {}
     for mode in dec_file.modes:
-        modes[mode.daughter] = mode.branching_ratio
+        modes[mode.daughter] = mode.branching_ratio # we don't care what mechanism is used to transmute it. We just care about the respective branching ratios.
     return dict(decay_constant=decay_constant, branching_ratio=modes, spectra=dec_file.spectra)
 
 def rename_branching_ratio(decay_dict, isomeric_to_excited_state):
