@@ -104,19 +104,25 @@ def main(dirname):
         effective_step_list = schedule.measurable_irradiation_effects()
         decay_tree = build_decay_chain_tree(root_product, decay_info)
         collected_num_decays = defaultdict(float)
+        collected_num_photons= defaultdict(float)
 
         for subchain in linearize_decay_chain(decay_tree):
+            # for the same subchain (i.e. target product element),
             num_decays_during_measurement = sum(
+                        # sum the effect from all irradiation steps.
                         mat_exp_num_decays(
                         subchain.branching_ratios, subchain.decay_constants,
                         step.a, step.b, step.c
                         ) * step.fluence
                         for step in effective_step_list
                     )
-
             collected_num_decays[subchain.names[-1]] += num_decays_during_measurement
+            collected_num_photons[subchain.names[-1]]+= num_decays_during_measurement * subchain.countable_photons
+        num_decays_series = pd.Series(collected_num_decays, name=root_product)
+        num_photons_series = pd.Series(collected_num_photons, name=root_product)
 
-        return pd.Series(collected_num_decays, name=root_product)
+        return pd.DataFrame({"number of decays":num_decays_series,
+                    "number of photons measurable":num_photons_series})
 
     num_decays_sorted_by_root_product = {}
 
