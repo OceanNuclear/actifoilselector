@@ -1,5 +1,10 @@
 """
 Generates the projection matrix required to uniquely project the N dimensional hypercube down to 2D.
+
+Much effort has been expended to find a projection that minimizes overlapping of points;
+However, a truely overlap-less projection might require the use of irrational numbers (sqrt1, sqrt2, sqrt3, ... etc. repeated for each row)
+or the use of prime numbers (2, 3, 5, 7, 11, etc. without repetition, simply linearly increasing down the matrix).
+(The latter is more likely to succeed, so I'll not bother implementing the former.) 
 """
 
 import numpy as np
@@ -87,12 +92,11 @@ def determine_next_vector_linear(bottom_matrix):
     #   after translating into the index for a'
     # if we use a symmetric starting n (direction_111)
     wedge_product_vectors[0, 0] = sum(linear_indices(num_missing_rows))/k * bottom_matrix[-1, 0]
-    print(wedge_product_vectors)
 
     product_vector = - wedge_product(wedge_product_vectors)
     next_basis_vector[:num_missing_rows] = linear_indices(num_missing_rows) * product_vector[0] / k
     next_basis_vector[num_missing_rows:] = product_vector[1:]
-    return next_basis_vector
+    return next_basis_vector/np.linalg.norm(next_basis_vector)
 
 def determine_next_vector_sqrt(bottom_matrix):
     """
@@ -119,38 +123,32 @@ def wedge_product(matrix_formed_by_row_vectors):
         product[i] = ((-1)**i) * np.linalg.det(resultant_square_matrix)
     return product
 
-def projection_matrix(N, *, method='asymmetric_sqrt'):
+def projection_matrix(N, *, method='asymmetric_sqrt', **kwargs):
     """
     Projection matrix required to turn an N-D space coordinate into 2D,
     assuming that every undetermined basis vector will be moved to the direction with symmetric original-basis-vector components (i.e. equal indices).
     This yields a matrix such that for 
-    """
-    next_row_calculator = {
-        "asymmetric_linear": determine_next_vector_linear,
-        "asymmetric_sqrt": determine_next_vector_sqrt,
-        "symmetric": determine_next_vector_symmetric,
-    }
-
-    initial_direction_chooser = {
-        "asymmetric_linear": direction_111,
-        "asymmetric_sqrt": direction_111,
-        "symmetric": direction_111,
-    }
+    """ 
+    direction_initializer, next_row_calculator = {
+        "asymmetric_linear": (direction_111, determine_next_vector_linear),
+        "asymmetric_sqrt": (direction_111, determine_next_vector_sqrt),
+        "symmetric": (direction_111, determine_next_vector_symmetric)
+    }[method]
 
     projection = np.zeros([N, N])
-    projection[-1] = initial_direction_chooser[method](N)
+    projection[-1] = direction_initializer(N)
     projection[-1] /= np.linalg.norm(projection[-1]) # normalize
 
     for i in range(N-1, 0, -1):
         # fill in the i-1^th vector
-        projection[i-1] = next_row_calculator[method](projection[i:])
+        projection[i-1] = next_row_calculator(projection[i:])
 
     # tidy up the stray floating point errors, of small values that actually should've been zero.
     iszero = np.isclose(projection, 0, rtol=0, atol=np.finfo(projection.dtype).resolution)
     projection[iszero] = 0
 
-    return projection[:2]
-    # return projection[-2:]
+    # return projection[:2]
+    return projection[-3:-1]
     # return projection.T[:2]
     # return projection.T[-2:]
 
