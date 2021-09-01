@@ -4,7 +4,7 @@ Generates the projection matrix required to uniquely project the N dimensional h
 Much effort has been expended to find a projection that minimizes overlapping of points;
 However, a truely overlap-less projection might require the use of irrational numbers (sqrt1, sqrt2, sqrt3, ... etc. repeated for each row)
 or the use of prime numbers (2, 3, 5, 7, 11, etc. without repetition, simply linearly increasing down the matrix).
-(The latter is more likely to succeed, so I'll not bother implementing the former.) 
+(The latter is more likely to succeed, so I'll not bother implementing the former.)
 """
 
 import numpy as np
@@ -48,7 +48,7 @@ def determine_next_vector_symmetric(bottom_matrix):
         P[2,0] = P[2,1] = P[2,2]
         P[3,0] = P[3,1] = P[3,2] = P[3,3]
         P[4,0] = P[4,1] = P[4,2] = P[4,3] = P[4,4]
-    
+        
     Parameters
     ----------
     bottom_matrix : The nxn bottom right corner of the vector matrix.
@@ -123,11 +123,11 @@ def wedge_product(matrix_formed_by_row_vectors):
         product[i] = ((-1)**i) * np.linalg.det(resultant_square_matrix)
     return product
 
-def projection_matrix(N, *, method='asymmetric_sqrt', **kwargs):
+def projection_matrix(N, *, method='asymmetric_sqrt'):
     """
     Projection matrix required to turn an N-D space coordinate into 2D,
     assuming that every undetermined basis vector will be moved to the direction with symmetric original-basis-vector components (i.e. equal indices).
-    This yields a matrix such that for 
+    This yields an orthonormal matrix.
     """ 
     direction_initializer, next_row_calculator = {
         "asymmetric_linear": (direction_111, determine_next_vector_linear),
@@ -167,7 +167,6 @@ def projection_matrix_symmetric_fast(N):
     return matrix
 
 if __name__=='__main__':
-    from matplotlib import pyplot as plt
     import sys
     N = int(sys.argv[1])
     np.set_printoptions(linewidth=212)
