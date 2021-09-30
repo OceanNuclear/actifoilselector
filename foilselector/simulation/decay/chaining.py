@@ -52,7 +52,9 @@ def build_decay_chain_tree(decay_parent, decay_dict, decay_constant_threshold=1E
     decay_parent : str
         names of the potentially unstable nuclide
     decay_dict : dictionary
-        the entire decay_dict containing all of material that forms the radiodict that there is.
+        Each entry in decay_dict has the name of the decaying isotope as the key,
+        and a dictionary of its decay-related parameters (decay_constant, branching_ratio, countable_photons) as the values.
+            branching_ratio is a dictionary with the name of the daughter as each key and the value of branching ratio as each value.
     """
     if not decay_parent in decay_dict:
         if "_" in decay_parent:
