@@ -13,3 +13,12 @@ from foilselector import script
 from foilselector import constants
 from foilselector import foldermanagement
 from foilselector import reactionnaming
+"""
+Question to ask myself:
+Software name and purpose:
+- What environment does the software run in?
+- How do people interact with it?
+- Why do people use it?
+- What features of the software have been affected by these factors?
+- If the software needed to be used in a different environment, what difficulties might there be?
+"""

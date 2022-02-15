@@ -1,9 +1,10 @@
 import itertools
+from tqdm import tqdm
+import numpy as np
 from numpy import array as ary
 from matplotlib import pyplot as plt
 from scipy.special import binom as binomial_coefficient
 from projection import projection_matrix
-
 
 def stars_and_bars(num_objects_remaining, num_bins_remaining, filled_bins=()):
     """
@@ -47,6 +48,16 @@ def analytical_number_of_ways(n, r):
     """
     return binomial_coefficient(n + r - 1, r - 1)
 
+def tri_upper_matrix(dimension):
+    """
+    Create a matrix that has an
+    upper-half (including the diagonal)==True but
+    lower-half (excluding diagonal)==False.
+    """
+    index_matrix = np.arange(dimension).repeat(dimension).reshape([dimension, dimension])
+    # index_matrix is a matrix where each element = its row index.
+    # index_matrix.T is a matrix where each element = its column index.
+    return index_matrix<=index_matrix.T
 
 def zero_allowed_partition(n, r):
     """
@@ -81,9 +92,45 @@ if __name__ == "__main__":
     allowed_coordinates = ary(list(stars_and_bars(r, n)))
     print(f"Found {len(allowed_coordinates)} matches.")
 
+    # for dim, coord in enumerate(allowed_coordinates.T):
+    initial_points = np.tile(allowed_coordinates, len(allowed_coordinates)).reshape([len(allowed_coordinates), *allowed_coordinates.shape])
+    # same point's coordinates is repeated along its respective row
+
+    print("Calculating the number of duplicate lines...")
+    displacements = (initial_points - initial_points.transpose([1,0,2]))
+    L1_distances = abs(displacements).sum(axis=2)
+    # calculate the boolean array denoting who are neighbours of each other.
+    neighbours = L1_distances==2
+    lines_drawn = np.logical_and(tri_upper_matrix(len(allowed_coordinates)), neighbours)
+
+    start_points, end_points = initial_points[lines_drawn], initial_points.transpose([1,0,2])[lines_drawn]
+
     P = projection_matrix(n, method="asymmetric_linear")
-    print(P.shape)
-    print(allowed_coordinates.shape)
-    plt.plot(*(P @ allowed_coordinates.T))
-    plt.show()
-    # n choose r foils from a combination of
+    print("Projection matrix has shape=", P.shape)
+    print("Data points has shape=", allowed_coordinates.shape)
+
+    (start_x, start_y), (end_x, end_y) = P@start_points.T, P@end_points.T
+    node_x, node_y = P @ allowed_coordinates.T
+
+    ALLOW_PLOTLY = False
+    USE_PLOTLY = True if len(neighbours)<500 else False # few enough number of connections
+    print("Calling the plotting functions")
+    if PLOTLY:
+        from plotly import express as px, graph_objects as go
+        scatter_fig = px.scatter(x=node_x, y=node_y, hover_name=[",".join(coord) for coord in allowed_coordinates.astype(str)])
+
+        # import pandas as pd # unused because we're adding trace instead
+        # pd.DataFrame(...)
+        # line_fig = px.line(df, x=..., y=...)
+
+        for x0, y0, x1, y1 in tqdm(zip(start_x, start_y, end_x, end_y), total=len(start_x)):
+            scatter_fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines'))
+            # a better method than a for-loop is if we can plot connectivity without using keys - Otherwise the load time would scale linearly with the number of connections.
+            # Or we can plot all of the connectivity using A SINGLE line.
+        scatter_fig.show()
+
+    else:
+        plt.scatter(node_x, node_y)
+        plt.plot(ary([start_x, end_x]), ary([start_y, end_y]))
+        plt.show()
+        # Try using plotly instead to allow labelling?
