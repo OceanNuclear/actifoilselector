@@ -1,8 +1,10 @@
 """
 outputs the expected spectra (and effectiveness) of the finalized foil selection
 """
-from .__init__ import *
-
+if __name__=="__main__":
+    from finalize_selection import get_num_reactants_dict
+else:
+    from .__init__ import *
 """
 Instruction:
 This module is expected to be used after the following steps
@@ -13,6 +15,7 @@ This module is expected to be used after the following steps
 import sys, os
 import json
 from collections import defaultdict
+from tqdm import tqdm
 
 from numpy import array as ary
 import numpy as np
@@ -25,6 +28,7 @@ from foilselector.openmcextension import unserialize_dict
 from foilselector.physicalparameters import HPGe_efficiency_curve_generator
 from foilselector.reactionnaming import unpack_reactions
 from foilselector.simulation import GammaSpectrum, SingleDecayGammaSignature
+from foilselector.simulation.gamma import arrow
 from foilselector.simulation.schedule import *
 from foilselector.simulation.decay import (
                         pprint_tree,
@@ -33,13 +37,17 @@ from foilselector.simulation.decay import (
                         mat_exp_num_decays,
                         )
 
+NO_TIME_RESOLUION = True
+
 def main(dirname):
     with open(os.path.join(dirname, "decay_info.json")) as j:
         decay_info = unserialize_dict(json.load(j))
+    with open(os.path.join(dirname, "decay_radiation.json")) as j:
+        decay_dict = unserialize_dict(json.load(j)) # the actual gamma spectrum
     with open(os.path.join(dirname, "selected_foils.json")) as j:
         selected_foils = json.load(j)
     with open(os.path.join(dirname, "irradiation_schedule.txt")) as f:
-        schedule_of_materials = read_fispact_irradiation_schedule(f.read())
+        schedule_of_materials, efficiency_curve_dict = read_fispact_irradiation_schedule(f.read())
 
     gs = get_gs(dirname)
     sigma_df = get_microscopic_cross_sections_df(dirname)
@@ -116,18 +124,44 @@ def main(dirname):
                         ) * step.fluence
                         for step in effective_step_list
                     )
-            collected_num_decays[subchain.names[-1]] += num_decays_during_measurement
-            collected_num_photons[subchain.names[-1]]+= num_decays_during_measurement * subchain.countable_photons
+            if NO_TIME_RESOLUION: 
+                isotope_name = subchain.names[-1]
+            else:
+                isotope_name = arrow.join(subchain.names) # give the full pathway where the isotope came from.
+            collected_num_decays[isotope_name] += num_decays_during_measurement
+            collected_num_photons[isotope_name]+= num_decays_during_measurement * subchain.countable_photons
         num_decays_series = pd.Series(collected_num_decays, name=root_product)
         num_photons_series = pd.Series(collected_num_photons, name=root_product)
 
         return pd.DataFrame({"number of decays":num_decays_series,
                     "number of photons measurable":num_photons_series})
 
+    def merge_same_isotope_populations(dict_of_df, sort=True):
+        """
+        Given the dictionary of many different dataframes
+            (each one representing the populations and counts of all isotopes created by the decay of one root-product),
+        Accumulate all the end products to create one big dataframe containing all of the isotopes (once each).
+        If 
+        """
+        dict_items = list(dict_of_df.items())
+        if len(dict_items)==0: return {}
+
+        final_isotope_population_df = dict_items[0][1].copy()
+
+        for root_isotope, df in dict_items[1:]:
+            for final_isotope, populations in df.iterrows():
+                if final_isotope not in final_isotope_population_df.index:
+                    final_isotope_population_df = final_isotope_population_df.append(populations)
+                else:
+                    final_isotope_population_df.loc[final_isotope] += populations
+        if sort:
+            final_isotope_population_df.sort_values("number of photons measurable", ascending=False, inplace=True)# sort descendingly
+        return final_isotope_population_df
+
     num_decays_sorted_by_root_product = {}
 
     for foil_name, foil in selected_foils.items():
-        print("for foil =", foil_name, "a schedule is detected as the following:", schedule_of_materials)
+        print("for foil =", foil_name, "a schedule is detected as the following:", schedule_of_materials[foil_name])
 
         thickness = foil["thickness (cm)"]
         area = foil["area (cm^2)"]
@@ -159,7 +193,18 @@ def main(dirname):
             for root_product, num_reactions in num_reaction_per_unit_fluence.items()
         }
 
-    return num_decays_sorted_by_root_product
+    summed_isotope_populations, num_decays_spec, num_detected_spec = {}, {}, {}
+    for foil_name, reaction_products in num_decays_sorted_by_root_product.items():
+        print(f"Summing together the population of isotopes obtained from different pathways in {foil_name}...")
+        summed_isotope_populations[foil_name] = merge_same_isotope_populations(reaction_products)
+        num_decays_spec[foil_name] = GammaSpectrum()
+
+        for final_isotope, populations in summed_isotope_populations[foil_name].iterrows():
+            spectrum = decay_dict[final_isotope.split(arrow)[-1]].get("spectra", {})
+            num_decays_spec[foil_name] += SingleDecayGammaSignature(spectrum, final_isotope) * populations["number of decays"]
+        num_detected_spec[foil_name] = num_decays_spec[foil_name] * efficiency_curve_dict[foil_name]
+
+    return num_detected_spec, summed_isotope_populations
 
 def main_old(dirname):
     # # get the user-defined foil selection, and their thicknesses
@@ -268,4 +313,4 @@ def main_old(dirname):
     return collected_spectra
 
 if __name__=="__main__":
-    main(*sys.argv[1:])
+    final_spec, summed_isotope_populations = main(*sys.argv[1:])

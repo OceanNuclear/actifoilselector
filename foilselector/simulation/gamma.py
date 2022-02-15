@@ -1,3 +1,10 @@
+"""
+DecayPhoton -> (XRayLine, GammaLine, MergedLine)
+GammaSpectrumABC -> SingleDecayGammaSignature
+    -(multiple decays of the same isotope)->GammaSignature
+    -(multiple isotopes, multiple pathways per isotope)->GammaSpectrum
+    -(multiple isotopes, ignoring pathways)->MergedGammaSpectrum
+"""
 from collections import namedtuple
 import itertools
 
@@ -12,17 +19,18 @@ ln2 = np.log(2)
 arrow = "->"
 
 class DecayPhoton(object):
-    def __init__(self, line_dict):
+    def __init__(self, line_dict : dict, parent : str):
         self.__dict__.update(line_dict)
+        self.parent = parent
 
     def __str__(self):
-        return "< {} of {} eV >".format(self.__class__.__name__, self.energy)
+        return "< {} of {} eV from decay of {}>".format(self.__class__.__name__, self.energy, self.parent)
 
     def __mul__(self, scalar_or_efficiency_curve):
-        new_line = self.__class__(self.__dict__.copy())
+        new_line = self.__class__(self.__dict__.copy(), self.parent)
         if callable(scalar_or_efficiency_curve): # is an efficiency curve
-            new_line.intensity = self.intensity * scalar_or_efficiency_curve(self.energy)
-        else:
+            new_line.intensity = self.intensity * scalar_or_efficiency_curve(unc.nominal_value(self.energy))
+        else: # is a scalar
             new_line.intensity = self.intensity * scalar_or_efficiency_curve
         return new_line
 
@@ -30,7 +38,7 @@ class DecayPhoton(object):
         new_dict = self.__dict__.copy()
         assert self.energy == duplicate_line.energy, "Only allowed to add lines of exactly the same energy"
         new_dict["intensity"] = self.intensity + duplicate_line.intensity
-        return self.__class__(new_dict)
+        return self.__class__(new_dict, self.parent)
 
 class XRayLine(DecayPhoton):
     pass
@@ -85,11 +93,17 @@ class GammaSpectrumABC(object):
         ax.set_xlabel(r"$E_\gamma$ (keV)")
         return ax, line
 
-    def list_peaks(self, sort_by_intensity=False, isotope_placeholder=""):
+    def list_peaks(self, sort_by=None, isotope_placeholder=""):
+        """Sort either by 'intensity'/'counts',
+            'energy',
+            or None (which would then return the lines in the order that it was read in)"""
         output_list = [LineTuple(line.energy, line.intensity, isotope_placeholder, line) for line in self.lines]
-        if sort_by_intensity:
+        if sort_by in ("intensity", "counts"):
             return sorted(output_list, key=lambda i:i.intensity, reverse=True)
+        elif sort_by=='energy':
+            return sorted(output_list, key=lambda i:i.energy)
         else:
+            assert sort_by is None or sort_by=="", "Can only accept 'intensity'/'counts', 'energy', and None as arguments to 'sort_by'."
             return output_list
 
 class SingleDecayGammaSignature(GammaSpectrumABC):
@@ -110,11 +124,11 @@ class SingleDecayGammaSignature(GammaSpectrumABC):
         for rad_type, rad_dict in spectrum.items():
             if rad_type=="xray":
                 self.lines.extend(
-                [XRayLine(rad) * rad_dict["discrete_normalization"] for rad in rad_dict["discrete"]]
+                [XRayLine(rad, isotope) * rad_dict["discrete_normalization"] for rad in rad_dict["discrete"]]
                 )
             elif rad_type=="gamma":
                 self.lines.extend(
-                [GammaLine(rad) * rad_dict["discrete_normalization"] for rad in rad_dict["discrete"]]
+                [GammaLine(rad, isotope) * rad_dict["discrete_normalization"] for rad in rad_dict["discrete"]]
                 )
             # ignore all other types of radiations, including beta, alpha, etc.
 
@@ -140,7 +154,7 @@ class SingleDecayGammaSignature(GammaSpectrumABC):
         """
         create it from a openmc.data.Decay object.
         """
-        return cls(endf_decay_entry.spectra)
+        return cls(endf_decay_entry.spectra, endf_decay_entry.nuclide['name'])
 
     @classmethod
     def from_endf_file(cls, endf_decay_file_name):
@@ -153,9 +167,15 @@ class SingleDecayGammaSignature(GammaSpectrumABC):
         return cls.from_openmc_decay(openmc_decay_obj)
 
 class GammaSignature(SingleDecayGammaSignature):
-    def __init__(self, spectrum, isotope):
-        self.lines = spectrum
+    """Created from line_collection"""
+    def __init__(self, line_collection, isotope):
         self.isotope = isotope
+        self.lines = []
+        for line in line_collection: # typechecking.
+            if isinstance(line, DecayPhoton):
+                self.lines.append(line)
+            else:
+                raise TypeError("Must provide a list of DecayPhotons (Gamma or Xray) with properly scaled intensities as the argument to line_collections.")
 
     def plot(self, *args, **kwargs):
         """
@@ -223,18 +243,21 @@ class GammaSpectrum(GammaSignature):
     def list_peaks(self, sort_by_intensity=False):
         """
         show the list of peaks as tuples, each tuple containing information about one peak.
+        By default this list is sorted by the order .
         Parameters
         ----------
         sort_by_intensity : return the list as descendingly sorted according to intensity
         """
         output_list = []
         for sig in self.signatures:
-            output_list.extend(sig.list_peaks(sort_by_intensity=False, isotope_placeholder=sig.isotope))
+            output_list.extend(sig.list_peaks(isotope_placeholder=sig.isotope))
 
-        output_list = sorted(output_list) # sort according to energy
-        if sort_by_intensity:
+        if sort_by in ("intensity", "counts"):
             return sorted(output_list, key=lambda i: i.intensity, reverse=True)
+        elif sort_by=="energy":
+            return sorted(output_list) # sort according to energy
         else:
+            assert sort_by is None or sort_by=="", "Can only accept 'intensity'/'counts', 'energy', and None as arguments to 'sort_by'."
             return output_list
 
     def sort_signatures_by_intensity(self):
@@ -242,7 +265,7 @@ class GammaSpectrum(GammaSignature):
         Rearranges the signatures.
         Warning: if multiple signatures have identical isotope names, only one will be kept.
         """
-        origins = [line.origin for line in self.list_peaks()]
+        origins = [line.origin for line in self.list_peaks(sort_by=None)]
             
         new_signatures = []
         while len(self.signatures)>0 and len(origins)>0:
@@ -268,7 +291,7 @@ class GammaSpectrum(GammaSignature):
             mask = energy==E
             sum_intensity = intensity[mask].sum()
             new_photon_dict = {"energy":E,
-                                "intensity": intensity[mask].sum(),
+                                "intensity": sum_intensity,
                                 "origin": { ori: intense for ori, intense, in zip(source_isotope[mask], intensity[mask]) }}
             new_lines.append(DecayPhoton(new_photon_dict))
         return MergedGammaSpectrum(new_lines, ordered_set(source_isotope)) # ordered_set is a list
@@ -285,8 +308,12 @@ class MergedGammaSpectrum(GammaSpectrum):
             selected_spectrum = [line for line in spectrum if isotope in line.origin.keys()]
             sig = GammaSignature(selected_spectrum, last_iso)
             
+            # dynamically update the list of matching index. This is bad programming and I'm sorry. I typed this up on a bus on the way home from an experiment.
             matching_indices = [ind for ind, sig_old in enumerate(self.signatures) if sig_old.isotope==last_iso]
+            # add it to the self.signature.
             if matching_indices:
                 self.signatures[matching_indices[0]] += sig
             else:
                 self.signatures.append(sig)
+
+# TODO: each line could've had a list as an attr called .parent = [] so that we know what that line originated from?

@@ -1,8 +1,10 @@
 """
 Module created to read in fispact input file format that specifies the irradiation schedule.
 """
+import os
 from collections import namedtuple as _named_tuple
 from numpy import cumsum as _cumulative_sum
+from foilselector.simulation.efficiency import EfficiencyCurve
 
 def parse_fispact_input_text(text_block):
     """
@@ -18,6 +20,7 @@ def parse_fispact_input_text(text_block):
     bracket_level = 0
     keywords_and_params = ""
 
+    # escape comments.
     for char in text_block:
         if char=="<":
             bracket_level += 1
@@ -111,41 +114,48 @@ def process_one_material_schedule_text(keywords_and_params):
     COOLING_ONLY = False
     steps_schedule = [] # empty container to contain all steps for one material
 
-    keywords_and_params = [word.upper() for word in keywords_and_params] #set everything to upper case.
+    keywords_and_params = [word for word in keywords_and_params] #set everything to upper case.
 
     while len(keywords_and_params)>0:
         keyword = keywords_and_params.pop(0)
 
-        if keyword=="FLUX":
+        if keyword.upper()=="FLUX":
             assert not COOLING_ONLY, "Only allowed to change flux before the ZERO keyword."
             flux = float(keywords_and_params.pop(0))
 
-        elif keyword=="TIME":
+        elif keyword.upper()=="TIME":
             numerical_duration = float(keywords_and_params.pop(0)) # expects a parameter
 
-            units = keywords_and_params.pop(0) # expects a keyword
+            next_word_probably_unit = (keywords_and_params.pop(0)) # expects a keyword which is a time unit.
             try:
-                duration_seconds = numerical_duration * unit_conversion[units]
-                time_end_kw = keywords_and_params.pop(0) # expects a keyword
-            except KeyError: # if the user chose to use the default unit of seconds
-                duration_seconds = numerical_duration * 1
-                time_end_kw = units
+                unit = next_word_probably_unit.upper()
+                duration_seconds = numerical_duration * unit_conversion[unit] # raises KeyError if next_word_probably_unit isn't a time unit, and skips the following line.
+                time_end_kw = keywords_and_params.pop(0).upper() # expects a keyword
+            except KeyError: # if the user chose to use the default unit of seconds, therefore the line above ^ isn't executed
+                # next_word_probably_unit 
+                time_end_kw = next_word_probably_unit.upper()
+                duration_seconds = numerical_duration * unit_conversion['SECS']
 
             assert time_end_kw in end_step_kw, f"Must end this irradiation step in one of the pre-approved keywords, not {time_end_kw}, {len(keywords_and_params)}"
-            if time_end_kw in gamma_acquisition_kw:
+            if time_end_kw.upper() in gamma_acquisition_kw:
                 steps_schedule.append(GammaSpectrometryStep(duration_seconds))
+                file_path = keywords_and_params.pop(0)
+                filepath_assert_err_msg = "Gamma spectrum acquisition keyword must be followed by a valid file path stating the efficiency curve file location."
+                filepath_assert_err_msg += f"There mustn't be any spaces in the file path. Instead we got {file_path}"
+                assert os.path.exists(file_path), filepath_assert_err_msg
+                eff_curve = EfficiencyCurve.from_file(file_path)
             else: # if only a STEP keyword is used:
                 if flux>0.0:
                     steps_schedule.append(IrradiationStep(duration_seconds, flux))
                 else:
                     steps_schedule.append(CoolingStep(duration_seconds))
 
-        elif keyword=="ZERO":
+        elif keyword.upper()=="ZERO":
             # an optional keyword suggesting that there should be zero flux after this point
             COOLING_ONLY = True
             assert flux==0.0, "Must set flux to 0 before the ZERO keyword."
 
-    return steps_schedule
+    return steps_schedule, eff_curve
 
 def cut_text_at_sample(full_control_text):
     """
@@ -187,4 +197,10 @@ def read_fispact_irradiation_schedule(schedule_text_block):
 
     word_lists_sorted_by_sample = cut_text_at_sample(full_control_text)
 
-    return {name:Schedule(*process_one_material_schedule_text(texts)) for name, texts in word_lists_sorted_by_sample.items()}
+    schedule_dict, efficiency_dict = {}, {}
+    for name, texts in word_lists_sorted_by_sample.items():
+        schedule, efficiency_curve = process_one_material_schedule_text(texts)
+        schedule_dict[name] = Schedule(*schedule)
+        efficiency_dict[name] = efficiency_curve
+        efficiency_curve.plot()
+    return schedule_dict, efficiency_dict
