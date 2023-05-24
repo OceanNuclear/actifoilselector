@@ -5,6 +5,9 @@ from foilselector.openmcextension import Integrate, detabulate
 from openmc.data import Tabulated1D
 from matplotlib import pyplot as plt
 
+import argparse
+parg = argparse.ArgumentParser(description="Interact with the user to convert the neutorn spectrum into the desired input format and group structure.")
+
 def main(directory):
     print("""
 The following inputs are needed:
@@ -63,14 +66,21 @@ In the provided directory {}, the following .csv files are found:""".format(dire
 
     # plot in per eV scale
     plt.plot(x:=np.linspace(min(E_values), max(E_values), num=200), continuous_apriori(x))
+    plt.title("Neutron flux per eV")
+    plt.xlabel("Neutron energy (eV)"), plt.ylabel("neutron flux per unit energy (cm^-2 s^-1 eV^-1)")
+    plt.show()
+    # and then the same thing, but in in log-log scale, because on some computers the matplotlib plot function doesn't show a button to see log-scale and it works
+    plt.loglog(x:=np.geomspace(min(E_values), max(E_values), num=200), continuous_apriori(x))
+    plt.xlabel("Neutron energy (eV)"), plt.ylabel("neutron flux per unit energy (cm^-2 s^-1 eV^-1)")
+    plt.title("Neutron flux per eV (log-log plot)")
     plt.show()
 
     #plot in lethargy scale
     ap_plot = flux_conversion(apriori[:-1], apriori_gs, 'per eV', 'PUL')
     plt.step(E_values, np.hstack([ap_plot, ap_plot[-1]]), where='post')
-    plt.yscale('log')
-    plt.xscale('log')
-    plt.title('lethargy scale plot')
+    plt.yscale('log'), plt.xscale('log')
+    plt.xlabel("Neutron energy (eV)"), plt.ylabel("neutron flux per unit energy (cm^-2 s^-1 eV^-1)")
+    plt.title('Neutron flux per unit lethargy')
     plt.show()
 
     print("3. [optional] Modifying the a priori---------------------------------------------------------------------------------------")
@@ -175,7 +185,7 @@ In the provided directory {}, the following .csv files are found:""".format(dire
     ax.plot(x, continuous_apriori(x))
     ybounds = ax.get_ybound()
     for limits in gs_array:
-        ax.errorbar(x=np.mean(limits), y=np.percentile(ybounds, 10), xerr=np.diff(limits[::-1])/2, capsize=30, color='black')
+        ax.errorbar(x=np.mean(limits), y=np.percentile(ybounds, 10), xerr=abs(np.diff(limits)/2), capsize=30, color='black')
         # Draw the group structure at ~10% of the height of the graph.
     plt.show()
 
@@ -211,7 +221,9 @@ continuous apriori (an openmc.data.Tabulated1D object)  => continuous_apriori.cs
     )
 if __name__=="__main__":
     import sys
-    assert len(sys.argv[1:])==1, """Must provide exactly 1 directory name as the argv when running this submodule as script,
-    i.e.
-    `python -m foilselector.script.step1 mydirectory/`"""
-    main(sys.argv[1])
+    if len(sys.argv)==1:
+        cwd = "./"
+    else:
+        cwd = sys.argv[-1]
+    print("Acting on directory {}".format(cwd))
+    main(cwd)
