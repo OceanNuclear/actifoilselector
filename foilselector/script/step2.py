@@ -57,7 +57,9 @@ if __name__=="__main__":
         _composition_used_here = json.load(j)
     processed_composition = {foil_name:specify_isotopic_composition(foil_comp) for foil_name, foil_comp in _composition_used_here.items()}
     # save a version of the processed_composition dictionary
+    from os import path
     save_atomic_composition_json(processed_composition) # needed for step 3+
+    print("I should've saved to")
 
     # sub-step 2: find what isotopes need to be extracted.
     _isotope_concerned = set()
