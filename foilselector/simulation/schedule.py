@@ -73,7 +73,7 @@ class GammaSpectrometryStep(CoolingStep):
     def __init__(self, duration):
         super(GammaSpectrometryStep, self).__init__(duration)
 
-times_and_flux = _named_tuple("times_and_flux", ["fluence", "a", "b", "c"])
+times_and_flux = _named_tuple("times_and_flux", ["fluence", "flux", "a", "b", "c"])
 
 class Schedule():
     # a collection of steps
@@ -92,29 +92,44 @@ class Schedule():
     def measurable_irradiation_effects(self):
         # number of gamma measurement steps = sum(self.is_gamma_measurement)
         times_list = [] # known as time a, time b and time c.
+        # double for-loop: one to loop over each measurement step, and one for each measurement step.
         for curr_step_num in range(len(self.is_gamma_measurement)):
             if self.is_gamma_measurement[curr_step_num]:
                 for prev_step_num in range(len(self.is_irradiation[:curr_step_num+1])):
                     if self.is_irradiation[prev_step_num]:
                         zero = self.step_start_times[prev_step_num]
                         a = self.step_end_times[prev_step_num] - zero
+                        flux = self.fluxes[prev_step_num]
                         fluence = self.fluxes[prev_step_num] * a
 
                         b = self.step_start_times[curr_step_num] - zero
                         c = self.step_end_times[curr_step_num] - zero
 
-                        times_list.append(times_and_flux(fluence, a, b, c))
+                        times_list.append(times_and_flux(fluence, flux, a, b, c))
         return times_list
+
+    def copy(self):
+        new_obj = type(self).__new__(self.__class__)
+        new_obj.__dict__.update(self.__dict__)
+        return new_obj
+
+    def __truediv__(self, denominator):
+        """div is implemented to reduce the number of denominator."""
+        new_obj = self.copy()
+        new_obj.fluxes = [f/denominator for f in new_obj.fluxes]
+        return new_obj
 
 def process_one_material_schedule_text(keywords_and_params):
     """
     Turn the list of keywords and parameters str as read from the FISPACT-format input file
     into a Schedule object.
+
+    2022-10-31 00:08:56 Sorry, I don't have time to add a syntax manual here yet. You'll have to figure it out from the code for now.
     """
     COOLING_ONLY = False
     steps_schedule = [] # empty container to contain all steps for one material
 
-    keywords_and_params = [word for word in keywords_and_params] #set everything to upper case.
+    keywords_and_params = [word for word in keywords_and_params] # make a copy
 
     while len(keywords_and_params)>0:
         keyword = keywords_and_params.pop(0)
@@ -149,8 +164,9 @@ def process_one_material_schedule_text(keywords_and_params):
                     steps_schedule.append(IrradiationStep(duration_seconds, flux))
                 else:
                     steps_schedule.append(CoolingStep(duration_seconds))
-
-        elif keyword.upper()=="ZERO":
+                eff_curve = None
+                
+        elif keyword.upper()=="ZERO": # only exist for fispact compatibility, I suppose.
             # an optional keyword suggesting that there should be zero flux after this point
             COOLING_ONLY = True
             assert flux==0.0, "Must set flux to 0 before the ZERO keyword."
@@ -169,12 +185,12 @@ def cut_text_at_sample(full_control_text):
     A dictionary with the sample_name as key and word list as values.
     The two keywords "SAMPLE (sample_name)" are already removed from these lists.
     """
+    material_names, material_schedule_text = [], [] # container for the material names and the main text describing the material irradiation schedules.
     if full_control_text[0].upper()!="SAMPLE":
         material_names.append("unknown_sample")
         material_schedule_text.append([])
         print("No material names found, using 'unknown_sample' as the default name.")
 
-    material_names, material_schedule_text = [], [] # container for the material names and the main text describing the material irradiation schedules.
     while len(full_control_text)>0:
         new_word = full_control_text.pop(0)
         if new_word.upper()=="SAMPLE":
@@ -192,6 +208,10 @@ def read_fispact_irradiation_schedule(schedule_text_block):
     use "FLUX number" to define the flux of this step;
     use "TIME value SECS/MINS/HOURS/DAYS/YEARS" to define the duration of this step;
     use "STEP/SPECTRUM/ATOM" to define the end of a step, and whether step involves gamma acquisition (SPECTRUM/ATOM) or not (STEP).
+
+    Parameters
+    ----------
+    schedule_text_block: a chunk of raw text (read from a text file) in the syntax stated above.
     """
     full_control_text = parse_fispact_input_text(schedule_text_block)
 
@@ -202,5 +222,5 @@ def read_fispact_irradiation_schedule(schedule_text_block):
         schedule, efficiency_curve = process_one_material_schedule_text(texts)
         schedule_dict[name] = Schedule(*schedule)
         efficiency_dict[name] = efficiency_curve
-        efficiency_curve.plot()
+        # efficiency_curve.plot()
     return schedule_dict, efficiency_dict

@@ -25,6 +25,7 @@ ISOCS extend
 """
 import numpy as np
 from numpy import sqrt, array as ary, log as ln
+from uncertainties import nominal_value as nom
 import pandas as pd
 k=1000; M=1000000
 PLOTLY = True
@@ -73,6 +74,10 @@ def read_ecc(fname):
 
 def read_csv(fname):
     df = pd.read_csv(fname)
+    if "MeV" in df.columns[0]:
+        df[df.columns[0]] = df[df.columns[0]] * M
+    elif "keV" in df.columns[0]:
+        df[df.columns[0]] = df[df.columns[0]] * k
     return df
 
 def efficiency_curve_factory(fname):
@@ -92,7 +97,12 @@ def efficiency_curve_factory(fname):
     elif fname.endswith(".csv"):
         dataframe = read_csv(fname)
         # cols = dataframe.columns
-        return EffCurve(*dataframe.values.T)
+        if dataframe.shape[1]==2:
+            return EffCurve(*dataframe.values.T, None)
+        elif dataframe.shape[1]==3:
+            return EffCurve(*dataframe.values.T)
+        else:
+            raise ValueError("Wrong shape of .csv file!")
 
     else:
         raise TypeError(f"{fname} not an accepted filetype")
@@ -101,9 +111,22 @@ class EfficiencyCurve:
     def __init__(self, eff_curve_object):
         self.E = ary(eff_curve_object.E)
         self.eff = ary(eff_curve_object.eff)
-        self.unc = ary(eff_curve_object.unc)
+        self.unc = ary(eff_curve_object.unc) if eff_curve_object.unc is not None else None
         # create a fit for >100 keV.
         self._extrapolation_inference_threshold = 800*k # we deduce the slope of the extrapolation using datapoints above 800 keV
+        # used for calculating the interpolated curve:
+        self._log_E = ln(self.E)
+        self._log_eff = ln(self.eff)
+        self._log_fit_thres = ln(self._extrapolation_inference_threshold)
+        self._log_max_E = max(self._log_E)
+        fitting_region = self._log_E>=self._log_fit_thres
+        fitted_slope, fitted_offset = np.polyfit(self._log_E[fitting_region],
+                                  self._log_eff[fitting_region],
+                                  1,
+                                  w=None if self.unc is None else 1/ary(self.unc)[fitting_region])
+        eff_at_max_E = self._log_eff[self._log_E==self._log_max_E][0] # dirty hack to find the efficiency at the largest recorded energy.
+        self._extrapolate = lambda x: eff_at_max_E + fitted_slope * (x-log_max_E)
+
 
     def _fitted_func_in_loglog_space(self, scalar_or_vector):
         """
@@ -119,32 +142,20 @@ class EfficiencyCurve:
         -------
         scalar efficiency if input is scalar; vector efficiency if input is vector.
         """
-        log_E = ln(self.E)
-        log_eff = ln(self.eff)
-        log_fit_thres = ln(self._extrapolation_inference_threshold)
-        log_max_E = max(ln(self.E))
-
-        fitting_region = log_E>=log_fit_thres
-        fitted_slope, fitted_offset = np.polyfit(log_E[fitting_region],
-                                  log_eff[fitting_region],
-                                  1,
-                                  w=None if self.unc is None else 1/ary(self.unc)[fitting_region])
         # extrapolate by drawing a line with slope = fitted slope, crossing the rightmost stored point, to ensure continuity.
-        eff_at_max_E = log_eff[log_E==log_max_E][0] # dirty hack to find the efficiency at the largest recorded energy.
-        extrapolate = lambda x: eff_at_max_E + fitted_slope * (x-log_max_E)
-
+        # fastest implementation is to NOT use np.vectorize, even though it's a bit uglier.
         if np.ndim(scalar_or_vector)==0: # scalar
             scalar = scalar_or_vector
-            if scalar>=log_max_E:
-                return extrapolate(scalar)
+            if scalar>=self._log_max_E:
+                return self._extrapolate(scalar)
             else:
-                return np.interp(scalar, log_E, log_eff, left=0)
+                return np.interp(scalar, self._log_E, self._log_eff, left=-np.inf)
         else: # vector
             vector = scalar_or_vector
-            extrapolated_part = vector>=log_max_E
+            extrapolated_part = vector>=self._log_max_E
             output = np.zeros_like(vector)
-            output[extrapolated_part] = extrapolate(vector[extrapolated_part])
-            output[~extrapolated_part] = np.interp(vector[~extrapolated_part], log_E, log_eff, left=0)
+            output[extrapolated_part] = self._extrapolate(vector[extrapolated_part])
+            output[~extrapolated_part] = np.interp(vector[~extrapolated_part], self._log_E, self._log_eff, left=-np.inf)
             return output
 
     @classmethod
@@ -152,15 +163,16 @@ class EfficiencyCurve:
         return cls(efficiency_curve_factory(fname))
 
     def __call__(self, required_E_in_eV):
-        return np.exp(self._fitted_func_in_loglog_space(ln(required_E_in_eV)))
+        return np.exp(self._fitted_func_in_loglog_space(ln(nom(required_E_in_eV))))
 
-    def plot(self, ax=None, smoothline_lower=50, smoothline_upper=2.8E3):
+    def plot(self, ax=None):
         """Plot to examine how well the fit is.
         Even though the underlying constants are in eV,
         everything that the user interacts with (smoothline_lower and _upper, and ax.xlabels) are in keV"""
         import matplotlib.pyplot as plt
         if ax is None:
             ax = plt.axes()
+        smoothline_lower, smoothline_upper = min(self.E), max(self.E)
         energy_keV = np.geomspace(smoothline_lower, smoothline_upper, 300)
         energy_eV = energy_keV*k
         smooth_eff = self.__call__(energy_eV)

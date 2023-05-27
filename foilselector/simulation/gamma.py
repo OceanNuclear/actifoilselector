@@ -240,13 +240,13 @@ class GammaSpectrum(GammaSignature):
     def __str__(self):
         return "< {} consists of {} signatures >".format(self.__class__.__name__, len(self.signatures))
 
-    def list_peaks(self, sort_by_intensity=False):
+    def list_peaks(self, sort_by=None):
         """
         show the list of peaks as tuples, each tuple containing information about one peak.
         By default this list is sorted by the order .
         Parameters
         ----------
-        sort_by_intensity : return the list as descendingly sorted according to intensity
+        sort_by : return the list as descendingly sorted according to intensity
         """
         output_list = []
         for sig in self.signatures:
@@ -281,7 +281,7 @@ class GammaSpectrum(GammaSignature):
         return
 
     def merge_into_amophorus_spectrum(self):
-        energy, intensity, source_isotope, _photon_type = ary(self.list_peaks(sort_by_intensity=False)).T.reshape([4, -1])
+        energy, intensity, source_isotope, _photon_type = ary(self.list_peaks(sort_by_intensity=None)).T.reshape([4, -1])
         energy = ary([unc.nominal_value(e) for e in energy])
         if isinstance(source_isotope[0], list):
             source_isotope = ary([arrow.join(isotopes) for isotopes in source_isotope])
