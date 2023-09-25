@@ -1,7 +1,9 @@
 """frequently referenced table for interpreting openmc data"""
 from openmc.data.reaction import REACTION_NAME
 from openmc.data.endf import SUM_RULES
-from openmc.data import NATURAL_ABUNDANCE, atomic_mass, ATOMIC_NUMBER, ATOMIC_SYMBOL
+from openmc.data import AVOGADRO # scalar constant
+from openmc.data import NATURAL_ABUNDANCE, ATOMIC_NUMBER, ATOMIC_SYMBOL # atomic data look up tables
+from openmc.data import atomic_mass, isotopes # atomic data lookup
 from openmc.data import INTERPOLATION_SCHEME
 
 MT_to_nuc_num = {
