@@ -11,6 +11,8 @@ from openmc.data import INTERPOLATION_SCHEME
 from collections.abc import Iterable # to check type
 
 import matplotlib.pyplot as plt
+from foilselector.openmcextension.extended_io import detabulate
+
 plot_tab = lambda tab, *args, **kwargs: plt.plot(tab.x, tab.y, *args, **kwargs)
 
 class SilenceNumpyDivisionError(contextlib.ContextDecorator):
