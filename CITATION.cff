@@ -1,0 +1,9 @@
+cff-version: 1.1.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: Wong
+  given-names: Ocean
+orcid: https://orcid.org/0000-0001-8561-5554
+title:OceanNuclear/actifoilselector: Please see the latest release
+version: V0.0.0
+date-released: 2024-05-14
