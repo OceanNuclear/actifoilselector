@@ -1,0 +1,23 @@
+[]Kick out unused (deprecated) functions
+    - foilselector.openmcextension.extended_io.load_endf_directories()
+[]reformat step4-step6 so that they take in "number of reactant" for each isotope instead of a number density.
+[]Set up __all__'s for every .py file except files in script/
+
+[]Include a copy of the --irradiation-schedule (full link below) into the distribution
+    []Plus a document describing the syntax of the --irradiation-schedule file
+    - /home/ocean/Self/FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
+
+[]Tab1D: extended: Addition and multiplication
+[]FoilSelector folder Re-organization:
+    []FoilSelector/: a lot of outdated folders. Do they go somewhere?
+    []FoilSelector/ChipIR/fispact # a bit oddly placed, don't you think?
+____
+[]Tests/Unittest
+[]Continuous integration: https://github.com/python-poetry/poetry/issues/366
+[]Other possible CI methods:
+    []https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
+        []Consider if poetry clashes with my usual way of using github/gitlab/travis etc. CI?
+    []Otherwise, use gitlab (see below)
+        []/home/ocean/Self/NetworkDynamics/setup.py and .*.yml
+        []flake8 file could be found in /home/ocean/Self/hypercubeprojection
+        []More details in /home/ocean/Self/workshops/testing/python_exercises
