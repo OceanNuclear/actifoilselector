@@ -262,6 +262,7 @@ def mat_exp_population_convolved(branching_ratios, decay_constants, a, t, decay_
         
         # during_irradiation_production_matrix = -1/a * inv @ ( a*iden - inv @ (_expm(-matrix*a) - iden) )
         during_irradiation_production_matrix = -inv + 1/a * (_expm(matrix*a) - iden) @ inv @ inv
+        during_irradiation_production_matrix = np.nan_to_num(during_irradiation_production_matrix) # fix the nans
         during_irradiation_production = (during_irradiation_production_matrix @ initial_population_vector)[-1] * decay_constants[-2] * np.product(branching_ratios)
         post_irradiation_production   = mat_exp_num_decays(branching_ratios, decay_constants[:-1], a, a, t)
         return during_irradiation_production + post_irradiation_production
@@ -272,7 +273,9 @@ def mat_exp_population_convolved(branching_ratios, decay_constants, a, t, decay_
 
         transformation = 1/a * _expm(matrix*np.clip(t-a, 0, None)) @ (_expm(matrix*np.clip(t, 0, a)) - iden) @ inv
         final_fractions = transformation @ initial_population_vector
-        return np.product(branching_ratios[1:]) * final_fractions[-1]
+        fraction = final_fractions[-1]
+        fraction = np.nan_to_num(fraction)
+        return np.product(branching_ratios[1:]) * fraction
 
 # decay from drawn out irradiation, calculated using matrix exponentiation
 def mat_exp_num_decays(branching_ratios, decay_constants, a, b, c, decay_constant_threshold=1E-23):
@@ -335,4 +338,7 @@ def mat_exp_num_decays(branching_ratios, decay_constants, a, b, c, decay_constan
     initial_population_vector = ary( [1,]+[0 for _ in decay_constants[1:]] ) # initial population of all nuclides = 0 except for the very first isotope, which has 1.0.
     final_fractions = multiplier @ inv @ inv @ initial_population_vector # result of the (population * dt) integral
     # total number of decays = branching_ratios * the integral * decay constant of that isotope .
-    return np.product(branching_ratios[1:]) * final_fractions[-1] * decay_constants[-1] # multiplied by its own decay rate will give the number of decays over time period b to c.1
+    fraction = final_fractions[-1]
+    fraction = np.nan_to_num(fraction)
+    answer = np.product(branching_ratios[1:]) * fraction * decay_constants[-1] # multiplied by its own decay rate will give the number of decays over time period b to c.1
+    return answer

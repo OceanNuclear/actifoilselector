@@ -14,6 +14,7 @@ def find_new_vec(ref_vector, *perp_vectors):
     # unit_vector.dot(unit_vector) = 1, which leads to a lot of 2nd degree terms of coefficients
     # need sympy to solve :(
     return NotImplementedError("Unfortunately we need sympy to solve it, so this visualization will be a project that takes more time than I have.")
+    
 if __name__=="__main__":
     N = 5 # number_of_candidate_foils
 

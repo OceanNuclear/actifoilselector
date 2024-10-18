@@ -125,7 +125,7 @@ class EfficiencyCurve:
                                   1,
                                   w=None if self.unc is None else 1/ary(self.unc)[fitting_region])
         eff_at_max_E = self._log_eff[self._log_E==self._log_max_E][0] # dirty hack to find the efficiency at the largest recorded energy.
-        self._extrapolate = lambda x: eff_at_max_E + fitted_slope * (x-log_max_E)
+        self._extrapolate = lambda x: eff_at_max_E + fitted_slope * (x-self._log_max_E)
 
 
     def _fitted_func_in_loglog_space(self, scalar_or_vector):

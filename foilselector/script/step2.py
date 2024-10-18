@@ -50,7 +50,7 @@ if __name__=="__main__":
     # a quick check to make sure all arguments are valid.
     assert os.path.exists(cl_arg.composition),                  f"the -c, --composition argument ({cl_arg.composition}) must be a valid file path!"
     assert all(os.path.exists(lib) for lib in cl_arg.library),  f"the -L, --library argument ({cl_arg.library}) must all be valid file paths!"
-    assert os.path.exists(cl_arg.photopeak_efficiency),         f"the -e, --composition argument ({cl_arg.photopeak_efficiency}) must be a valid file path!"
+    assert os.path.exists(cl_arg.photopeak_efficiency),         f"the -e, --photopeak-efficiency argument ({cl_arg.photopeak_efficiency}) must be a valid file path!"
     assert os.path.exists(cl_arg.group_structure),              f"the -G, --group-structure argument ({cl_arg.group_structure}) must be a valid file path!"
     # sub-step 1: break down the foil composition into its consituent isotopes.
     with open(cl_arg.composition) as j:

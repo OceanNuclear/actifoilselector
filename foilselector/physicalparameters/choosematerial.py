@@ -1,4 +1,4 @@
-from foilselector.openmcextension.constants import NATURAL_ABUNDANCE, atomic_mass, ATOMIC_NUMBER
+from foilselector.openmcextension.constants import NATURAL_ABUNDANCE, ATOMIC_NUMBER, AVOGADRO, atomic_mass, isotopes, AVOGADRO
 from .filepaths import PHYSICAL_PROP_FILE as default_physical_prop_flie
 import numpy as np
 import pandas as pd
@@ -6,6 +6,18 @@ import pandas as pd
 """Module used to convert materials parameters into nuclide informations and choose materials"""
 
 """Text processing functions solely for supporting the physical properties inquiring functions below"""
+def mass_to_num_atoms(mass_dict, fraction_dict):
+    num_atoms = {}
+    for foil_name, foil_mass_grams in mass_dict.items():
+        fractions = fraction_dict[foil_name]
+        avg_atom_mass_amu = sum([atomic_mass(isotope)*abundance for isotope, abundance in fractions.items()])
+        # # skip these two steps because they're just making an extra variable that I can omit
+        # avg_atom_mass_gram = avg_atom_mass_amu/AVOGADRO
+        # total_num_atoms = foil_mass_grams/avg_atom_mass_gram
+        total_num_atoms = foil_mass_grams/avg_atom_mass_amu * AVOGADRO
+        num_atoms[foil_name] = {isotope:total_num_atoms*abundance for isotope, abundance in fractions.items()}
+    return num_atoms
+
 def split_at_cap(string):
     """Cut a string up into chunks;
     each chunk of the string contains a single element and its fraction,

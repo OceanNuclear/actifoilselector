@@ -164,7 +164,7 @@ def main(dirname):
         print("for foil =", foil_name, "a schedule is detected as the following:", schedule_of_materials[foil_name])
 
         thickness = foil["thickness (cm)"]
-        area = foil["area (cm^2)"]
+        area = foil["area (cm^2)"] # work in cms units, so the flux (which will cancel this out) will also be in cm2 unit
         num_density_dict = foil["number density (cm^-3)"]
         macroscopic_xs = get_macroscopic_xs_all_rx(num_density_dict) # is a dict
 
@@ -177,7 +177,7 @@ def main(dirname):
         # P(E, interaction) = 1 - exp(-Sigma(E) * t)
         # number of interactions = @ P(E, interactions)
         num_reaction_per_unit_fluence = pd.Series(
-            (-expm1(-macroscopic_xs_df * thickness)).values @ neutron_energy_pdf_apriori,
+            (-expm1(-macroscopic_xs_df * thickness)).values @ neutron_energy_pdf_apriori * area,
             index=macroscopic_xs_df.index,
             name=foil_name
         )
@@ -313,4 +313,4 @@ def main_old(dirname):
     return collected_spectra
 
 if __name__=="__main__":
-    final_spec, summed_isotope_populations = main(*sys.argv[1:])
+    final_spec, summed_isotope_populations = main(sys.argv[1])
