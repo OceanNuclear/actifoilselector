@@ -41,9 +41,9 @@ The accepted file types are:
 .o (mcnp output)
 .ecc (GENIE/ISOCS output) """,
     default=os.path.join(os.path.dirname(inspect.getsourcefile(foilselector)), "physicalparameters","photopeak_efficiency","Absolute_photopeak_efficiencyMeV.csv"))
-parg.add_argument('-g', '--gamma-energy-limits', type=float, action='extend', nargs=2, help="The minimum and maximum gamma energies (keV) that the detector can detect.\nThe defaults are 20 keV - 4600 keV.")
-default_gamma_energy_limits = [20, 4600]
-parg.add_argument('-G', '--group-structure', type=Path, help="newline-separated file listing the group boundaries in ascending energies. There should be n+1 boundaries for n group present.")
+parg.add_argument('-g', '--gamma-energy-limits-keV', type=float, action='extend', nargs=2, help="The minimum and maximum gamma energies (keV) that the detector can detect.\nThe defaults are 20 keV - 4600 keV.")
+default_gamma_energy_limits_keV = [20, 4600]
+parg.add_argument('-G', '--group-structure', type=Path, help="newline-separated file listing the pairs of group boundaries (comma-separated) in ascending energies.")
 
 if __name__=="__main__":
     cl_arg = parg.parse_args()
@@ -59,7 +59,6 @@ if __name__=="__main__":
     # save a version of the processed_composition dictionary
     from os import path
     save_atomic_composition_json(processed_composition) # needed for step 3+
-    print("I should've saved to")
 
     # sub-step 2: find what isotopes need to be extracted.
     _isotope_concerned = set()
@@ -80,7 +79,7 @@ if __name__=="__main__":
         sys.exit()
     decay_info = {}
     for name, dec_file in tqdm(decay_dict.items(), desc="Summarizing the decay gamma spectra into a single scalar: countable number of pulses."):
-        gamma_energy_limits = sorted(cl_arg.gamma_energy_limits) if cl_arg.gamma_energy_limits else default_gamma_energy_limits
+        gamma_energy_limits = sorted(cl_arg.gamma_energy_limits_keV) if cl_arg.gamma_energy_limits_keV else default_gamma_energy_limits_keV
         decay_info[name] = condense_spectrum_copy(dec_file, eff_curve, gamma_lims=ary(gamma_energy_limits)*1000)
 
     # sub-step 4: re-bin into the correct group structure
