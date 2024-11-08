@@ -53,26 +53,20 @@ from foilselector.optimizer import max_num_atoms_from_count_rate_limit
 from foilselector.selfshielding import sigma_to_thickness
 from uncertainties import nominal_value as nom
 
-import argparse
 from pathlib import Path
-parg = argparse.ArgumentParser(description="""Calculate the number of decays from each reaction.""")
 
-parg.add_argument('-f', '--a-priori-flux'    , type=Path, required=True, help="""newline-separated file listing the total flux expected in each bin of ascending energy.
-The number of bins (n) must match the number of bin boundaries (n+1) in the previous step.""")
-parg.add_argument('-R', '--max-gamma-count-rate', type=float, default=10000, help="Maximum pulse rate that the gamma detector can handle without losing its resolution.")
-parg.add_argument('-I', '--irradiation-duration', type=float, required=True, help="Number of seconds the foils spend getting activated in the neutron field (in the beamline/reactor).")
-parg.add_argument('-T', '--transit-duration', type=float, required=True, help="Number of seconds the required to get the foil out of the neutron field onto the gamma detector.")
-parg.add_argument('-D', '--measurement-duration', type=float, required=True, help="Number of seconds the detector spend acquiring a spectrum of the activated foil sample.")
-
-if __name__=="__main__":
-    cl_arg = parg.parse_args()
+def main(a_priori_flux,
+    max_gamma_count_rate,
+    irradiation_duration,
+    transit_duration,
+    measurement_duration):
     
     expected_files = [".atomic_composition.json", ".decay_info.json", ".sigma_df.csv", ".self-shielding.json"] # ".decay_radiation.json" isn't needed
     assert all(os.path.exists(file) for file in expected_files), f"step1 must've been ran first at the current directory to generate the following list of files:\n{' '.join(expected_files)}"
-    POST_IRRADIATION = cl_arg.irradiation_duration
-    PRE_MEASUREMENT  = cl_arg.irradiation_duration + cl_arg.transit_duration
-    POST_MEASUREMENT = cl_arg.irradiation_duration + cl_arg.transit_duration + cl_arg.measurement_duration
-    assert os.path.exists(cl_arg.a_priori_flux), f"the -f, --a-priori-flux argument ({cl_arg.a_priori_flux}) must be a valid file path!"
+    POST_IRRADIATION = irradiation_duration
+    PRE_MEASUREMENT  = irradiation_duration + transit_duration
+    POST_MEASUREMENT = irradiation_duration + transit_duration + measurement_duration
+    assert os.path.exists(a_priori_flux), f"the -f, --a-priori-flux argument ({a_priori_flux}) must be a valid file path!"
 
     print(f"Loading {expected_files}...", end="\r")
     processed_composition = read_atomic_composition_json()
@@ -85,9 +79,9 @@ if __name__=="__main__":
     # eslastic scattering reactions are 'trivial', i.e. imparts no observable change.
     sigma_df.drop(_trivial_rx, axis='index', inplace=True)
 
-    flux = read_flux(cl_arg.a_priori_flux)
+    flux = read_flux(a_priori_flux)
     assert len(flux)==sigma_df.shape[1], "The number of bins in the a priori neutron spectrum the must match the group structure (n+1 boundaries)."
-    fluence = ary(flux) * cl_arg.irradiation_duration
+    fluence = ary(flux) * irradiation_duration
     save_vector(fluence, ".fluence.txt") # needed in step 4: optimization
     print(f"Loading {expected_files}... Done!")
 
@@ -151,9 +145,9 @@ if __name__=="__main__":
     population["max microscopic cross-section"]             = ary([ss_info[parent_product_mt] for parent_product_mt in parent_product_mt_list])
 
     print("Saving as '.counts.csv'...")
-    save_counts_csv(population, comments=[f" irradiation_duration = {cl_arg.irradiation_duration}",
-        f" transit_duration = {cl_arg.transit_duration}",
-        f" measurement_duration = {cl_arg.measurement_duration}",
+    save_counts_csv(population, comments=[f" irradiation_duration = {irradiation_duration}",
+        f" transit_duration = {transit_duration}",
+        f" measurement_duration = {measurement_duration}",
         ])
     # the .counts.csv file is kept only for diagnostic purposes for now, and can be deleted.
     # But in the future we can expand the program by basing more functionalities off it.
@@ -178,7 +172,7 @@ if __name__=="__main__":
         # foil_dimension_limits[foil_name] = {"max. thickness in number of atoms":max_thickness_in_atoms, "max. number of atoms": max_num_atoms}
 
         # Simply let the user determine the thickness themselves, but provide them with the maximum microscopic cross-section.
-        max_num_atoms = max_num_atoms_from_count_rate_limit(nom(init_count_rate_per_reactant), cl_arg.max_gamma_count_rate)
+        max_num_atoms = max_num_atoms_from_count_rate_limit(nom(init_count_rate_per_reactant), max_gamma_count_rate)
         foil_dimension_limits[foil_name] = {"max. sigma(E) (energy-dependent cross-section) (barns)":max_sigma_so_far,
                                             "max. number of atoms": max_num_atoms}
     with open("dimension_upper_limits.json", "w") as j:
