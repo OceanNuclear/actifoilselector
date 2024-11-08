@@ -81,9 +81,9 @@ def main(
 
     # sub-step 4: re-bin into the correct group structure
     gs_array = read_gs(group_structure)
-    assert (
-        gs_array[:, 0] < gs_array[:, 1]
-    ).all(), "The -G, --group-structure file must be provided in ascending bin order! (And the flux file used in the next step must match it.)"
+    assert (gs_array[:, 0] < gs_array[:, 1]).all(), (
+        "The -G, --group-structure file must be provided in ascending bin order! (And the flux file used in the next step must match it.)"
+    )
 
     sigma_df, selfshielding_dict = collapse_xs(xs_dict, gs_array)
     # ^ we must make sure to extract the max sigma from the the raw xs before collapsing it to the right group structure.

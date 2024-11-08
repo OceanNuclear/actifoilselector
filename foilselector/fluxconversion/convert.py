@@ -1,5 +1,5 @@
 """
-function to convert between differetn representations of 
+function to convert between differetn representations of
 1. flux
 2. gs
 """
@@ -13,6 +13,7 @@ from foilselector.constants import MeV, keV
 
 
 __all__ = ["flux_conversion", "convert_arbitrary_gs_from_means"]
+
 
 def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
     """
@@ -33,7 +34,7 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
                         "integrated",
                         "PUL"
     """
-    if isinstance(flux_in, (pd.DataFrame, pd.Series)): #check type
+    if isinstance(flux_in, (pd.DataFrame, pd.Series)):  # check type
         flux = flux_in.values.T
     else:
         flux = flux_in
@@ -51,9 +52,9 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
     elif in_fmt == "per keV":
         flux_per_eV = flux / keV
     else:
-        assert (
-            in_fmt == "per eV"
-        ), "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (k/M)eV'"
+        assert in_fmt == "per eV", (
+            "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (k/M)eV'"
+        )
         flux_per_eV = flux
 
     # convert from per eV back into output format
@@ -68,18 +69,19 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
         )  # reuse the same function, but via a different path.
         flux_out = flux_integrated / leth_space
     else:
-        assert (
-            out_fmt == "per eV"
-        ), "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (M)eV'"
+        assert out_fmt == "per eV", (
+            "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (M)eV'"
+        )
         # does not allow per keV output, because that's not a standard/common method to use.
         flux_out = flux_per_eV
 
     # give it back as the original type
-    if isinstance(flux_in, (pd.DataFrame, pd.Series)): #check type
+    if isinstance(flux_in, (pd.DataFrame, pd.Series)):  # check type
         flux_out = type(flux_in)(flux_out)
         name_or_col = "column" if isinstance(flux_in, pd.DataFrame) else "name"
         setattr(flux_out, name_or_col, getattr(flux_in, name_or_col))
     return flux_out
+
 
 def convert_arbitrary_gs_from_means(gs_means: npt.NDArray):
     """

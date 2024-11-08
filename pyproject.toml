@@ -63,3 +63,6 @@ exclude = [
   ".pytest_cache",
   "htmlcov",
 ]
+
+[tool.ruff.format]
+preview = true

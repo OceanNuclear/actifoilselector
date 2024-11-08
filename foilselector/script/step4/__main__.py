@@ -7,9 +7,9 @@ def tprint(*msg):
 
 prog_start_time = time.time()
 ############################# get the relevant data from files. ####################################
-assert os.path.exists(
-    os.path.join(sys.argv[-1], "gs.csv")
-), "Output directory must already have gs.csv"
+assert os.path.exists(os.path.join(sys.argv[-1], "gs.csv")), (
+    "Output directory must already have gs.csv"
+)
 gs = pd.read_csv(os.path.join(sys.argv[-1], "gs.csv")).values
 APRIORI_FLUX, APRIORI_FLUENCE = get_apriori(
     sys.argv[-1], get_parameters_json(sys.argv[-1])["IRRADIATION_DURATION"]

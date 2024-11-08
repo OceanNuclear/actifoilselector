@@ -1,23 +1,26 @@
 # class used to find the max microscopic cross-section value
 
 __all__ = ["MaxSigma", "sigma_to_thickness"]
+
+
 class MaxSigma(dict):
     def __getitem__(self, parent_product_mt):
         """
         key is provided in the format of Pt206-Pt207-MT=(102,5).
         we will then return  up the following:
-        
+
         max([max_sigma["Pt206-Pt207-MT=102"], max_sigma["Pt206-Pt207-MT=5"]])
         """
         parent_product_, mts = parent_product_mt.split("=")
         results = []
         for mt in mts.strip("()").split(","):
-            results.append(super(MaxSigma, self).__getitem__(parent_product_ +"="+ mt))
+            results.append(super(MaxSigma, self).__getitem__(parent_product_ + "=" + mt))
         return max(results)
+
 
 def sigma_to_thickness(sigma, num_density):
     """Calculates the thickness where the probability of reaction of atoms reaches 1.0.
-    
+
     Probability of absorption per cm = (sigma*1E24) * (number density in cm^-3)
     consider three BCC materials, all with the same microscopic reaction cross-section.
     mat1 = 1 barn, density(homogeneous) = 1E21cm^-3;    (a=1E-7, b=1E-7, c=1E-7) ∴ P(rx per cm) = 0.001
@@ -42,4 +45,4 @@ def sigma_to_thickness(sigma, num_density):
     thickness in cm such that P(reaction) = 1 after a neutron passes through the foil perpendicularly.
     """
     macroscopic_xs = sigma * num_density
-    return 1/macroscopic_xs # thickness 
+    return 1 / macroscopic_xs  # thickness
