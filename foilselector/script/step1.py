@@ -577,17 +577,3 @@ In the provided directory {}, the following .csv files are found:""".format(dire
     peak_to_Compton_coefficients = stage7_load_and_save_gamma_peak_to_Compton_ratio(
         directory
     )
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Interact with the user to convert the neutorn spectrum into the desired input format and group structure."
-    )
-
-    parser.add_argument("", default=Path.cwd())
-
-    args = parser.parse_args()
-    print("Acting on directory {}".format(args.cwd))
-    main(args.cwd)
