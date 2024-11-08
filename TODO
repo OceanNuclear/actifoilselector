@@ -21,3 +21,4 @@ ____
         []/home/ocean/Self/NetworkDynamics/setup.py and .*.yml
         []flake8 file could be found in /home/ocean/Self/hypercubeprojection
         []More details in /home/ocean/Self/workshops/testing/python_exercises
+[]use pathlib.Path instead of accepting strings so you don't have to do anything like that.

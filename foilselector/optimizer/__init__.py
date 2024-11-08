@@ -1,4 +1,3 @@
-# from selection_sum import *
 from foilselector.optimizer import comb_sum
-from .selection_sum import *
-from .limit import *
+from foilselector.optimizer import selection_sum
+from foilselector.optimizer import choose_mass

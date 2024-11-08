@@ -4,7 +4,6 @@
 import numpy as np
 from numpy import array as ary
 from numpy import log as ln
-import contextlib # to silence numpy error
 
 import openmc
 from openmc.data import INTERPOLATION_SCHEME
@@ -12,21 +11,9 @@ from collections.abc import Iterable # to check type
 
 import matplotlib.pyplot as plt
 from foilselector.openmcextension.extended_io import detabulate
+from foilselector.openmcextension.warning import SilenceNumpyDivisionError
 
 plot_tab = lambda tab, *args, **kwargs: plt.plot(tab.x, tab.y, *args, **kwargs)
-
-class SilenceNumpyDivisionError(contextlib.ContextDecorator):
-    def __enter__(self):
-        self.prev_divide_error_state = np.geterr()["divide"] # record current state of error handling style
-        np.seterr(divide="ignore") # force ignore all division errors
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        np.seterr(divide=self.prev_divide_error_state) # undo error silencing
-        if exc_type is None:
-            return True
-        else: # any type of error
-            return False
 
 class Integrate():
     __slots__ = ["_area", "func", "_interpolation", "verbose"] # for memory management, in case we want to create a lot of instances of Integrate.

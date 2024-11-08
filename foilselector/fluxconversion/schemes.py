@@ -4,6 +4,8 @@ Getting the name various interpolation schemes /their indices in openmc and endf
 from openmc.data import INTERPOLATION_SCHEME
 
 
+__all__ = ["get_interpolation_scheme"]
+
 def get_interpolation_scheme(scheme):
     """
     invert the dictionary from {1:"log-log", ..., 5:"histogramic"}

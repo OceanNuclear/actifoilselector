@@ -123,6 +123,30 @@ def read_gs(file_path):
 def read_flux(file_path):
     return np.squeeze(pd.read_csv(file_path).values)
 
+def get_durations_from_csv(file: str):
+    """
+    Get the durations saved at the comments before the header of the csv file.
+
+    Parameters
+    ----------
+    file:
+        a plain text file (.csv file) that should start with at least 3 comments lines,
+        each of them started with a '#' character.
+    """
+    with open(file, "r") as csv:
+        while True:
+            comment_line = csv.readline()
+            if not comment_line.startswith("#"):
+                break
+            if "duration" in comment_line:
+                if "irradiation" in comment_line:
+                    irradiation_duration = float(comment_line.split()[-1])
+                elif "trans" in comment_line:
+                    transit_duration = float(comment_line.split()[-1])
+                elif ("measurement" in comment_line) or ("acquisition" in comment_line):
+                    acquisition_duration = float(comment_line.split()[-1])
+    return irradiation_duration, transit_duration, acquisition_duration
+
 #### The rest of these functions below aren't going to be needed. ####
 def get_apriori_from_folder(folder, irradiation_duration=None):
     """

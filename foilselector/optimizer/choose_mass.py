@@ -7,9 +7,9 @@ and accuracy calculation.
 import numpy as np
 from numpy import typing as npt
 
-from openmc.elements import atomic_mass
+from openmc.data import atomic_mass
 
-def rescaled_matrix_and_mass(
+def calculate_max_num_reactants(
         response_matrix: npt.NDArray,
         apriori_fluence: npt.NDArray[float],
         max_gamma_count_rate: float,

@@ -4,13 +4,17 @@ function to convert between differetn representations of
 2. gs
 """
 
-import pandas as pd
 import numpy as np
 from numpy import log as ln
+import numpy.typing as npt
+import pandas as pd
+
 from foilselector.constants import MeV, keV
 
 
-def flux_conversion(flux_in, gs_in_eV, in_fmt, out_fmt):
+__all__ = ["flux_conversion", "convert_arbitrary_gs_from_means"]
+
+def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
     """
     Convert flux from a one representation into another.
 
@@ -77,8 +81,7 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt, out_fmt):
         setattr(flux_out, name_or_col, getattr(flux_in, name_or_col))
     return flux_out
 
-
-def convert_arbitrary_gs_from_means(gs_means):
+def convert_arbitrary_gs_from_means(gs_means: npt.NDArray):
     """
     Create a group structure (n bins, with upper and lower bounds each) from a list of n numbers.
     This is done by taking the first (n-1) numbers as the upper bounds of the last (n-1) bins,
@@ -86,7 +89,7 @@ def convert_arbitrary_gs_from_means(gs_means):
     The first bin's lower bound and the last bin's upper bound is obtained by
     extrapolating the bin width of the second bin and the penultimate bin respectively.
 
-    parameters
+    Parameters
     ----------
     gs_means : a list of n numbers, describing the class-mark of each bin.
     """
