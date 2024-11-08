@@ -14,7 +14,7 @@ name = "foilselector"
 authors = [{ name = "OceanNuclear", email = "annoyingamygdala@gmail.com" }]
 description = """Tools and scripts used to read nuclear data and thus select foils used in irradiation"""
 dynamic = ['version']
-readme = "README.md"
+readme = "README.rst"
 license = "MIT"
 requires-python = ">=3.10"
 classifiers = [
@@ -29,18 +29,18 @@ classifiers = [
 ]
 
 dependencies = [
-  "numpy = ^1.20.3",
-  "tqdm = ^4.61.1",
-  "matplotlib = ^3.4.2",
-  "pandas = ^1.2.4",
-  "seaborn = ^0.11.1",
-  "scipy = ^1.6.3",
+  "numpy >=1.20.3",
+  "tqdm >=4.61.1",
+  "matplotlib >=3.4.2",
+  "pandas >=1.2.4",
+  "seaborn >=0.11.1",
+  "scipy >=1.6.3",
   "click",
 ]
 
 [project.optional-dependencies]
 dev = ["ruff", "pytest"]
-visual = ["networkx = ^2.6.1"]
+visual = ["networkx >=2.6.1"]
 
 [project.urls]
 Source        = "https://github.com/OceanNuclear/actifoilselector"
