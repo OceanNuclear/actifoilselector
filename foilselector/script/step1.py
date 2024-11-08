@@ -28,16 +28,32 @@ from numpy import typing as npt
 import pandas as pd
 from openmc.data import Tabulated1D
 from matplotlib import pyplot as plt
-import os
 from pathlib import Path
 from os.path import join
 
-from foilselector.fluxconversion import *
+from foilselector.fluxconversion import (
+    ask_question,
+    get_column_interactive,
+    ask_yn_question,
+    list_dir_csv,
+    ask_for_gs,
+    flux_conversion,
+    scale_to_eV_interactive,
+    histogramic,
+)
+from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
 from foilselector.generic import minmax
 from foilselector.constants import MeV, keV
 from foilselector.openmcextension import Integrate, detabulate
 from foilselector.openmcextension.warning import SilenceNumpyDivisionError
-from foilselector.simulation.detector import *
+from foilselector.simulation.detector import (
+    Compton_to_peak_curve_factory,
+    resolution_curve_factory,
+    get_default_resolution_coefficients,
+    fit_fwhms,
+    fit_peak_to_Compton,
+    get_default_peak_to_Compton_coefficients,
+)
 
 
 def section_title(title: str):
@@ -549,7 +565,6 @@ The relevant data will be retrieved from the following csv files.
 In the provided directory {}, the following .csv files are found:""".format(directory)
     )
 
-    assert os.path.exists(directory), f"Directory provided '{directory}' does not exist!"
     list_dir_csv(directory)
 
     apriori_raw, in_unit, group_or_point = stage1_read_raw_ap_gs(directory)
