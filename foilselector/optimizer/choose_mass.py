@@ -4,7 +4,6 @@ This mass rescales the response matrix appropriately for the response matrix pre
 and accuracy calculation.
 """
 
-import numpy as np
 from numpy import typing as npt
 
 from openmc.data import atomic_mass

@@ -19,12 +19,9 @@ A nuance that I have to clear up: if a(n advaned) user _knows_ that there's a sp
 """
 
 import json
-import os
-import inspect
 from tqdm import tqdm
 from numpy import array as ary
 
-import foilselector
 from foilselector.foldermanagement import *
 from foilselector.reactionnaming import (
     specify_isotopic_composition,
@@ -33,7 +30,6 @@ from foilselector.reactionnaming import (
 from foilselector.openmcextension import *
 from foilselector.simulation import EfficiencyCurve
 
-from pathlib import Path
 
 default_gamma_energy_limits_keV = [20, 4600]
 
@@ -49,7 +45,6 @@ def main(
         for foil_name, foil_comp in _composition_used_here.items()
     }
     # save a version of the processed_composition dictionary
-    from os import path
 
     save_atomic_composition_json(processed_composition)  # needed for step 3+
 

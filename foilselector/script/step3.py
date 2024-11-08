@@ -43,7 +43,8 @@ In this foil selector script, for simplicity, we assume that when a time-resolve
 i.e. We assume that the scenarios in e.g.4 does not occur frequently enough to affect the accuracy of the foil selection efficiency computation.
 """
 
-import json, os
+import json
+import os
 from tqdm import tqdm
 import pandas as pd
 from numpy import array as ary
@@ -52,10 +53,8 @@ from foilselector.constants import BARN
 from foilselector.simulation.decay import summed_cnt_and_rates
 
 # from foilselector.optimizer import max_num_atoms_from_count_rate_limit
-from foilselector.selfshielding import sigma_to_thickness
 from uncertainties import nominal_value as nom
 
-from pathlib import Path
 
 
 def main(

@@ -56,7 +56,7 @@ def build_decay_chain_tree(decay_parent, decay_dict, decay_constant_threshold=1E
         and a dictionary of its decay-related parameters (decay_constant, branching_ratio, countable_photons) as the values.
             branching_ratio is a dictionary with the name of the daughter as each key and the value of branching ratio as each value.
     """
-    if not decay_parent in decay_dict:
+    if decay_parent not in decay_dict:
         if "_" in decay_parent:
             # is an excited isotope. So we assume it has instantaneously decayed, and return the ground-state decay info instead.
             return build_decay_chain_tree(decay_parent.split("_")[0], decay_dict, decay_constant_threshold)

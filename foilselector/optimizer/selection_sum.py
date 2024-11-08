@@ -1,6 +1,5 @@
 import numpy as np
-from numpy.linalg import norm
-from numpy import sqrt, array as ary
+from numpy import sqrt
 from matplotlib import pyplot as plt
 
 def find_new_vec(ref_vector, *perp_vectors):

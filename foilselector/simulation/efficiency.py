@@ -24,7 +24,7 @@ ISOCS pt
 ISOCS extend
 """
 import numpy as np
-from numpy import sqrt, array as ary, log as ln
+from numpy import array as ary, log as ln
 from uncertainties import nominal_value as nom
 import pandas as pd
 k=1000; M=1000000

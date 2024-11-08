@@ -1,38 +1,25 @@
 # system and display
-import os, sys, itertools, functools, json, time
+import itertools
+import functools
+import time
 from tqdm import tqdm
 from operator import add, itemgetter
 from dataclasses import dataclass
 # numpy
 from numpy import array as ary; import numpy as np
 from numpy import log as ln
-from numpy import mean
 import numpy.linalg as la
 # dataframe
 import pandas as pd
 # plotting
-from matplotlib import pyplot as plt
-import seaborn as sns
 from collections import OrderedDict
 # number of permutation/combination functions, for calculating the run time when optimizing
-from math import factorial as fac
 from scipy.special import comb as n_choose_k
 from scipy.special import perm as n_perm_k
 
 # uncertainties is a module that openmc uses. Thus the values are 
-from uncertainties.unumpy import nominal_values
 # local libraries
-from misc_library import (BARN,
-                        MM_CM,
-                        ordered_set,
-                        get_apriori,
-                        unserialize_dict,
-                        PHYSICAL_PROP_FILE,
-                        get_parameters_json,
-                        get_physical_property,
-                        save_parameters_as_json,
-                        unserialize_pd_DataFrame)
-from comb_sum_ranker import top_n_sums_of_dict
+from misc_library import (BARN)
 
 SATURATION_COUNT_RATE = 10000 # maximum number of gamma countable accurately per second
 # MAX_THICKNESS = 0.1 # mm
@@ -439,7 +426,7 @@ def choose_top_n_pretty(func, target_chosen_length, policy, choices, verbose=Tru
     num_combinations = int(n_choose_k(len(choices), target_chosen_length))
     if type(policy)==int:
         print("Attempting to choose an optimal combination of foils by choosing the top {} foils at every move, in the solution space of {} possible combinations".format(policy, num_combinations))
-        print("which should return a dictionary of length with an upper limit = {}".format(policy, np.clip(policy**target_chosen_length, num_combinations, None)))
+        print("which should return a dictionary of length with an upper limit = {}".format(policy, ))
         print("This can take up to {} evaluations ...".format( min(policy**target_chosen_length, int(n_perm_k(len(choices), target_chosen_length))) ))
     elif type(policy)==float:
         print("Attempting to choose an optimal combination of foils by choosing the top {} % of foils, in the solution space of {} possible combinations.".format(policy, num_combinations))

@@ -5,9 +5,6 @@ functions used to interact with the user
 from os.path import join
 from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy import array as ary
-from numpy import typing as npt
 import pandas as pd
 
 from foilselector.fluxconversion.filereading import open_csv

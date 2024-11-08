@@ -12,10 +12,10 @@ This module is expected to be used after the following steps
 - removing the dictionaries stating information about unwanted foils from selected_foils.json
 - Changing the thicknesses values listed in selected_foils.json into the actual thicknesses of the foils that will be purchased.
 """
-import sys, os
+import sys
+import os
 import json
 from collections import defaultdict
-from tqdm import tqdm
 
 from numpy import array as ary
 import numpy as np

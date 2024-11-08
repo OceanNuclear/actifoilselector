@@ -1,6 +1,5 @@
 import numpy as np
 import unittest
-import pytest
 
 class TestInputter(unittest.TestCase):
     def test_true(self):

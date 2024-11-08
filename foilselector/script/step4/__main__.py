@@ -392,14 +392,12 @@ if EXAMPLE_UNFOLDINGS := False:
     sys.path.append(
         "/home/ocean/Documents/GitHubDir/unfoldinggroup/unfolding/unfoldingsuite"
     )
-    from datahandler import UnfoldingDataLoader, UnfoldingDataHandlerLite
     from maximumentropy import AMAXED, IMAXED
     from linearleastsquare import PseudoInverse
     from nonlinearleastsquare import GRAVEL
     from collections import defaultdict
 
     # plotting stuff
-    from matplotlib import colors as c
     from matplotlib import cm
 
     # pick out random combinations of foils, to be reused. Save their names:matrix as dict

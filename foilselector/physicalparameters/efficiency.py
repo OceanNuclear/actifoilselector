@@ -2,7 +2,7 @@ from .filepaths import HPGe_eff_file as default_file_path
 import pandas as pd
 import numpy as np
 from numpy import sqrt
-from numpy import array as ary, log as ln
+from numpy import log as ln
 import uncertainties.unumpy as unpy
 import uncertainties as unc
 from foilselector.constants import MeV

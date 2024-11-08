@@ -17,7 +17,9 @@ A nuance that I have to clear up: if a(n advaned) user _knows_ that there's a sp
         (e.g. 'Cadmium': {'Cd0':1.0} rather than 'Cadmium':{'Cd':1.0})
 
 """
-import json, os, inspect
+import json
+import os
+import inspect
 from tqdm import tqdm
 from numpy import array as ary
 
@@ -56,7 +58,6 @@ if __name__=="__main__":
         _composition_used_here = json.load(j)
     processed_composition = {foil_name:specify_isotopic_composition(foil_comp) for foil_name, foil_comp in _composition_used_here.items()}
     # save a version of the processed_composition dictionary
-    from os import path
     save_atomic_composition_json(processed_composition) # needed for step 3+
 
     # sub-step 2: find what isotopes need to be extracted.

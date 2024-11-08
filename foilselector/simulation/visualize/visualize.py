@@ -2,12 +2,10 @@
 Visualize the irradiation phase and decay phase using networkx.
 """
 import networkx as nx
-import matplotlib.pyplot as plt
 import numpy as np
 from foilselector.simulation.decay import build_decay_chain_tree
 from uncertainties import nominal_value
 from .positioning import vogels_model, Disk
-from pprint import pprint 
 
 # the three types of identities that each isotopes can be, for visualization purposes:
 reactant, direct_product, indirect_product = 'reactant', 'direct product', 'indirect product'
@@ -280,7 +278,7 @@ def draw_networkx_weighted_directed_graph(graph, ax, minarrow=0.1, maxarrow=1, c
         and the returned value is a str, or hex values. 
     """
     pos = nx.get_node_attributes(graph, 'pos')
-    assert len(pos)==len(graph.nodes), f"All nodes must have a 'pos' attribute as given by one of the nx.drawing.layout functions!"
+    assert len(pos)==len(graph.nodes), "All nodes must have a 'pos' attribute as given by one of the nx.drawing.layout functions!"
     weights = nx.get_edge_attributes(graph, 'weight')
     assert len(weights)==len(graph.edges), "All edeges must have a 'weight' attribute, to represent either the branching ratio (decay) or the number of reactions (neutron-induced reaction)."
 

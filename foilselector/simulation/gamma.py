@@ -6,7 +6,6 @@ GammaSpectrumABC -> SingleDecayGammaSignature
     -(multiple isotopes, ignoring pathways)->MergedGammaSpectrum
 """
 from collections import namedtuple
-import itertools
 
 from numpy import array as ary
 import numpy as np

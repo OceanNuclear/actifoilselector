@@ -1,7 +1,10 @@
 # default system packages
-import os, sys, json, warnings
+import os
+import sys
+import json
+import warnings
 from io import StringIO
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
 # special numerical computing packages
 from tqdm import tqdm
 import numpy as np

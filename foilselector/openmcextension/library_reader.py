@@ -1,24 +1,16 @@
 # typical system/python stuff
-import os, sys, json, time, warnings
+import warnings
 from tqdm import tqdm
 import gc
-from io import StringIO
-from collections import OrderedDict, defaultdict
 # typical python numerical stuff
 from numpy import array as ary; import numpy as np
-from numpy import log as ln
 import pandas as pd
 # openmc stuff
-import openmc
-from openmc.data import IncidentNeutron, Decay, Evaluation, ATOMIC_SYMBOL
-from openmc.data.reaction import REACTION_NAME
 # uncertainties
-import uncertainties
 from uncertainties.core import Variable
 
 # local modules
 from foilselector.openmcextension import Integrate
-from foilselector.foldermanagement import save_parameters_as_json
 from foilselector.generic import ordered_set
 from foilselector.selfshielding import MaxSigma
 from foilselector.simulation import LineTuple

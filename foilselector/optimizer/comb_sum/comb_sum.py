@@ -3,7 +3,6 @@ from numpy import array as ary
 from collections import OrderedDict, namedtuple
 from operator import itemgetter
 from math import factorial as fac
-from matplotlib import pyplot as plt
 
 class CombinationNode(object):
     __slots__ = ["plot_coordinates", "_occupancy", "_numbered_occupancy", "children_instantiated"]
