@@ -1,3 +1,7 @@
+import numpy as np
+import contextlib # to silence numpy error
+
+
 def ordered_set(sequence):
     """
     Get the sorted set, sorted according to the order of element first appearing in the sequence.
@@ -24,4 +28,18 @@ def minmax(array):
     -------
     tuple containing a min (scalar) and a max (scalar)
     """
-    return min(array), max(array)
+    return np.min(array), np.max(array)
+
+class SilenceNumpyDivisionError(contextlib.ContextDecorator):
+    """Context manager to suppress warnings and errors for dividing by zero."""
+    def __enter__(self):
+        self.prev_divide_error_state = np.geterr()["divide"] # record current state of error handling style
+        np.seterr(divide="ignore") # force ignore all division errors
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        np.seterr(divide=self.prev_divide_error_state) # undo error silencing
+        if exc_type is None:
+            return True
+        else: # any type of error
+            return False

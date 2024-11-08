@@ -32,10 +32,9 @@ from pathlib import Path
 from os.path import join
 
 from foilselector.fluxconversion import *
-from foilselector.generic import minmax
+from foilselector.generic import minmax, SilenceNumpyDivisionError
 from foilselector.constants import MeV, keV
 from foilselector.openmcextension import Integrate, detabulate
-from foilselector.openmcextension.warning import SilenceNumpyDivisionError
 from foilselector.simulation.detector import *
 
 def section_title(title: str):
@@ -178,7 +177,7 @@ def stage4_add_uncertainty(directory: Path, apriori: npt.NDArray[float], continu
         if absolute_or_fractional=='fractional':
             fractional_error = error_series
         else: # absolute error
-            with SilenceNumpyDivisionError:
+            with SilenceNumpyDivisionError():
                 fractional_error = np.nan_to_num(error_series/apriori_copy)
         if scheme==histogramic:
             error = np.hstack([fractional_error, fractional_error[-1]]) * apriori

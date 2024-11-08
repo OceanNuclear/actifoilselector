@@ -11,7 +11,7 @@ from collections.abc import Iterable # to check type
 
 import matplotlib.pyplot as plt
 from foilselector.openmcextension.extended_io import detabulate
-from foilselector.openmcextension.warning import SilenceNumpyDivisionError
+from foilselector.generic import SilenceNumpyDivisionError
 
 plot_tab = lambda tab, *args, **kwargs: plt.plot(tab.x, tab.y, *args, **kwargs)
 
