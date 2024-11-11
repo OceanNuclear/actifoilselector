@@ -85,6 +85,7 @@ def stage1_read_raw_ap_gs(directory: Path):
 def stage2_interpret_ap_energy(
     directory: Path, apriori: npt.NDArray, in_unit: str, *, group_or_point: str
 ):
+    """Put apriori into the right group-structure"""
     section_title("2. Reading the energy values associated with the a priori.")
     if group_or_point == "group-wise":
         apriori_gs = ask_for_gs(directory)
@@ -162,6 +163,7 @@ def stage2_plot_apriori(
     continuous_apriori: Tabulated1D,
     apriori_gs: npt.NDArray,
 ):
+    """Plot the a priori neutron spectrum."""
     # plot in per eV scale
     x = calculate_x_points(E_values)
     plt.plot(x, continuous_apriori(x))
@@ -197,6 +199,10 @@ def stage3_modify_apriori(
     apriori: npt.NDArray[float],
     continuous_apriori: Tabulated1D,
 ):
+    """
+    Modify the a priori neutron spectrum to something that the user wants, by
+    transforming the energy scale and scaling the y-axis.
+    """
     section_title("3. [optional] Modifying the a priori.")
     # scale the peak up and down (while keeping the total flux the same)
     if ask_yn_question("Would you like to shift the energy scale up/down?"):
@@ -264,6 +270,7 @@ def stage4_add_uncertainty(
     scheme: int,
     E_values: npt.NDArray[float],
 ) -> tuple[Tabulated1D, Tabulated1D] | None:
+    """Add an uncertainty quantification to the a priori."""
     section_title("4. [optional] adding an uncertainty to the a priori.")
     if ask_yn_question(
         "Does the a priori spectrum comes with an associated error (y-error bars) on itself?"
@@ -315,7 +322,8 @@ def stage5_load_group_structure(
     E_values: npt.NDArray[float],
     continuous_apriori: Tabulated1D,
 ):
-    section_title("5. Load in group structure.")
+    """Choose a different group structure than what the a priori used."""
+    section_title("5. [optional] Load in new group structure.")
     if ask_yn_question(
         "Should a different group structure than the apriori_gs (entered above) be used?"
     ):  # same gs as the a priori
@@ -440,6 +448,8 @@ continuous apriori (an openmc.data.Tabulated1D object)  => .continuous_apriori.c
 
 def stage6_load_and_save_gamma_resolution(directory: Path):
     """
+    Write to file the gamma-ray detector's resolution.
+
     Returns
     -------
     coefficients
@@ -449,7 +459,7 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
 
     default_res_func = resolution_curve_factory(get_default_resolution_coefficients())
     fwhm_examples = ";\n".join(
-        f"FWHM = {default_res_func(peak)} keV at E={peak} keV"
+        f"FWHM = {default_res_func(peak * keV)} keV at E={peak} keV"
         for peak in [511, 662, 1173, 1332]
     )
     print(f"Default resolution is\n{fwhm_examples}.")
@@ -457,7 +467,7 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
         "Would you like to provide your own resolution curve instead of using the default resolutions? (no = use default)"
     ):
         if ask_yn_question(
-            "Do you have the coefficients in the resolution curve R(E)=√(x_0+x_1*E+x_2*E^2+...) (where E and R(E) have unit keV)? (y/n)"
+            "Do you have the coefficients in the resolution curve R(E) = √(x_0 + x_1*E + x_2*E^2 + ...) (where E and R(E) have unit eV)? (y/n)"
         ):
             while True:
                 coef_str = input(
@@ -483,7 +493,7 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
                         "How many degrees of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-3])",
                         "0123",
                     )
-                    coefficients = fit_fwhms(E_keV, fwhm_keV, int(degree_of_fit))
+                    coefficients = fit_fwhms(E_keV * keV, fwhm_keV * keV, int(degree_of_fit))
                 except Exception as e:
                     print(e, ", trying again...")
     else:
@@ -496,6 +506,8 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
 
 def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
     """
+    Write to file the gamma-ray detector's peak-to-Compton ratio.
+
     Returns
     -------
     coefficients
@@ -506,7 +518,7 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
         get_default_peak_to_Compton_coefficients()
     )
     cs_ratio_examples = ";\n".join(
-        f"P/C = {1 / default_CS_func(peak)} keV at E={peak} keV"
+        f"P/C = {1 / default_CS_func(peak * keV)} keV at E={peak} keV"
         for peak in [511, 662, 1173, 1332]
     )
     print(f"Default peak-to-Compton ratio is\n{cs_ratio_examples}.")
@@ -514,7 +526,7 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
         "Would you like to provide your own peak-to-Compton curve instead of using the default photopeak-to-Compton ratios? (no = use default)"
     ):
         if ask_yn_question(
-            "Do you have the coefficients for the peak-to-Compton ratios PC(E) = x_0+x_1*E+x_2*E^2+... (where E has unit keV)? (y/n)"
+            "Do you have the coefficients for the peak-to-Compton ratios PC(E) = x_0 + x_1*E + x_2*E^2 + ... (where E has unit eV)? (y/n)"
         ):
             while True:
                 coef_str = input(
@@ -542,7 +554,7 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
                         "How many degree of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-2])",
                         "012",
                     )
-                    coefficients = fit_peak_to_Compton(E_keV, pc, int(degree_of_fit))
+                    coefficients = fit_peak_to_Compton(E_keV * keV, pc, int(degree_of_fit))
                 except Exception as e:
                     print(e, ", trying again...")
     else:
@@ -552,6 +564,11 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
             f.write(str(coef))
     return coefficients
 
+
+def stage8_load_and_save_gamma_efficiency(directory):
+    """Write to file the gamma-ray detector's efficiency curve."""
+    
+    return
 
 def main(directory: Path):
     print(

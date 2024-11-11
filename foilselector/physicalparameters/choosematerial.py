@@ -1,9 +1,9 @@
+from openmc.data import AVOGADRO
 from foilselector.openmcextension.constants import (
     NATURAL_ABUNDANCE,
     atomic_mass,
-    AVOGADRO,
 )
-from .filepaths import PHYSICAL_PROP_FILE as default_physical_prop_flie
+from foilselector.physicalparameters.filepaths import PHYSICAL_PROP_FILE as default_physical_prop_flie
 import numpy as np
 import pandas as pd
 

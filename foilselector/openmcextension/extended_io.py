@@ -14,7 +14,8 @@ import uncertainties
 from uncertainties.core import Variable
 import pandas as pd
 import openmc
-from .constants import AMBIGUOUS_MT, FISSION_MTS, ATOMIC_SYMBOL, MT_to_nuc_num
+from openmc.data import ATOMIC_SYMBOL
+from foilselector.openmcextension.constants import AMBIGUOUS_MT, FISSION_MTS, MT_to_nuc_num
 
 __all__ = [
     "sparsely_load_xs_and_decay_dict",
@@ -78,7 +79,7 @@ def load_endf_directories(*folder_list):
         ]
 
     print(
-        f"Found {len(endf_file_list)} regular files (ignoring files ending in '.json' or '.csv'). Assuming these are all endf data/decay data, reading them ..."
+        f"Found {len(endf_file_list)} regular files (excluding files ending in '.json' or '.csv'). Assuming these are all endf data/decay data, reading them ..."
     )
     # read in each file:
     endf_data = []

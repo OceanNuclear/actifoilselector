@@ -1,5 +1,5 @@
 from collections import defaultdict
-from foilselector.openmcextension.constants import isotopes as ISOTOPES, ATOMIC_NUMBER
+from openmc.data import isotopes as ISOTOPES, ATOMIC_NUMBER
 
 
 def specify_isotopic_composition(user_composition_input):

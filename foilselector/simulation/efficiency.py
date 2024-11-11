@@ -28,10 +28,7 @@ import numpy as np
 from numpy import array as ary, log as ln
 from uncertainties import nominal_value as nom
 import pandas as pd
-
-k = 1000
-M = 1000000
-PLOTLY = True
+from foilselector.costants import keV, MeV
 
 from collections import namedtuple
 
@@ -63,8 +60,8 @@ def read_mcnp_output(fname):
         [float(l.split()[2]) for l in total_lines],
     )
     return MCNPOut(
-        ary(El) * M,
-        ary(Eu) * M,
+        ary(El) * MeV,
+        ary(Eu) * MeV,
         ary(low_col1),  # number of counts depositing E= 0 to El per source particle
         ary(low_col2),  # relative uncertainty on the ^ number
         ary(upp_col1),  # number of counts depositing E=El to Eu per source particle
@@ -79,7 +76,7 @@ def read_dat(fname):
         data = f.readlines()[1:]
     E = [float(line.split()[0]) for line in data]
     eff = [float(line.split()[1]) for line in data]
-    return ary(E) * k, ary(eff)
+    return ary(E) * keV, ary(eff)
 
 
 def read_ecc(fname):
@@ -95,9 +92,9 @@ def read_ecc(fname):
 def read_csv(fname):
     df = pd.read_csv(fname)
     if "MeV" in df.columns[0]:
-        df[df.columns[0]] = df[df.columns[0]] * M
+        df[df.columns[0]] = df[df.columns[0]] * MeV
     elif "keV" in df.columns[0]:
-        df[df.columns[0]] = df[df.columns[0]] * k
+        df[df.columns[0]] = df[df.columns[0]] * keV
     return df
 
 
@@ -138,7 +135,7 @@ class EfficiencyCurve:
         )
         # create a fit for >100 keV.
         self._extrapolation_inference_threshold = (
-            800 * k
+            800 * keV
         )  # we deduce the slope of the extrapolation using datapoints above 800 keV
         # used for calculating the interpolated curve:
         self._log_E = ln(self.E)
@@ -206,7 +203,7 @@ class EfficiencyCurve:
             ax = plt.axes()
         smoothline_lower, smoothline_upper = min(self.E), max(self.E)
         energy_keV = np.geomspace(smoothline_lower, smoothline_upper, 300)
-        energy_eV = energy_keV * k
+        energy_eV = energy_keV * keV
         smooth_eff = self.__call__(energy_eV)
         ax.plot(energy_eV / k, smooth_eff)
         ax.scatter(self.E / k, self.eff)

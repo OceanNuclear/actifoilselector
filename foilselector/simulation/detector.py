@@ -32,19 +32,19 @@ def get_default_resolution_coefficients():
     https://github.com/OceanNuclear/PeakFinding/commit/dd17a8d9cbbb80ce62f3bd10f4a24c5c6594b217
     .
     """
-    return np.array([0.5212873549440453, 0.0024969943490051713])
-
+    return np.array([5.212873549440453*1E5, 2.4969943490051713])
 
 def fit_fwhms(
     E: npt.NDArray[float], fwhm: npt.NDArray[float], degree_of_fit: int = 2
 ) -> npt.NDArray[float]:
     """
+    Fit the FWHM curve R(E) = √(x_0 + x_1 * E + x_2 * E^2 + ...) where E has units eV.
     Parameters
     ----------
     E:
-        mean energy of the peaks in keV
+        mean energy of the peaks in eV
     fwhm:
-        full-width half-maximum of the peaks in keV.
+        full-width half-maximum of the peaks in eV.
 
     Returns
     -------
@@ -55,7 +55,7 @@ def fit_fwhms(
 
 
 def resolution_curve_factory(
-    coefficients: Iterable[float], min_fwhm=0.1
+    coefficients: Iterable[float], min_fwhm: float=100,
 ) -> Callable[[float | npt.NDArray], float | npt.NDArray]:
     """
     Parameters
@@ -67,7 +67,9 @@ def resolution_curve_factory(
 
     Returns
     -------
-    resolution_curve
+    resolution_curve:
+        A function that returns the FWHM (eV) when given an energy input (eV), but the
+        returned FWHM will never be smaller than min_fwhm.
     """
     raw_curve = np.poly1d(coefficients[::-1])
 
@@ -95,7 +97,7 @@ def fit_peak_to_Compton(
     Parameters
     ----------
     E:
-        mean energy of the peaks in keV
+        mean energy of the peaks in eV
     pc_ratio:
         Peak-to-Comptoin ratio of the peaks. [dimensionless]
 
@@ -122,7 +124,9 @@ def Compton_to_peak_curve_factory(
 
     Returns
     -------
-    Compton_to_peak_curve
+    Compton_to_peak_curve:
+        A function that returns the Compton-to-peak ratio corresponding to the inputted
+        gamma-ray photopeak energy/energies (eV).
     """
     raw_curve = np.poly1d(coefficients[::-1])
 
