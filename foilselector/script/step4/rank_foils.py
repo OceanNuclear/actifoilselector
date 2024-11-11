@@ -22,17 +22,20 @@ from scipy.special import perm as n_perm_k
 # uncertainties is a module that openmc uses. Thus the values are 
 from uncertainties.unumpy import nominal_values
 # local libraries
-from misc_library import (BARN,
-                        MM_CM,
-                        ordered_set,
-                        get_apriori,
-                        unserialize_dict,
-                        PHYSICAL_PROP_FILE,
-                        get_parameters_json,
-                        get_physical_property,
-                        save_parameters_as_json,
-                        unserialize_pd_DataFrame)
-from comb_sum_ranker import top_n_sums_of_dict
+from foilselector.constants import BARN, MM_CM
+from foilselector.generic import ordered_set
+from foilselector.foldermanagement import (
+                                            get_apriori_from_folder,
+                                            save_parameters_as_json,
+                                            get_parameters_json
+                                        )
+from foilselector.openmcextension.extended_io import (
+                                                        unserialize_dict,
+                                                        unserialize_pd_DataFrame
+                                                    )
+from foilselector.physicalparameters.choosematerial import get_physical_property
+from foilselector.physicalparameters.filepaths import PHYSICAL_PROP_FILE
+from foilselector.optimizer.comb_sum.comb_sum import top_n_sums_of_dict
 
 SATURATION_COUNT_RATE = 10000 # maximum number of gamma countable accurately per second
 # MAX_THICKNESS = 0.1 # mm
@@ -383,7 +386,7 @@ class FoilSet():
 
         for foil_like in foils:
             self.response_per_unit_flux.append(foil_like.response_per_unit_flux)
-            self.counts.extend( list(foil_like.counts.values) )
+            self.counts.extend( list(foil_like.counts) )
             for attr in "material_name", "thickness", "price", "area", "melting_point":
                 curr_attr = getattr(self, attr)
                 new_attr = getattr(foil_like, attr)
