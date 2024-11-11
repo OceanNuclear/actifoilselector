@@ -5,8 +5,14 @@ import pandas as pd
 
 join, base = os.path.join, os.path.basename
 
-__all__ = ["list_dir_csv", "open_csv", "get_integrated_apriori_value_only", "get_gs_ary",
-            "get_continuous_flux"]
+__all__ = [
+    "list_dir_csv",
+    "open_csv",
+    "get_integrated_apriori_value_only",
+    "get_gs_ary",
+    "get_continuous_flux",
+]
+
 
 def list_dir_csv(directory):
     """

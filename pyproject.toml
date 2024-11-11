@@ -1,29 +1,68 @@
-[tool.poetry]
-name = "foilselector"
-version = "0.1.0"
-description = "Tools and scripts used to read nuclear data and thus select foils used in irradiation"
-authors = ["OceanNuclear <annoyingamygdala@gmail.com>"]
-license = "MIT"
-
-[tool.poetry.dependencies]
-python = ">=3.8"
-numpy = "^1.20.3"
-tqdm = "^4.61.1"
-matplotlib = "^3.4.2"
-pandas = "^1.2.4"
-seaborn = "^0.11.1"
-scipy = "^1.6.3"
-networkx = {version = "^2.6.1", optional = true}
-
-[tool.poetry.dev-dependencies]
-black = "^21.6b0"
-pylint = "^2.8.3"
-pytest = "^7.1.2"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires      = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.poetry.extras]
-networkx = ["networkx"]
+[tool.hatch.version]
+source           = "vcs"
+fallback-version = "0.1.0"
 
+[tool.hatch.build.hooks.vcs]
+version-file = "foilselector/_version.py"
+
+[project]
+name = "foilselector"
+authors = [{ name = "OceanNuclear", email = "annoyingamygdala@gmail.com" }]
+description = """Tools and scripts used to read nuclear data and thus select foils used in irradiation"""
+dynamic = ['version']
+readme = "README.rst"
+license = "MIT"
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python",
+  "Development Status :: 3 - Alpha",
+  "Natural Language :: English",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+
+dependencies = [
+  "numpy >=1.20.3",
+  "tqdm >=4.61.1",
+  "matplotlib >=3.4.2",
+  "pandas >=1.2.4",
+  "seaborn >=0.11.1",
+  "scipy >=1.6.3",
+  "click",
+]
+
+[project.optional-dependencies]
+dev = ["ruff", "pytest"]
+visual = ["networkx >=2.6.1"]
+
+[project.urls]
+Source        = "https://github.com/OceanNuclear/actifoilselector"
+Documentation = "https://github.com/OceanNuclear/actifoilselector#readme"
+Issues        = "https://github.com/OceanNuclear/actifoilselector/issues"
+
+[project.scripts]
+foilselector = "foilselector.cli:cli"
+
+# tool: ruff
+[tool.ruff]
+target-version = "py310"
+line-length = 89
+output-format = "concise"
+exclude = [
+  ".git",
+  "__pycache__",
+  ".env",
+  ".idea",
+  ".pytest_cache",
+  "htmlcov",
+]
+
+[tool.ruff.format]
+preview = true

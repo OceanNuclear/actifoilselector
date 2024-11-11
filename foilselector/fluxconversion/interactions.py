@@ -1,12 +1,10 @@
 """
 functions used to interact with the user
 """
+
 from os.path import join
 from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy import array as ary
-from numpy import typing as npt
 import pandas as pd
 
 from foilselector.fluxconversion.filereading import open_csv
@@ -15,6 +13,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 __all__ = ["ask_yn_question", "ask_question", "get_column_interactive"]
+
 
 def ask_yn_question(question: str):
     """
@@ -39,15 +38,16 @@ def ask_yn_question(question: str):
     Boolean (True/False)
     """
     while True:
-        answer = input(question+"('y','n')")
-        if answer.lower() in ['yes', 'y']:
+        answer = input(question + "('y','n') ")
+        if answer.lower() in ["yes", "y"]:
             return True
-        elif answer.lower() in ['no', 'n']:
+        elif answer.lower() in ["no", "n"]:
             return False
         else:
-            print(f"Option '{answer}' not recognized; please retry:")
+            print(f"Option '{answer}' not recognized; please retry: ")
 
-def ask_question(question: str, expected_answer_list: list[str], *, check: bool=True):
+
+def ask_question(question: str, expected_answer_list: list[str], *, check: bool = True):
     """
     Ask the user a multiple choice question.
     Parameters
@@ -63,18 +63,22 @@ def ask_question(question: str, expected_answer_list: list[str], *, check: bool=
     answer given by user
     """
     while True:
-        answer = input(question)
+        answer = input(f"{question} ")
         if (not check) or (answer in expected_answer_list):
             break
-        print(f"Option {answer} not recognized; please retry:")
+        print(f"Option {answer} not recognized; please retry: ")
     print()
     return answer
 
+
 def get_column_interactive(
-        directory, datatypename: str,
-        *,
-        first_time_use=False, output_full_file_path=False, file_path_given=None
-    ):
+    directory,
+    datatypename: str,
+    *,
+    first_time_use=False,
+    output_full_file_path=False,
+    file_path_given=None,
+):
     """
     Ask the user for the column in a csv file within the specified {directory}, containing the {datatypename}.
     Keep asking until it is successfully found.
@@ -93,15 +97,16 @@ def get_column_interactive(
     dataseries:
         A 1D np.array containing the data of the user-chosen column in the csv.
     """
+
     def one_loop(file_path) -> tuple[pd.Series | None, int]:
         """
         Perform a single attempt of opening a csv and interactively finding the column.
-        
+
         Parameters
         ----------
         file_path: str
             csv file to open
-        
+
         Returns
         -------
         column_data: pd.Series | None
@@ -111,10 +116,10 @@ def get_column_interactive(
         """
 
         try:
-            df, col = open_csv(file_path)        
+            df, col = open_csv(file_path)
             print("Opened\n", df.head(), "\n...")
             colname = input(
-                f"Please input the index/name of the column where {datatypename} is/are contained.\n(column name options include {list(col)})"
+                f"Please input the index/name of the column where {datatypename} is/are contained.\n(column name options include {list(col)}) "
             )
             if colname in col:
                 col_i = colname
@@ -141,7 +146,7 @@ def get_column_interactive(
         prompt = f"Which of the above file contains values for the {datatypename}?"
         if not first_time_use:
             prompt += "(It may be the same file as previously used.)"
-        fname = input(prompt)
+        fname = input(f"{prompt} ")
         full_file_path = join(directory, fname)
         dataseries, exit_status = one_loop(full_file_path)
 
@@ -150,4 +155,3 @@ def get_column_interactive(
     if output_full_file_path:
         return dataseries.values, full_file_path
     return dataseries.values
-

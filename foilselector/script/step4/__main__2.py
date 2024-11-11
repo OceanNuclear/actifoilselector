@@ -6,7 +6,9 @@ NUM_COPIES = 5
 
 # 1. Load the a priori, load the durations from .counts.csv
 apriori = get_apriori_from_folder(Path(".").resolve())
-irradiation_duration, transit_duration, acquisition_duration = get_durations_from_csv(".counts.csv")
+irradiation_duration, transit_duration, acquisition_duration = get_durations_from_csv(
+    ".counts.csv"
+)
 apriori_fluence = apriori * irradiation_duration
 
 # 2. Get the max count rate, used for calculating the foil size.
@@ -23,10 +25,12 @@ foil_choices = {}
 
 for element_name, isotopes in atomic_composition.items():
     one_atom_response_matrix = ...
-    num_reactants = calculate_max_num_reactants(one_atom_response_matrix, apriori_fluence, max_count_rate, acquisition_duration)
+    num_reactants = calculate_max_num_reactants(
+        one_atom_response_matrix, apriori_fluence, max_count_rate, acquisition_duration
+    )
     foil_mass = mass_of_one_reactant_atom(isotopes) * num_reactants
     if isotopes:
-        for foil_num in range(1, NUM_COPIES+1):
+        for foil_num in range(1, NUM_COPIES + 1):
             # foil_choices[element_name+"_foil"+str(foil_num)] = {isotope: frac_isotope * num_elements for isotope, frac_isotope in isotopes.items()}
             foil_choices
 

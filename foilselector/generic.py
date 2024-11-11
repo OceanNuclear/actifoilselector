@@ -17,9 +17,10 @@ def ordered_set(sequence):
     #   -> negated by "not" in front of bracket -> adds element to list
     # This should be an O(n) operation.
 
+
 def minmax(array):
     """
-    Alias function to quickly return the minimum and maximum among all values in an array. 
+    Alias function to quickly return the minimum and maximum among all values in an array.
     parameters
     ----------
     array : any shaped array
@@ -28,6 +29,7 @@ def minmax(array):
     -------
     tuple containing a min (scalar) and a max (scalar)
     """
+
     return np.min(array), np.max(array)
 
 class SilenceNumpyDivisionError(contextlib.ContextDecorator):

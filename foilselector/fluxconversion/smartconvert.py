@@ -16,6 +16,7 @@ from foilselector.constants import MeV, keV
 
 __all__ = ["scale_to_eV_interactive", "ask_for_gs"]
 
+
 def scale_to_eV_interactive(gs_ary: npt.NDArray):
     """
     Scales the group structure values so that it describes the group structure in the correct unit (eV).
@@ -48,9 +49,9 @@ def ask_for_gs(directory):
             directory, "a priori spectrum's mean energy of each bin"
         )
         bin_sizes = np.diff(gs_mean)
-        assert all(
-            bin_sizes > 0
-        ), "The a priori spectrum must be given in ascending order of energy."
+        assert all(bin_sizes > 0), (
+            "The a priori spectrum must be given in ascending order of energy."
+        )
         # deal with two special cases: lin space and log space
         if all(np.isclose(np.diff(bin_sizes), 0, atol=1e-3)):  # second derivative = 0
             print("equal spacing in energy space detected")
@@ -91,7 +92,9 @@ def ask_for_gs(directory):
     elif gs_fmt == "class boundaries":
         while True:
             gs_min, full_path = get_column_interactive(
-                directory, "lower bounds of the energy groups", output_full_file_path=True
+                directory,
+                "lower bounds of the energy groups",
+                output_full_file_path=True,
             )
             gs_max = get_column_interactive(
                 directory, "upper bounds of the energy groups", file_path_given=full_path

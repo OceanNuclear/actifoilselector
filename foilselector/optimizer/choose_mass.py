@@ -4,17 +4,17 @@ This mass rescales the response matrix appropriately for the response matrix pre
 and accuracy calculation.
 """
 
-import numpy as np
 from numpy import typing as npt
 
 from openmc.data import atomic_mass
 
+
 def calculate_max_num_reactants(
-        response_matrix: npt.NDArray,
-        apriori_fluence: npt.NDArray[float],
-        max_gamma_count_rate: float,
-        acquisition_duration: float,
-    ):
+    response_matrix: npt.NDArray,
+    apriori_fluence: npt.NDArray[float],
+    max_gamma_count_rate: float,
+    acquisition_duration: float,
+):
     """
     Returns the maximum number of reactants in the reactant foil without breaking the
     max-gamma-count-rate threshold during the acquisition period.
@@ -40,16 +40,25 @@ def calculate_max_num_reactants(
         How many reactants can the foil have.
     """
     total_counts_per_reactant = (response_matrix @ apriori_fluence).sum()
-    num_reactants_in_foils = max_num_counts(max_gamma_count_rate, acquisition_duration) / total_counts_per_reactant
+    num_reactants_in_foils = (
+        max_num_counts(max_gamma_count_rate, acquisition_duration)
+        / total_counts_per_reactant
+    )
     return num_reactants_in_foils
+
 
 def mass_of_one_reactant_atom(composition_dict):
     """Calculate the weighted average of the reactant nuclides' masses."""
-    return sum(convert_to_mass(isotope) * fraction for isotope, fraction in composition_dict.items())
+    return sum(
+        convert_to_mass(isotope) * fraction
+        for isotope, fraction in composition_dict.items()
+    )
+
 
 def convert_to_mass(isotope_name):
     """Returns the atomic mass of an isotope in grams"""
-    return atomic_mass(isotope_name) * 1.660538921E-24
+    return atomic_mass(isotope_name) * 1.660538921e-24
+
 
 def max_num_counts(max_gamma_count_rate, acquisition_duration):
     """

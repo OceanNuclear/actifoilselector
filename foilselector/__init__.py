@@ -13,6 +13,7 @@ from foilselector import script
 from foilselector import constants
 from foilselector import foldermanagement
 from foilselector import reactionnaming
+
 """
 Question to ask myself:
 Software name and purpose:
