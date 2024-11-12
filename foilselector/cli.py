@@ -17,10 +17,10 @@ def cli():
 
 @cli.command("step1", no_args_is_help=False)
 @click.argument("filepath", type=click.Path(exists=True), default=Path.cwd())
-def step1(filepath):
+def step1():
     """Interact with the user to convert the neutorn spectrum into the desired input format and group structure."""
-    print("Acting on directory {}".format(filepath))
-    main_step1(filepath)
+    print("Acting on directory {}".format(Path.cwd()))
+    main_step1()
 
 
 @cli.command("step2", no_args_is_help=True)

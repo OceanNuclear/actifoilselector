@@ -2,8 +2,9 @@
 functions used to interact with the user
 """
 
-from os.path import join
+from os.path import join, basename
 from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pandas as pd
 
@@ -72,25 +73,27 @@ def ask_question(question: str, expected_answer_list: list[str], *, check: bool 
 
 
 def get_column_interactive(
-    directory,
+    directory: Path,
     datatypename: str,
     *,
-    first_time_use=False,
-    output_full_file_path=False,
-    file_path_given=None,
+    first_time_use: bool=False,
+    output_full_file_path: bool=False,
+    file_path_given: Path=None,
 ):
     """
     Ask the user for the column in a csv file within the specified {directory}, containing the {datatypename}.
     Keep asking until it is successfully found.
     Parameters
     ----------
-    directory_or_filename:
+    directory:
         location to look for csv.
     datatypename:
-        name of the datatype which is displayed to the user when asking the question.
+        name of the data type which is displayed to the user when asking the question.
     first_time_use:
-        if False, modifies the prompt question by appending the string "(Can be the same file as above)",
-        so that the user intuitively understands that the same file as the one used to answer the question in the previous call to this function can be used.
+        if False, modifies the prompt question by appending the string
+        "(Can be the same file as above)", so that the user intuitively understands that
+        the same file as the one used to answer the question in the previous call to this
+        function can be used.
 
     Returns
     -------
@@ -117,7 +120,7 @@ def get_column_interactive(
 
         try:
             df, col = open_csv(file_path)
-            print("Opened\n", df.head(), "\n...")
+            print(f"Opened {basename(file_path)}\n", df.head(), "\n...")
             colname = input(
                 f"Please input the index/name of the column where {datatypename} is/are contained.\n(column name options include {list(col)}) "
             )
@@ -128,7 +131,7 @@ def get_column_interactive(
             return df[col_i], 0
 
         except FileNotFoundError as e:
-            print(e, f"Please enter a valid file for {directory}.")
+            print(e, f"Please enter a valid file in {directory}.")
         except ValueError as e:
             print(e, "Perhaps the column name/ index is wrong. Please try again.")
         except Exception as e:

@@ -24,17 +24,46 @@ ISOCS pt
 ISOCS extend
 """
 
+from glob import glob
+from os.path import join
+
 import numpy as np
 from numpy import array as ary, log as ln
 from uncertainties import nominal_value as nom
 import pandas as pd
-from foilselector.costants import keV, MeV
+from foilselector.constants import keV, MeV
 
 from collections import namedtuple
 
 MCNPOut = namedtuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
 ISOCSOut = namedtuple("ISOCSOut", ["E", "eff", "integer", "e1", "deviation", "e2", "ID"])
 EffCurve = namedtuple("EffCurve", ["E", "eff", "unc"])
+
+
+APPROVED_EFFICIENCY_FILE_EXTENSIONS = {
+    ".o"   : "MCNP simulation output",
+    ".ecc" : "ISOCS simulation output",
+    ".dat" : "plain text file",
+    ".csv" : "generic comma-separated file",
+}
+
+def list_dir_eff_files(directory):
+    """
+    Pretty print the list of all efficiency files in a specified directory.
+    """
+    fnames = (
+        glob(join(directory, "*.o")) +
+        glob(join(directory, "*.ecc")) +
+        glob(join(directory, "*.dat")) +
+        glob(join(directory, "*.csv"))
+    )
+    print("########################")
+    print("------------------------")
+    for f in fnames:
+        print(os.path.basename(f))
+    print("------------------------")
+    print("########################")
+    return fnames
 
 
 def read_mcnp_output(fname):
@@ -127,7 +156,7 @@ def efficiency_curve_factory(fname):
 
 
 class EfficiencyCurve:
-    def __init__(self, eff_curve_object):
+    def __init__(self, eff_curve_object, extrapolation_inference_threshold_keV: float=800):
         self.E = ary(eff_curve_object.E)
         self.eff = ary(eff_curve_object.eff)
         self.unc = (
@@ -135,7 +164,7 @@ class EfficiencyCurve:
         )
         # create a fit for >100 keV.
         self._extrapolation_inference_threshold = (
-            800 * keV
+            extrapolation_inference_threshold_keV * keV
         )  # we deduce the slope of the extrapolation using datapoints above 800 keV
         # used for calculating the interpolated curve:
         self._log_E = ln(self.E)

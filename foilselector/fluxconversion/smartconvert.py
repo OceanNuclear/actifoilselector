@@ -7,6 +7,7 @@ thus relies on the interactions and convert module in the same sub-package.
 
 import numpy.typing as npt
 import numpy as np
+from pathlib import Path
 
 # custom functions
 from foilselector.fluxconversion.interactions import ask_question, get_column_interactive
@@ -37,7 +38,7 @@ def scale_to_eV_interactive(gs_ary: npt.NDArray):
     return gs_ary
 
 
-def ask_for_gs(directory):
+def ask_for_gs(directory: Path):
     """
     Check directory for a file containing a group structure; and interact with the program user to obtain said group structure.
     """

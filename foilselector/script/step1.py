@@ -29,7 +29,8 @@ import pandas as pd
 from openmc.data import Tabulated1D
 from matplotlib import pyplot as plt
 from pathlib import Path
-from os.path import join
+import shutil
+from os.path import basename
 
 from foilselector.fluxconversion import (
     ask_question,
@@ -45,6 +46,9 @@ from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
 from foilselector.generic import minmax, SilenceNumpyDivisionError
 from foilselector.constants import MeV, keV
 from foilselector.openmcextension import Integrate, detabulate
+from foilselector.simulation.efficiency import (
+    list_dir_eff_files, EfficiencyCurve, APPROVED_EFFICIENCY_FILE_EXTENSIONS
+)
 from foilselector.simulation.detector import (
     Compton_to_peak_curve_factory,
     resolution_curve_factory,
@@ -62,11 +66,11 @@ def section_title(title: str):
     print(title + "-" * pad_length)
 
 
-def stage1_read_raw_ap_gs(directory: Path):
+def stage1_read_raw_ap_gs():
     """Read the apriori value"""
     section_title("1.1 Reading the a priori values.")
     apriori = get_column_interactive(
-        directory,
+        Path.cwd(),
         "a priori spectrum's values (ignoring the uncertainty)",
         first_time_use=True,
     )
@@ -83,12 +87,13 @@ def stage1_read_raw_ap_gs(directory: Path):
 
 
 def stage2_interpret_ap_energy(
-    directory: Path, apriori: npt.NDArray, in_unit: str, *, group_or_point: str
+    apriori: npt.NDArray, in_unit: str, *, group_or_point: str
 ):
     """Put apriori into the right group-structure"""
     section_title("2. Reading the energy values associated with the a priori.")
+    cwd = Path.cwd()
     if group_or_point == "group-wise":
-        apriori_gs = ask_for_gs(directory)
+        apriori_gs = ask_for_gs(cwd)
         apriori = flux_conversion(apriori, apriori_gs, in_unit, "per eV")
 
         E_values = np.hstack([apriori_gs[:, 0], apriori_gs[-1, 1]])
@@ -96,7 +101,7 @@ def stage2_interpret_ap_energy(
 
     elif group_or_point == "point-wise":
         E_values = get_column_interactive(
-            directory, "energy paired to each data point of the a priori"
+            cwd, "energy paired to each data point of the a priori"
         )
         E_values = scale_to_eV_interactive(E_values)
         # convert to per eV format
@@ -263,7 +268,6 @@ def stage3_modify_apriori(
 
 
 def stage4_add_uncertainty(
-    directory: Path,
     apriori: npt.NDArray[float],
     continuous_apriori: Tabulated1D,
     apriori_copy: npt.NDArray[float],
@@ -276,7 +280,7 @@ def stage4_add_uncertainty(
         "Does the a priori spectrum comes with an associated error (y-error bars) on itself?"
     ):
         error_series = get_column_interactive(
-            directory,
+            Path.cwd(),
             "error (which should be of the same shape as the a priori spectrum input)",
         )
         # allow the error to be inputted in either fractional error or absolute error.
@@ -317,7 +321,6 @@ def stage4_add_uncertainty(
 
 
 def stage5_load_group_structure(
-    directory: Path,
     apriori_gs: npt.NDArray,
     E_values: npt.NDArray[float],
     continuous_apriori: Tabulated1D,
@@ -372,7 +375,7 @@ def stage5_load_group_structure(
             gs_min, gs_max = gs_bounds[:-1], gs_bounds[1:]
             gs_array = ary([gs_min, gs_max]).T
         else:  # gs_source=='from file'
-            gs_array = ask_for_gs(directory)
+            gs_array = ask_for_gs(Path.cwd())
     else:
         gs_array = apriori_gs
 
@@ -399,13 +402,12 @@ def stage5_load_group_structure(
 
 
 def stage5_save_apriori_files(
-    directory: Path,
     gs_array: npt.NDArray,
     continuous_apriori,
     error_present: tuple[Tabulated1D, Tabulated1D] | None,
 ):
     gs_df = pd.DataFrame(gs_array, columns=["min", "max"])
-    gs_df.to_csv(join(directory, ".gs.csv"), index=False)
+    gs_df.to_csv(".gs.csv", index=False)
 
     integrated_flux = Integrate(continuous_apriori).definite_integral(*gs_array.T)
 
@@ -424,7 +426,7 @@ def stage5_save_apriori_files(
     else:
         apriori_vector_df = pd.DataFrame(integrated_flux, columns=["value"])
 
-    apriori_vector_df.to_csv(join(directory, ".integrated_apriori.csv"), index=False)
+    apriori_vector_df.to_csv(".integrated_apriori.csv", index=False)
 
     # save the continuous a priori distribution (an openmc.data.Tabulated1D object) as a csv, by specifying the interpolation scheme as well.
     detabulated_apriori = detabulate(continuous_apriori)
@@ -436,7 +438,7 @@ def stage5_save_apriori_files(
         "interpolation"
     ].astype(int)
     detabulated_apriori_df.to_csv(
-        join(directory, ".continuous_apriori.csv"), index=False
+        ".continuous_apriori.csv", index=False
     )  # x already acts pretty well as the index.
     print(
         """Preprocessing completed. The outputs are saved to:
@@ -446,7 +448,7 @@ continuous apriori (an openmc.data.Tabulated1D object)  => .continuous_apriori.c
     )
 
 
-def stage6_load_and_save_gamma_resolution(directory: Path):
+def stage6_load_and_save_gamma_resolution():
     """
     Write to file the gamma-ray detector's resolution.
 
@@ -456,6 +458,7 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
         coefficients that can be used to reconstruct the resolution curve.
     """
     section_title("6. Save gamma-ray detector resolution")
+    cwd = Path.cwd()
 
     default_res_func = resolution_curve_factory(get_default_resolution_coefficients())
     fwhm_examples = ";\n".join(
@@ -480,12 +483,12 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
                     print(e, ", trying again...")
         else:
             E_keV, full_path = get_column_interactive(
-                directory,
+                cwd,
                 "Mean energy of the peaks (in keV)",
                 output_full_file_path=True,
             )
             fwhm_keV = get_column_interactive(
-                directory, "FWHM energy of the peaks (in keV)", file_path_given=full_path
+                cwd, "FWHM energy of the peaks (in keV)", file_path_given=full_path
             )
             while True:
                 try:
@@ -504,7 +507,7 @@ def stage6_load_and_save_gamma_resolution(directory: Path):
     return coefficients
 
 
-def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
+def stage7_load_and_save_gamma_peak_to_Compton_ratio():
     """
     Write to file the gamma-ray detector's peak-to-Compton ratio.
 
@@ -539,12 +542,12 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
                     print(e, ", trying again...")
         else:
             E_keV, full_path = get_column_interactive(
-                directory,
+                cwd,
                 "Mean energy of the peaks (in keV)",
                 output_full_file_path=True,
             )
             pc = get_column_interactive(
-                directory,
+                cwd,
                 "Peak-to-Compton ratio of the peaks (dimensionless)",
                 file_path_given=full_path,
             )
@@ -565,12 +568,59 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio(directory: Path):
     return coefficients
 
 
-def stage8_load_and_save_gamma_efficiency(directory):
+def stage8_load_and_save_gamma_efficiency():
     """Write to file the gamma-ray detector's efficiency curve."""
-    
-    return
+    endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS.keys())
 
-def main(directory: Path):
+    def one_loop(eff_file_path):
+        """A single iteration of opening an efficiency file and plotting it."""
+        with open(eff_file_path) as f:
+            print(f"Opened {basename(eff_file_path)}, which has `head` = ")
+            for i in range(3):
+                print(f.readline()[:-1])
+        print("...")
+
+        efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
+        E, eff = efficiency_curve.E/keV, efficiency_curve.eff
+        if efficiency_curve.unc:
+            plt.errorbar(E, eff, capsize=2, marker="x", label="efficiency data-points")
+        else:
+            plt.scatter(E, eff, label="efficiency data-points")
+        x = np.geomspace(np.min(E), max([np.max(E), 2000]), 300) # from the lowest E point to 2000 keV.
+        plt.semilogy(x, efficiency_curve(x*keV), color="C1", label="efficiency curve fitted from this data")
+        plt.legend()
+        plt.xlabel(r"$E_\gamma$ (keV)")
+        plt.ylabel(r"efficiency $\epsilon$")
+        plt.show()
+        plt.close()
+        return efficiency_curve
+
+    while True:
+        try:
+            chosen_eff_file = input(
+                f"Please choose file from the list above (file must end in {endings}):"
+            )
+            eff_curve = one_loop(chosen_eff_file)
+            if ask_yn_question("Is this curve satisfactory?"):
+                shutil.copyfile(
+                    chosen_eff_file, ".efficiency" + Path(chosen_eff_file).suffix
+                )
+                break
+            else:
+                print("Add/change datapoints/ use a different data file, and try again...")
+        except FileNotFoundError as e:
+            print(
+                e,
+                f", please confirm that file name is correct and exists in {cwd}. "
+                "Trying again..."
+            )
+        except Exception as e:
+            print(e, ", Perhaps not enough data points were given? Trying again...")
+        
+    return eff_curve
+
+def main():
+    cwd = Path.cwd()
     print(
         """
 The following inputs are needed:
@@ -578,33 +628,41 @@ The following inputs are needed:
 2. The group structure to be used in the investigation that follows.
 
 The relevant data will be retrieved from the following csv files.
-In the provided directory {}, the following .csv files are found:""".format(directory)
+In the current directory {}, the following .csv files are found:""".format(cwd)
     )
 
-    list_dir_csv(directory)
+    list_dir_csv(cwd)
 
-    apriori_raw, in_unit, group_or_point = stage1_read_raw_ap_gs(directory)
+    # stage 1
+    apriori_raw, in_unit, group_or_point = stage1_read_raw_ap_gs()
     orig_apriori_raw_values = apriori_raw.copy()  # leave a copy to be used in stage4.
 
+    # stage 2
     E_values, apriori, continuous_apriori, apriori_gs, scheme = (
-        stage2_interpret_ap_energy(
-            directory, apriori_raw, in_unit, group_or_point=group_or_point
-        )
+        stage2_interpret_ap_energy(apriori_raw, in_unit, group_or_point=group_or_point)
     )
     stage2_plot_apriori(E_values, apriori, continuous_apriori, apriori_gs)
+
+    # stage 3
     E_values, apriori, continuous_apriori = stage3_modify_apriori(
         E_values, apriori, continuous_apriori
     )
 
+    # stage 4
     error_present = stage4_add_uncertainty(
-        directory, apriori, continuous_apriori, orig_apriori_raw_values, scheme, E_values
+        apriori, continuous_apriori, orig_apriori_raw_values, scheme, E_values
     )
 
-    gs_array = stage5_load_group_structure(
-        directory, apriori_gs, E_values, continuous_apriori
-    )
-    stage5_save_apriori_files(directory, gs_array, continuous_apriori, error_present)
-    resolution_coefficients = stage6_load_and_save_gamma_resolution(directory)
-    peak_to_Compton_coefficients = stage7_load_and_save_gamma_peak_to_Compton_ratio(
-        directory
-    )
+    # stage 5
+    gs_array = stage5_load_group_structure(apriori_gs, E_values, continuous_apriori)
+    stage5_save_apriori_files(gs_array, continuous_apriori, error_present)
+
+    # stage 6
+    resolution_coefficients = stage6_load_and_save_gamma_resolution()
+
+    # stage 7
+    peak_to_Compton_coefficients = stage7_load_and_save_gamma_peak_to_Compton_ratio()
+
+    # stage 8
+    list_dir_eff_files(cwd)
+    stage8_load_and_save_gamma_efficiency()
