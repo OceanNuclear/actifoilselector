@@ -19,25 +19,33 @@ A nuance that I have to clear up: if a(n advaned) user _knows_ that there's a sp
 """
 
 import json
+from collections import defaultdict
 from tqdm import tqdm
 from numpy import array as ary
+from uncertainties import nominal_value as nom
 
 from foilselector.foldermanagement import *
 from foilselector.reactionnaming import (
     specify_isotopic_composition,
     commonname_to_atnum_massnum,
 )
-from foilselector.openmcextension import *
+from foilselector.openmcextension import * # collapse_single_xs
+from foilselector.generic import sorted_dict
 from foilselector.simulation import EfficiencyCurve
-
+from foilselector.constants import BARN
+from foilselector.simulation.decay.bateman import mat_exp_num_decays
+from foilselector.simulation.decay import linearize_decay_chain, build_decay_chain_tree
 
 default_gamma_energy_limits_keV = [20, 4600]
 
 
 def main(
-    composition, library, photopeak_efficiency, gamma_energy_limits_keV, group_structure
+    composition, library, irradiation_duration, transit_duration, measurement_duration
 ):
-    # sub-step 1: break down the foil composition into its consituent isotopes.
+
+    # stage 1: read outputs of step1.
+    gs_array = read_gs(".gs.csv")
+    # stage 2: break down the foil composition into its consituent isotopes.
     with open(composition) as j:
         _composition_used_here = json.load(j)
     processed_composition = {
@@ -46,51 +54,74 @@ def main(
     }
     # save a version of the processed_composition dictionary
 
-    save_atomic_composition_json(processed_composition)  # needed for step 3+
+    save_atomic_composition_json(processed_composition)  # for future reference
 
-    # sub-step 2: find what isotopes need to be extracted.
-    _isotope_concerned = set()
+    # TODO: rewrite this stage without openmc, and possibly implement an alternative using FISPACT-II.
+    # stage 3.1: find what isotopes need to be extracted.
+    isotope_of_interest = set()
     for isotopes in processed_composition.values():
         for iso in isotopes.keys():
             atnum_and_massnum = commonname_to_atnum_massnum(iso)
-            _isotope_concerned.add(atnum_and_massnum)
-    xs_dict, decay_dict = sparsely_load_xs_and_decay_dict(_isotope_concerned, library)
+            isotope_of_interest.add(atnum_and_massnum)
+    # stage 3.2: extract them
+    xs_dict, decay_dict = sparsely_load_xs_and_decay_dict(isotope_of_interest, library)
 
-    # save decay_radiation
-    save_decay_radiation(decay_dict)  # needed for step 5: simulating gamma spec.
-    # sub-step 3: apply efficiency curve to condense the decay-dict into a smaller dictionary
+    def xs_template_generator():
+        """
+        For creating an empty array representing the cross-section for generating a
+        single count in whichever gamma-line of interest.
+        """
+        return np.zeros(len(gs_array), dtype=float)
+
+    every_foil_response_matrix = {}
+    for foil_name, foil_comp in tqdm(processed_composition.items(), desc="Processing every foil individually..."):
+        # TODO: double tqdm here.
+        this_foil = default_dict(xs_template_generator)
+        for isotope, atomic_fraction in foil_comp.items():
+            for rx_name, rx_xs in reactions_matching(xs_dict, isotope).items():
+                decay_pathways = linearize_decay_chain(build_decay_chain_tree(decay_dict, rx_name.split("-")[1]))
+                for pathway in decay_pathways:
+                    # calculate how many decays of PRODUCT are measured per REACTANT ATOM
+                    # initially present in the foil when irradiated by 1 cm^-2 s^-1 flux
+                    # in each bin from time t=0-a seconds, and then measured from time
+                    # t= b-c seconds.
+                    decay_correction_factor = mat_exp_num_decays(
+                        pathway.branching_ratios,
+                        pathway.decay_constants,
+                        irradiation_duration,
+                        irradiation_duration+transit_duration,
+                        irradiation_duration+transit_duration+measurement_duration,
+                    )
+                    for peak_energy, peak_intensity, source in pathway.discrete_photon_spectrum:
+                        this_foil[peak_energy] += collapse_single_xs(rx_xs, gs_array) * BARN * atomic_fraction * nom(pathway.branching_fraction) * decay_correction_factor * peak_intensity
+                    if pathway.background_photon_spectrum:
+                        this_background.extend([
+                    background_dist * BARN * atomic_fraction * nom(pathway.branching_fraction) * decay_correction_factor * peak_intensity
+                    for background_dist, source in pathway.background_photon_spectrum
+                    ])
+        every_foil_response_matrix[foil_name] = sorted_dict(this_foil)
+
     try:
         eff_curve = EfficiencyCurve.from_file(str(photopeak_efficiency))
     except TypeError as e:
         print("Incorrect file path. Try giving a valid file to the -e argument?")
         raise e
         sys.exit()
+    gamma_energy_limits = np.array(default_gamma_energy_limits_keV) * keV
+    if gamma_energy_limits_keV:
+        gamma_energy_limits = np.array(sorted(gamma_energy_limits_keV)) * keV
     decay_info = {}
     for name, dec_file in tqdm(
         decay_dict.items(),
         desc="Summarizing the decay gamma spectra into a single scalar: countable number of pulses.",
     ):
-        gamma_energy_limits = (
-            sorted(gamma_energy_limits_keV)
-            if gamma_energy_limits_keV
-            else default_gamma_energy_limits_keV
-        )
         decay_info[name] = condense_spectrum_copy(
-            dec_file, eff_curve, gamma_lims=ary(gamma_energy_limits) * 1000
+            dec_file, eff_curve, gamma_lims=gamma_energy_limits
         )
-
-    # sub-step 4: re-bin into the correct group structure
-    gs_array = read_gs(group_structure)
-    assert (gs_array[:, 0] < gs_array[:, 1]).all(), (
-        "The -G, --group-structure file must be provided in ascending bin order! (And the flux file used in the next step must match it.)"
-    )
 
     sigma_df, selfshielding_dict = collapse_xs(xs_dict, gs_array)
     # ^ we must make sure to extract the max sigma from the the raw xs before collapsing it to the right group structure.
     # This is because the process of collapsing it to the appropriate group structure destroys that information.
-
-    # sub-step 5: Merge
-    sigma_df = merge_identical_parent_products(sigma_df)
 
     # save the rest of the useful informations into files. Needed in step 3+
     print(

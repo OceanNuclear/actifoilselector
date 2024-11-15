@@ -37,7 +37,9 @@ def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
     """
     Convert a openmc.data.openmc_tab1d into something json serialize-able.
     """
-    scheme = expand_interpolation_regions(openmc_tab1d.interpolation, openmc_tab1d.breakpoints, len(openmc_tab1d.x))
+    scheme = expand_interpolation_regions(
+        openmc_tab1d.interpolation, openmc_tab1d.breakpoints, len(openmc_tab1d.x)
+    )
 
     return dict(
         x=openmc_tab1d.x.tolist(),

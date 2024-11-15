@@ -17,6 +17,15 @@ def ordered_set(sequence):
     #   -> negated by "not" in front of bracket -> adds element to list
     # This should be an O(n) operation.
 
+def sorted_dict(dictionary: dict):
+    """
+    Python dictionaries are sorted by default now, so we don't need to import OrderedDict
+    """
+    sorted_keys = sorted(list(dictionary.keys()))
+    while sorted_keys:
+        next_lowest = sorted_keys.pop()
+        new_dict[next_lowest] = dictionary[next_lowest]
+    return new_dict
 
 def minmax(array):
     """

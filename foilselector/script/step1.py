@@ -20,6 +20,10 @@ Files saved
     The list of Gamma-ray detector peak-to-Compton ratio coefficients, stored in
     ascending degrees, newline-delimited, such that we can express the peak-to-Compton
     ratio as P/C(E) = x_0 + x_1 * E + x_2 * E^2 + ...
+.efficiency{.o,.ecc,.csv,.dat}
+    A copy of the gamma-ray detector efficiency calibration file, where the file suffix
+    is the same as the source file's suffix. See foilselector.simulation.efficiency for
+    more details.
 """
 
 import numpy as np
@@ -516,6 +520,7 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio():
     coefficients
         coefficients that can be used to reconstruct the Compton-to-peak curve.
     """
+    cwd = Path.cwd()
     section_title("7. Save gamma-ray detector photopeak-to-Compton ratio")
     default_CS_func = Compton_to_peak_curve_factory(
         get_default_peak_to_Compton_coefficients()
@@ -569,7 +574,8 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio():
 
 
 def stage8_load_and_save_gamma_efficiency():
-    """Write to file the gamma-ray detector's efficiency curve."""
+    """Write to file the gamma-ray detector's absolute efficiency curve."""
+    cwd = Path.cwd()
     endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS.keys())
 
     def one_loop(eff_file_path):
@@ -582,8 +588,8 @@ def stage8_load_and_save_gamma_efficiency():
 
         efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
         E, eff = efficiency_curve.E/keV, efficiency_curve.eff
-        if efficiency_curve.unc:
-            plt.errorbar(E, eff, capsize=2, marker="x", label="efficiency data-points")
+        if efficiency_curve.unc is not None:
+            plt.errorbar(E, eff, yerr=efficiency_curve.unc, linestyle="", capsize=2.5, marker="x", label="efficiency data-points")
         else:
             plt.scatter(E, eff, label="efficiency data-points")
         x = np.geomspace(np.min(E), max([np.max(E), 2000]), 300) # from the lowest E point to 2000 keV.
@@ -597,9 +603,12 @@ def stage8_load_and_save_gamma_efficiency():
 
     while True:
         try:
+            default_efficiency_file = get_default_efficiency_curve_path()
             chosen_eff_file = input(
-                f"Please choose file from the list above (file must end in {endings}):"
+                f"Please choose file from the list above (file must end in {endings});\nOr enter nothing to use the example efficiency file stored at {default_efficiency_file}:"
             )
+            if chosen_eff_file=="":
+                chosen_eff_file = default_efficiency_file
             eff_curve = one_loop(chosen_eff_file)
             if ask_yn_question("Is this curve satisfactory?"):
                 shutil.copyfile(

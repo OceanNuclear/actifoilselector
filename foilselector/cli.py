@@ -9,9 +9,10 @@ import os
 @click.group()
 @click.version_option()
 def cli():
-    """Foil selector cli
-
-    Tools and scripts used to read nuclear data and thus select foils used in irradiation
+    """
+    Foil selector CLI
+    Tools and scripts used to read nuclear data and thus select foils used in activation
+    foil unfolding experiments.
     """
 
 
@@ -36,69 +37,8 @@ def step1():
     "--library",
     type=click.Path(exists=True),
     required=True,
-    help="directory(ies) where the cross-sections are stored",
+    help="directory(ies) where the nuclear data (i.e. cross-sections and decay data) are stored",
     multiple=True,
-)
-@click.option(
-    "-e",
-    "--photopeak-efficiency",
-    type=click.Path(exists=True),
-    help="""file with data of the absolute photopeak efficiency of the gamma detector used in its current configuration.
-The accepted file types are:
-.csv (energy in MeV in column 0, efficiency in column 1.)
-.dat (same as .csv, but space delimited instead)
-.o (mcnp output)
-.ecc (GENIE/ISOCS output) """,
-    default=Path(
-        os.path.dirname(__file__),
-        "physicalparameters",
-        "photopeak_efficiency",
-        "Absolute_photopeak_efficiencyMeV.csv",
-    ),
-)
-@click.option(
-    "-g",
-    "--gamma-energy-limits-keV",
-    type=float,
-    nargs=2,
-    help="The minimum and maximum gamma energies (keV) that the detector can detect.\nThe defaults are 20 keV - 4600 keV.",
-)
-@click.option(
-    "-G",
-    "--group-structure",
-    type=click.Path(exists=True),
-    help="newline-separated file listing the pairs of group boundaries (comma-separated) in ascending energies.",
-)
-def step2(
-    composition, library, photopeak_efficiency, gamma_energy_limits_keV, group_structure
-):
-    """Extract the relevant cross-sections and decay data from the nuclear data library.
-    Then save them as functionst ath will never be used again.
-    This is analogous to the 'collapse' and 'condense' step in FISPACT."""
-    main_step2(
-        composition,
-        library,
-        photopeak_efficiency,
-        gamma_energy_limits_keV,
-        group_structure,
-    )
-
-
-@cli.command("step3", no_args_is_help=True)
-@click.option(
-    "-f",
-    "--a-priori-flux",
-    type=click.Path(exists=True),
-    required=True,
-    help="""newline-separated file listing the total flux expected in each bin of ascending energy.
-The number of bins (n) must match the number of bin boundaries (n+1) in the previous step.""",
-)
-@click.option(
-    "-R",
-    "--max-gamma-count-rate",
-    type=float,
-    default=10000,
-    help="Maximum pulse rate that the gamma detector can handle without losing its resolution.",
 )
 @click.option(
     "-I",
@@ -121,21 +61,39 @@ The number of bins (n) must match the number of bin boundaries (n+1) in the prev
     required=True,
     help="Number of seconds the detector spend acquiring a spectrum of the activated foil sample.",
 )
-def step3(
-    a_priori_flux,
-    max_gamma_count_rate,
-    irradiation_duration,
-    transit_duration,
-    measurement_duration,
+def step2(
+    composition, library, irradiation_duration, transit_duration, measurement_duration
 ):
-    """Calculate the number of decays from each reaction."""
-    main_step3(
-        a_priori_flux,
-        max_gamma_count_rate,
+    """Extract the relevant cross-sections and decay data from the nuclear data library.
+    Then save them as functionst ath will never be used again.
+    This is analogous to the 'collapse' and 'condense' step in FISPACT."""
+    main_step2(
+        composition,
+        library,
         irradiation_duration,
         transit_duration,
         measurement_duration,
     )
+
+
+@cli.command("step3", no_args_is_help=True)
+@click.option(
+    "-n",
+    type=float,
+    required=True,
+    help="Number of foil required in the final foil set."
+)
+@click.option(
+    "-r",
+    "--max-gamma-count-rate",
+    type=float,
+    required=True,
+    # default=10000,
+    help="Maximum pulse rate that the gamma detector can handle without losing its resolution.",
+)
+def step3(max_gamma_count_rate):
+    """Calculate the number of decays from each reaction."""
+    main_step3(max_gamma_count_rate)
 
 
 @cli.command("step4", no_args_is_help=False)

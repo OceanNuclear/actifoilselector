@@ -136,8 +136,8 @@ def main(
         desc="Calculating the expected number of photopeak counts for each type of product created:",
     ):
         count_calculation_results = summed_cnt_and_rates(
-            product,
             decay_info,
+            product,
             a=POST_IRRADIATION,
             b=PRE_MEASUREMENT,
             c=POST_MEASUREMENT,
