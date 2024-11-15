@@ -16,14 +16,14 @@ import pandas as pd
 import openmc
 from openmc.data import ATOMIC_SYMBOL
 from foilselector.openmcextension.constants import AMBIGUOUS_MT, FISSION_MTS, MT_to_nuc_num
+from foilselector.openmcextension.table import tabulate, detabulate
 
 __all__ = [
     "sparsely_load_xs_and_decay_dict",
     "endf_data_list_to_xs_dict",
+    "reactions_matching",
     "deduce_daughter_from_mt",
     "MF10",
-    "detabulate",
-    "tabulate",
     "EncoderOpenMC",
     "DecoderOpenMC",
     "serialize_dict",
@@ -250,8 +250,16 @@ def sparsely_load_xs_and_decay_dict(required_isotopes, folder_list):
 
 
 def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
-    """Unpack openmc.data.IncidentNeutron objects into a dictionary of xs_dict.
-    Returns: primary-product production cross-sections."""
+    """
+    Unpack openmc.data.IncidentNeutron objects into a dictionary of xs_dict.
+
+    Returns
+    -------
+    xs_dict:
+        dictionary of primary-product production cross-sections, where
+        key = "068Fe-"
+        value= Tabulated1D (x=energy in eV, y=xs in barns)
+    """
     xs_dict = OrderedDict()
     for file in tqdm(inc_nuc_list, desc="Compiling the raw cross-section dictionary"):
         inc_f = openmc.data.IncidentNeutron.from_endf(file)
@@ -288,6 +296,12 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
                 xs_dict[nuc_sort_name + "-" + name] = xs
     return xs_dict
 
+def reactions_matching(xs_dict: dict, isotope:str) -> dict:
+    """
+    Get the subset of the dictionary containing only reactions that uses the specified
+    isotopes as the reactant.
+    """
+    return {k:v for k,v in xs_dict.items() if k.split("-")[0]==isotope}
 
 def _extract_xs(parent_atomic_number, parent_atomic_mass, rx_file, tabulated=True):
     """
@@ -303,7 +317,8 @@ def _extract_xs(parent_atomic_number, parent_atomic_mass, rx_file, tabulated=Tru
     if isinstance(xs, openmc.data.ResonancesWithBackground):
         xs = xs.background  # When shrinking the group structure, this contains everything you need. The Resonance part of xs can be ignored (only matters for self-shielding.)
     if (
-        len(rx_file.products) == 0
+        # len(rx_file.products) == 0
+        True # BODGE to skip the else condition below!
     ):  # if no products are already available, then we can only assume there is only one product.
         daughter_name = deduce_daughter_from_mt(
             parent_atomic_number, parent_atomic_mass, rx_file.mt
@@ -406,43 +421,6 @@ class MF10(object):
 
     def values(self):
         return self.reactions.values()
-
-
-def detabulate(tabulated_object):
-    """
-    Convert a openmc.data.tabulated_object into something json serialize-able.
-    """
-    scheme = np.zeros(len(tabulated_object.x) - 1, dtype=int)
-    for point, scheme_number in list(
-        zip(tabulated_object.breakpoints, tabulated_object.interpolation)
-    )[::-1]:
-        scheme[: point - 1] = (
-            scheme_number  # note the -1: it describes the interp-scheme of all cells *before* it.
-        )
-
-    return dict(
-        x=tabulated_object.x.tolist(),
-        y=tabulated_object.y.tolist(),
-        interpolation=scheme.tolist(),
-    )
-
-
-def tabulate(detabulated_dict):
-    """
-    parameters
-    ----------
-    detabulated_dict : should have 3 columns: "x" (list of len=n+1), "y" (list of len=n+1), "interpolation" (list of len=n).
-    """
-    interpolation_long = list(detabulated_dict["interpolation"])  # make a copy
-    # pad the interpolation_long to the lenght of n+1
-    interpolation_long.append(
-        0
-    )  # outside of the specified data range, the interpolation scheme = N/A; use zero as placeholder for N/A.
-    breakpoints = sorted(np.argwhere(np.diff(interpolation_long)).flatten() + 2)
-    interpolation = ary(interpolation_long)[ary(breakpoints) - 2].tolist()
-    return openmc.data.Tabulated1D(
-        detabulated_dict["x"], detabulated_dict["y"], breakpoints, interpolation
-    )
 
 
 class EncoderOpenMC(json.JSONEncoder):

@@ -1,28 +1,34 @@
 # typical system/python stuff
 import warnings
 from tqdm import tqdm
+from collections import namedtuple
 import gc
 
 # typical python numerical stuff
 from numpy import array as ary
 import numpy as np
 import pandas as pd
+from numpy import typing as npt
 
 # openmc stuff
+from openmc.data import Tabulated1D
 # uncertainties
 from uncertainties.core import Variable
+from uncertainties import nominal_value as nom
 
 # local modules
-from foilselector.openmcextension import Integrate
+from foilselector.openmcextension.table import Integrate, Tab1DExtended
+from foilselector.openmcextension.gamma import LineTuple
 from foilselector.generic import ordered_set
 from foilselector.selfshielding import MaxSigma
-from foilselector.simulation import LineTuple
 
 __all__ = [
     "condense_spectrum_copy",
     "collapse_xs",
+    "collapse_single_xs",
     "merge_identical_parent_products",
     "simplify_spectrum_copy",
+    "flatten_photon_spectrum",
 ]
 
 
@@ -142,6 +148,23 @@ def collapse_xs(xs_dict, gs_ary):
     # ignore the w_list of caught warnings
     return pd.DataFrame(collapsed_sigma).T, max_xs_dict
 
+def collapse_single_xs(xs_entry: Tabulated1D, gs_array: npt.NDArray):
+    """
+    Parameters
+    ----------
+    xs_entry:
+        A single openmc.data.Tabulated1D instance found in
+        `openmc.data.IncidentNeutron.from_endf(file).reactions[...].xs["0K"]`
+    gs_array:
+        Group structure showing the lower and upper bound of each bin,
+        shape = len(gs) * 2.
+
+    Returns
+    -------
+    cross-section:
+
+    """
+    return integrate(xs_entry).definite_integral(*gs_array.T) / np.diff(gs_array, axis=1).flatten()
 
 def merge_identical_parent_products(loose_collection_of_rx):
     """
@@ -188,3 +211,109 @@ def merge_identical_parent_products(loose_collection_of_rx):
     del partial_reaction_array
     gc.collect()
     return pd.DataFrame(sigma_unique).T
+
+class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"])):
+    """
+    Attributes
+    ----------
+    energy: openmc.core.Variable
+        mean energy of this discrete radiation line.
+    intensity: openmc.core.Variable
+        number of this radiation line released per decay of the immediate parent.
+    source: str
+        description of where the radiation originated from.
+        decay radiation type, immediate parent's name, and decay mode inducing the
+        release of this radiation. e.g. "gamma from Y101 beta-"
+    """
+    pass
+
+class ContinuousRadiationDistribution(namedtuple("RadiationDistribution", ["distribution", "source"])):
+    """
+    Attributes
+    ----------
+    distribution: `foilselector.openmcextension.table.Tab1DExtended`
+        Distribution of gamma-lines(x=energy (eV), y=intensity) released per decay of
+        the immediate parent.
+        Area under the distribution integrates to the value given by
+        `nom(openmc_decay_spectrum[radiation_type]["continuous_normalization"])`.
+    source: str
+        description of where the radiation originated from.
+        decay radiation type, immediate parent's name, and decay mode inducing the
+        release of this radiation. e.g. "gamma from Y101 beta-"
+    """
+
+def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> tuple[list[DiscreteRadiation], list[ContinuousRadiationDistribution]]:
+    """
+    Turn a openmc.data.Decay.from_endf(...).spectra from a nested dictionary into
+    a lists of photon (xray and gamma) lines.
+
+    Parameters
+    ----------
+    openmc_decay_spectrum:
+        dictionary obtained by openmc.data.Decay.from_endf(isotope).spectra.
+    isotope_name:
+        name of the isotope to which the spectrum belongs.
+    
+    Returns
+    -------
+    discrete_spec: list[3-tuple]
+        DiscreteRadiation(energy (eV), intensity, source description)
+
+    continuous_spec: list[2-tuple]
+        ContinuousRadiationDistribution(photon energy distribution, source description)
+    """
+    discrete_spec, continuous_spec = [], []
+    def extend_discrete_lines(discrete: list[dict], discrete_normalization: Variable, source: str):
+        """Flatten a decay["spectrum"][radiation_type]["discrete"]"""
+        if nom(discrete_normalization):
+            for line in discrete:
+                discrete_spec.append(
+                    (line["energy"], line["intensity"] * discrete_normalization, f"{source} from {isotope_name} {','.join(line['from_mode'])}")
+                )
+
+    if "xray" in openmc_decay_spectrum:
+        if "discrete" in openmc_decay_spectrum["xray"]:
+            extend_discrete_lines(
+                openmc_decay_spectrum["xray"]["discrete"],
+                openmc_decay_spectrum["xray"]["discrete_normalization"],
+                "xray"
+            )
+        if "continuous" in openmc_decay_spectrum["xray"]:
+            prob_table = openmc_decay_spectrum["xray"]["continuous"]["probability"]
+            xray_dist = Tab1DExtended(
+                prob_table.x,
+                prob_table.y * nom(openmc_decay_spectrum["xray"]["continuous_normalization"]),
+                breakpoints=prob_table.breakpoints,
+                interpolation=prob_table.interpolation,
+            )
+
+            continuous_spec.append(
+                (xray_dist, f"xray from {isotope_name} {','.join(line['from_mode'])}",)
+            )
+    if "gamma" in openmc_decay_spectrum:
+        if "discrete" in openmc_decay_spectrum["gamma"]:
+            extend_discrete_lines(
+                openmc_decay_spectrum["gamma"]["discrete"],
+                openmc_decay_spectrum["gamma"]["discrete_normalization"],
+                "gamma"
+            )
+        if "continuous" in openmc_decay_spectrum["gamma"]:
+            prob_table = openmc_decay_spectrum["gamma"]["continuous"]["probability"]
+            gamma_dist = Tab1DExtended(
+                prob_table.x,
+                prob_table.y * nom(openmc_decay_spectrum["gamma"]["continuous_normalization"]),
+                breakpoints=prob_table.breakpoints,
+                interpolation=prob_table.interpolation,
+            )
+
+            # num_counts = Integrate(gamma_dist).definite_integral(*minmax(gamma_dist))
+            # warnings.warn(
+            #     "Continuous gamma-ray distribution found in the decay gamma-ray spectrum"
+            #     f"! This distribution sums up to {num_counts * nom()} gamma-rays "
+            #     f"released per decay of {isotope_name}."
+            # )
+            continuous_spec.append(
+                (gamma_dist, f"gamma from {isotope_name} {','.join(line['from_mode'])}",)
+            )
+            
+    return discrete_spec, continuous_spec

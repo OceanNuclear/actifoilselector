@@ -1,7 +1,9 @@
 """extend the functionalities of openmc classes Tabulate(openmc.data.Tabulated1D related classes)"""
 
+from __future__ import annotations
 # numpy stuff
 import numpy as np
+from numpy import typing as npt
 from numpy import array as ary
 from numpy import log as ln
 
@@ -10,11 +12,56 @@ from openmc.data import INTERPOLATION_SCHEME
 from collections.abc import Iterable  # to check type
 
 import matplotlib.pyplot as plt
-from foilselector.openmcextension.extended_io import detabulate
 from foilselector.generic import SilenceNumpyDivisionError
 
 plot_tab = lambda tab, *args, **kwargs: plt.plot(tab.x, tab.y, *args, **kwargs)
 
+
+def expand_interpolation_regions(interpolation: Iterable[float], breakpoints, length_of_table: int) -> npt.NDArray[float]:
+    """
+    Convert the openmc.data.Tabulated1D data into data that 
+
+    Parameters
+    ----------
+    inteprolation:
+        The .interpolation list attribute of an instance of Tabulated1D
+    """
+    # n cells, with n+1 boundaries
+    new_interpolation = np.zeros(length_of_table-1, dtype=int)
+    for point, scheme_number in list(zip(breakpoints, interpolation))[::-1]:
+        # use an offset of -1 to describe the cell *before* it,
+        new_interpolation[:point-1] = scheme_number
+    return new_interpolation
+
+def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
+    """
+    Convert a openmc.data.openmc_tab1d into something json serialize-able.
+    """
+    scheme = expand_interpolation_regions(openmc_tab1d.interpolation, openmc_tab1d.breakpoints, len(openmc_tab1d.x))
+
+    return dict(
+        x=openmc_tab1d.x.tolist(),
+        y=openmc_tab1d.y.tolist(),
+        interpolation=scheme.tolist(),
+    )
+
+
+def tabulate(detabulated_dict: dict) -> openmc.data.Tabulated1D:
+    """
+    parameters
+    ----------
+    detabulated_dict : should have 3 columns: "x" (list of len=n+1), "y" (list of len=n+1), "interpolation" (list of len=n).
+    """
+    interpolation_long = list(detabulated_dict["interpolation"])  # make a copy
+    # pad the interpolation_long to the lenght of n+1
+    interpolation_long.append(
+        0
+    )  # outside of the specified data range, the interpolation scheme = N/A; use zero as placeholder for N/A.
+    breakpoints = sorted(np.argwhere(np.diff(interpolation_long)).flatten() + 2)
+    interpolation = ary(interpolation_long)[ary(breakpoints) - 2].tolist()
+    return openmc.data.Tabulated1D(
+        detabulated_dict["x"], detabulated_dict["y"], breakpoints, interpolation
+    )
 
 class Integrate:
     __slots__ = [
@@ -29,20 +76,20 @@ class Integrate:
         self.interpolation[i] describes the interpolation scheme between self.x[i-1] to self.x[i], using the scheme specified by
             INTERPOLATION_SCHEME[self.interpolation[i]]
         """
-        assert isinstance(func, openmc.data.Tabulated1D), "Must be a Tabulated1D object"
         assert all(np.diff(func.x) >= 0), (
             "The data points must be stored in a manner so that the x values are monotonically increasing."
         )
         # there are n+1 boundaries, but only n cells. And whenever we use x1, we'll also use x2.
         # Therefore the best way to store x and y is to store them as above: x1, x2, y1, y2.
         self.func = func  # pointer to the actual function, so that it can be used later.
-        self._interpolation = np.zeros(len(self.func.x[:-1]), dtype=int)  # n cells
-        for point, scheme_number in list(zip(func.breakpoints, func.interpolation))[
-            ::-1
-        ]:
-            self._interpolation[: point - 1] = (
-                scheme_number  # use an offset of -1 to describe the cell *before* it,
+        if isinstance(fuc, openmc.data.Tabulated1D):
+            self._interpolation = expand_interpolation_regions(
+                func.interpolation, func.breakpoints, len(func.x)
             )
+        elif isinstance(func, Tab1DExtended):
+            self._interpolation = func.interpolation
+        else:
+            TypeError("Must be a Tabulated1D/Tab1DExtended object!")
         self._area = self._calculate_area_of_each_cell(
             self.func.x, self.func.y, self._interpolation
         )
@@ -59,7 +106,6 @@ class Integrate:
         assert (np.diff([a, b], axis=0) >= 0).all(), (
             "Can only integrate in the positive direction."
         )
-        # assert False, "How the fuck are you not catching this shit?"
         if np.not_equal(np.clip(a, self.func.x.min(), self.func.x.max()), a).any():
             if self.verbose:
                 print(
@@ -294,13 +340,20 @@ class Tab1DExtended:
 
     def __call__(self, x_new):
         x_new = ary(x_new)
-        x_new
+        
 
-    def __add__(self, tab2):
+    def __add__(self, other: float):
         raise NotImplementedError
 
-    def __mul__(self, tab):
-        raise NotImplementedError
+    def __mul__(self, other: float):
+        if isinstance(other, (Tab1DExtended, openmc.data.Tabulated1D)):
+            raise NotImplementedError
+        scale_factor = other
+        return self.__class__(self.x, self.y * scale_factor, self.interpolation)
+            
+
+    def copy(self) -> Tab1DExtended:
+        return self.__class__(self.x, self.y, self.interpolation)
 
     @classmethod
     def from_openmc(cls, openmc_instance):
