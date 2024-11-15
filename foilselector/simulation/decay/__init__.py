@@ -1,19 +1,25 @@
-from .bateman import *
-from .chaining import *
+from foilselector.simulation.decay.bateman import *
+from foilselector.simulation.decay.chaining import *
 from collections import namedtuple
 
 # define a few functions that doesn't make sense to be in either, and also depends on the function in both.
 
 
-def cnt_and_cnt_rates_for_each_pathway(root_product, decay_info_dict, a, b, c):
+def cnt_and_cnt_rates_for_each_pathway(decay_info_dict, root_product: str, a, b, c):
     """Create a list of dictionaries related to all decay pathways of one root-product,
     where each dictionary describes the decay rate and count rate of that pathway.
-    root_product: the product that originates
-    decay_info_dict: the decay info dictionary formed by applying
-        foilselector.openmcextension.condense_spectrum_copy on each item of the decay_dict extracted by sparsely_load_xs_and_decay_dict"""
+
+    Parameters
+    ----------
+    decay_info_dict:
+        the decay info dictionary formed by applying
+        foilselector.openmcextension.condense_spectrum_copy on each item of the decay_dict extracted by sparsely_load_xs_and_decay_dict
+    root_product:
+        the product that originates
+    """
     rates_per_root_product = []
     for subchain in linearize_decay_chain(
-        build_decay_chain_tree(root_product, decay_info_dict)
+        build_decay_chain_tree(decay_info_dict, root_product)
     ):
         new_pathway = {
             "pathway": "-".join(subchain.names),
@@ -66,20 +72,23 @@ Summed_reaction_rates_results = namedtuple(
 )
 
 
-def summed_cnt_and_rates(root_product, decay_info_dict, a, b, c):
+def summed_cnt_and_rates(decay_info_dict: dict, root_product, a, b, c):
     """
     Calculates the outputted quantities of a SINGLE root-product atom.
+
     Parameters
     ----------
-    root_product: the name of the product that is produced.
-    decay_info_dict, a, b, c: see cnt_and_cnt_rates_for_each_pathway
+    decay_info_dict, a, b, c:
+        see cnt_and_cnt_rates_for_each_pathway
+    root_product:
+        the name of the product that is produced.
 
     Returns
     -------
     See Summed_reaction_rates_results.
     """
     detected_counts_per_primary_product = cnt_and_cnt_rates_for_each_pathway(
-        root_product, decay_info_dict, a=a, b=b, c=c
+        decay_info_dict, root_product, a=a, b=b, c=c
     )
     total_counts = sum([
         path["counts during measurement"] for path in detected_counts_per_primary_product

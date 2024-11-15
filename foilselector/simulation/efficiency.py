@@ -25,7 +25,7 @@ ISOCS extend
 """
 
 from glob import glob
-from os.path import join
+import os
 
 import numpy as np
 from numpy import array as ary, log as ln
@@ -42,9 +42,9 @@ EffCurve = namedtuple("EffCurve", ["E", "eff", "unc"])
 
 APPROVED_EFFICIENCY_FILE_EXTENSIONS = {
     ".o"   : "MCNP simulation output",
-    ".ecc" : "ISOCS simulation output",
-    ".dat" : "plain text file",
-    ".csv" : "generic comma-separated file",
+    ".ecc" : "GENIE/ISOCS simulation output",
+    ".csv" : "Generic comma-separated file, energy in MeV in first column, efficiency in second column, uncertainty potentially in third column.",
+    ".dat" : "Plain text file, same as .csv, but space delimited instead",
 }
 
 def list_dir_eff_files(directory):
@@ -52,10 +52,10 @@ def list_dir_eff_files(directory):
     Pretty print the list of all efficiency files in a specified directory.
     """
     fnames = (
-        glob(join(directory, "*.o")) +
-        glob(join(directory, "*.ecc")) +
-        glob(join(directory, "*.dat")) +
-        glob(join(directory, "*.csv"))
+        glob(os.path.join(directory, "*.o")) +
+        glob(os.path.join(directory, "*.ecc")) +
+        glob(os.path.join(directory, "*.dat")) +
+        glob(os.path.join(directory, "*.csv"))
     )
     print("########################")
     print("------------------------")
@@ -124,6 +124,8 @@ def read_csv(fname):
         df[df.columns[0]] = df[df.columns[0]] * MeV
     elif "keV" in df.columns[0]:
         df[df.columns[0]] = df[df.columns[0]] * keV
+    else:
+        raise ValueError(f"Please include the energy unit (keV/MeV) in the title of the first column of {fname}")
     return df
 
 
@@ -240,3 +242,15 @@ class EfficiencyCurve:
         ax.set_ylabel("Efficiency (fraction)")
         ax.set_xscale("log"), ax.set_yscale("log")
         plt.show()
+
+def get_default_efficiency_curve_path():
+    """Get the from the python installation package."""
+    return os.path.abspath( # get the absolute path version of this
+        os.path.join(
+            # relative path, relative to
+            os.path.dirname(__file__), # THIS particular file, efficiency.py right here.
+            "..",
+            "physicalparameters",
+            "photopeak_efficiency",
+            "Absolute_photopeak_efficiencyMeV.csv")
+    )
