@@ -84,7 +84,7 @@ class Integrate:
         # there are n+1 boundaries, but only n cells. And whenever we use x1, we'll also use x2.
         # Therefore the best way to store x and y is to store them as above: x1, x2, y1, y2.
         self.func = func  # pointer to the actual function, so that it can be used later.
-        if isinstance(fuc, openmc.data.Tabulated1D):
+        if isinstance(func, openmc.data.Tabulated1D):
             self._interpolation = expand_interpolation_regions(
                 func.interpolation, func.breakpoints, len(func.x)
             )

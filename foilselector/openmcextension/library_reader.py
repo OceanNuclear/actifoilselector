@@ -164,7 +164,7 @@ def collapse_single_xs(xs_entry: Tabulated1D, gs_array: npt.NDArray):
     cross-section:
 
     """
-    return integrate(xs_entry).definite_integral(*gs_array.T) / np.diff(gs_array, axis=1).flatten()
+    return Integrate(xs_entry).definite_integral(*gs_array.T) / np.diff(gs_array, axis=1).flatten()
 
 def merge_identical_parent_products(loose_collection_of_rx):
     """
