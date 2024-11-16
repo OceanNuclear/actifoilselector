@@ -168,9 +168,9 @@ def linearize_decay_chain(decay_tree) -> list[IsotopeDecay]:
     """
     self_decay = IsotopeDecay(
         [decay_tree["name"]],
+        # Dummy branching ratio, which gets ignored in the bateman calculation.
+        # This gets overwritten when it's acting as the DAUGHTER chain in the recursion condition.
         [Variable(1.0, 0.0)], 
-        # dummy branching ratio. This gets overwritten when it's acting as the daughter
-        # chain in the recursion condition.
         [decay_tree["decay_constant"]],
         decay_tree["discrete_photon_spectrum"],
         decay_tree["background_photon_spectrum"],
