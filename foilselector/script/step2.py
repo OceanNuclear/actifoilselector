@@ -23,6 +23,7 @@ from collections import defaultdict
 from tqdm import tqdm
 from numpy import array as ary
 from uncertainties import nominal_value as nom
+from uncertainties.core import AffineScalarFunc, Variable
 
 from foilselector.foldermanagement import *
 from foilselector.reactionnaming import (
@@ -30,13 +31,159 @@ from foilselector.reactionnaming import (
     commonname_to_atnum_massnum,
 )
 from foilselector.openmcextension import * # collapse_single_xs
-from foilselector.generic import sorted_dict
+from foilselector.openmcextension.table import Tab1DExtended
 from foilselector.simulation import EfficiencyCurve
 from foilselector.constants import BARN
 from foilselector.simulation.decay.bateman import mat_exp_num_decays
 from foilselector.simulation.decay import linearize_decay_chain, build_decay_chain_tree
 
 default_gamma_energy_limits_keV = [20, 4600]
+
+
+class RadiationXSEncoder(json.JSONEncoder):
+    """Encodes discrete radiation lines, radiation continua, and cross-sections."""
+    def default(self, obj):
+        if isinstance(obj, AffineScalarFunc):
+            return str(obj)
+        elif isinstance(obj, Tab1DExtended):
+            return dict(x=obj.x, y=obj.y, inteprolation=obj.inteprolation)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (DiscreteRadiation, ContinuousRadiationDistribution)):
+            return {k: self.default(v) for k, v in obj._asdict()}
+        elif isinstance(obj, dict):
+            # a dict of reactions and their xs: turn into list instead
+            if len(obj)==0:
+                return {}
+            k0 = list(obj.keys())[0]
+            if isinstance(k0, (DiscreteRadiation, ContinuousRadiationDistribution)):
+                return [{type(k).__name__:self.default(k), "xs":self.default(v)} for k, v in obj.items()]
+        return super().default(obj)
+
+def serialize_radiation_dict(obj):
+    """Turn radiation dict into something that can be saved as a JSON file."""
+    if isinstance(obj, AffineScalarFunc):
+        # AffineScalarFunc -> dict{'n':float, 's':float}
+        return {"n":obj.n, "s":obj.s}
+    elif isinstance(obj, np.ndarray):
+        # np.ndarray -> list[float] | list[int]
+        return obj.tolist()
+    elif isinstance(obj, (DiscreteRadiation, ContinuousRadiationDistribution, Tab1DExtended)):
+        # namedtuple | Tab1DExtended -> dict
+        return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
+    elif isinstance(obj, dict):
+        # a dict of reactions and their xs: turn into list instead
+        if len(obj)==0:
+            return {}
+        k0 = list(obj.keys())[0]
+        if isinstance(k0, (DiscreteRadiation, ContinuousRadiationDistribution)):
+            # dict -> list[{             'DiscreteRadiation' : dict, 'xs':list[float]}, ...]
+            # dict -> list[{'ContinuousRadiationDistribution': dict, 'xs':list[float]}, ...]
+            return [{type(k).__name__:serialize_radiation_dict(k), "xs":serialize_radiation_dict(v)} for k, v in obj.items()]
+        # dict[str:'foil_name', dict] -> dict[str: 'foil_name', list]
+        return {k:serialize_radiation_dict(v) for k,v in obj.items()}
+    # str -> str
+    return obj
+
+def deserialize_radiation_dict(obj):
+    """Turn JSON file back into radiation dict."""
+    if isinstance(obj, dict):
+        keys = obj.keys()
+        if tuple(keys)==("n", "s"):
+            return Variable(obj["n"], obj["s"])
+        elif "DiscretRadiation" in keys:
+            return {
+                DiscreteRadiation(**obj["DiscreteRadiation"]):
+                np.array(obj["xs"])
+            }
+        elif "ContinuousRadiationDistribution" in keys:
+            return {
+                ContinuousRadiationDistribution(**obj["ContinuousRadiationDistribution"]):
+                np.array(obj["xs"])
+            }
+        elif sorted(keys)==sorted(Tab1DExtended._fields):
+            return Tab1DExtended(x=obj["x"], y=obj["y"], interpolation=obj["interpolation"])
+        return {k:deserialize(v) for k,v in obj.items()}
+
+    if isinstance(obj, list):
+        if isinstance(obj[0], (float, int)):
+            return np.array(obj)
+        # should be a list of len==2 dicts left at this stage.
+        d = {}
+        for item in obj:
+            prev_len = len(d)
+            d.update(deserialize_radiation_dict(item))
+            if (prev_len+1)!=len(d):
+                raise ValueError("Programmer error! List that was supposed to represent a dict contains repeated items.")
+        return d
+        return {deserialize_radiation_dict(k): deserialize_radiation_dict(v) for k, v in obj.items()}
+        return {k: deserialize_radiation_dict(v) for k, v in obj.items()}
+    return obj
+
+class RadiationXSDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, object_hook=self.object_hook, **kwargs)
+    def object_hook(self, obj):
+        if isinstance(obj, dict):
+            return
+
+def serialize_item(item):
+    if isinstance(item, str):
+        return item
+    elif isinstance(item, AffineScalarFunc):
+        return str(item)
+    elif isinstance(item, Tab1DExtended):
+        return dict(x=item.x, y=item.y, inteprolation=item.inteprolation)
+    else:
+        raise TypeError(f"Undocumented item type {type(tiem)}.")
+
+def deserialize_item(item):
+    if isinstance(item, dict):
+        if all(("x" in item.keys()), ("y" in item.keys()), ("interpolation" in item.keys())):
+            return Tab1DExtended(**item)
+        else:
+            raise ValueError("Deserializing tuple containing nested dicts is not allowed!")
+    elif isinstance(item, str):
+        if "+/-" in item:
+            return deserialize_variable(item)
+        else:
+            return item
+    elif isinstance(item, list):
+        return np.array(item)
+    else:  # str
+        raise ValueError(f"cannot deserialize item type {type(item)}!")
+
+def deserialize_variable(variable) -> openmc.core.Variable:
+    """
+    Restore an openmc.core.Variable/openmc.core.AffineScalarFunc variable from str format
+    (used to preserve it as the content of a json file) into openmc.core.Variable.
+    """
+    if ")" in variable:
+        multiplier = float("1" + variable.split(")")[1])
+        variable_stripped = variable.split(")")[0].strip("(")
+    else:
+        multiplier = 1.0
+        variable_stripped = variable
+    return Variable(*[float(i) * multiplier for i in variable_stripped.split("+/-")])        
+
+def serialize_bg_radiation_dict(radiation_dict: dict):
+    """
+    Returns
+    -------
+    dictionary of tuples, where each dictionary is a list.
+    """
+    if len(radiation_dict)==0:
+        return {}
+    if isinstance(list(radiation_dict.keys())[0], str):
+        # dict key=str, value=dict
+        return {k: serialize_bg_radiation_dict(v) for k,v in radiation_dict.items()}
+    elif isinstance(list(radiation_dict.keys())[0], tuple):
+        # dict key=tuple, value=np.array
+        return [(*[serialize_item(i) for i in k], v.tolist()) for k, v in radiation_dict.items()]
+
+def deserialize_bg_radiation_dict(radiation_dict: dict):
+    if len(radiation_dict)==0:
+        return {}
 
 
 def main(
@@ -76,7 +223,8 @@ def main(
     every_foil_response_matrix = {}
     for foil_name, foil_comp in tqdm(processed_composition.items(), desc="Processing every foil individually..."):
         # TODO: double tqdm here.
-        this_foil = default_dict(xs_template_generator)
+        this_foil = defaultdict(xs_template_generator)
+        this_background = defaultdict(xs_template_generator)
         for isotope, atomic_fraction in foil_comp.items():
             for rx_name, rx_xs in reactions_matching(xs_dict, isotope).items():
                 decay_pathways = linearize_decay_chain(build_decay_chain_tree(decay_dict, rx_name.split("-")[1]))
@@ -92,21 +240,24 @@ def main(
                         irradiation_duration+transit_duration,
                         irradiation_duration+transit_duration+measurement_duration,
                     )
+                    scaled_collapsed_xs = (
+                        collapse_single_xs(rx_xs, gs_array)
+                        * BARN
+                        * atomic_fraction
+                        * nom(pathway.branching_fraction)
+                        * decay_correction_factor
+                    )
                     for peak_energy, peak_intensity, source in pathway.discrete_photon_spectrum:
-                        this_foil[peak_energy] += collapse_single_xs(rx_xs, gs_array) * BARN * atomic_fraction * nom(pathway.branching_fraction) * decay_correction_factor * peak_intensity
-                    if pathway.background_photon_spectrum:
-                        this_background.extend([
-                    background_dist * BARN * atomic_fraction * nom(pathway.branching_fraction) * decay_correction_factor * peak_intensity
-                    for background_dist, source in pathway.background_photon_spectrum
-                    ])
+                        this_foil[(peak_energy, source)] += scaled_collapsed_xs * peak_intensity
+                    for background_dist, source in pathway.background_photon_spectrum:
+                        # the intensity correction value of the background is already built into background_dist
+                        this_background[(background_dist, source)] += scaled_collapsed_xs
         every_foil_response_matrix[foil_name] = sorted_dict(this_foil)
+        every_foil_background[foil_name] = this_background
 
-    try:
-        eff_curve = EfficiencyCurve.from_file(str(photopeak_efficiency))
-    except TypeError as e:
-        print("Incorrect file path. Try giving a valid file to the -e argument?")
-        raise e
-        sys.exit()
+    # Store response matrices and background spectra response matrices
+    with open(".response_matrices.json", "w") as j:
+        json.write(json.dumps)
     gamma_energy_limits = np.array(default_gamma_energy_limits_keV) * keV
     if gamma_energy_limits_keV:
         gamma_energy_limits = np.array(sorted(gamma_energy_limits_keV)) * keV
@@ -118,6 +269,7 @@ def main(
         decay_info[name] = condense_spectrum_copy(
             dec_file, eff_curve, gamma_lims=gamma_energy_limits
         )
+        background_continua.json
 
     sigma_df, selfshielding_dict = collapse_xs(xs_dict, gs_array)
     # ^ we must make sure to extract the max sigma from the the raw xs before collapsing it to the right group structure.

@@ -268,7 +268,7 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
         if nom(discrete_normalization):
             for line in discrete:
                 discrete_spec.append(
-                    (line["energy"], line["intensity"] * discrete_normalization, f"{source} from {isotope_name} {','.join(line['from_mode'])}")
+                    DiscreteRadiation(line["energy"], line["intensity"] * discrete_normalization, f"{source} from {isotope_name} {','.join(line['from_mode'])}")
                 )
 
     if "xray" in openmc_decay_spectrum:
@@ -280,16 +280,13 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
             )
         if "continuous" in openmc_decay_spectrum["xray"]:
             prob_table = openmc_decay_spectrum["xray"]["continuous"]["probability"]
-            xray_dist = Tab1DExtended(
-                prob_table.x,
-                prob_table.y * nom(openmc_decay_spectrum["xray"]["continuous_normalization"]),
-                breakpoints=prob_table.breakpoints,
-                interpolation=prob_table.interpolation,
-            )
+            cont_norm = nom(openmc_decay_spectrum["xray"]["continuous_normalization"])
+            xray_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm,
 
-            continuous_spec.append(
-                (xray_dist, f"xray from {isotope_name} {','.join(line['from_mode'])}",)
-            )
+            if cont_norm:
+                continuous_spec.append(
+                    ContinuousRadiationDistribution(xray_dist, f"xray from {isotope_name} {','.join(line['from_mode'])}",)
+                )
     if "gamma" in openmc_decay_spectrum:
         if "discrete" in openmc_decay_spectrum["gamma"]:
             extend_discrete_lines(
@@ -299,12 +296,8 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
             )
         if "continuous" in openmc_decay_spectrum["gamma"]:
             prob_table = openmc_decay_spectrum["gamma"]["continuous"]["probability"]
-            gamma_dist = Tab1DExtended(
-                prob_table.x,
-                prob_table.y * nom(openmc_decay_spectrum["gamma"]["continuous_normalization"]),
-                breakpoints=prob_table.breakpoints,
-                interpolation=prob_table.interpolation,
-            )
+            cont_norm = nom(openmc_decay_spectrum["gamma"]["continuous_normalization"])
+            gamma_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm,
 
             # num_counts = Integrate(gamma_dist).definite_integral(*minmax(gamma_dist))
             # warnings.warn(
@@ -312,8 +305,9 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
             #     f"! This distribution sums up to {num_counts * nom()} gamma-rays "
             #     f"released per decay of {isotope_name}."
             # )
-            continuous_spec.append(
-                (gamma_dist, f"gamma from {isotope_name} {','.join(line['from_mode'])}",)
-            )
+            if cont_norm:
+                continuous_spec.append(
+                    ContinuousRadiationDistribution(gamma_dist, f"gamma from {isotope_name} {','.join(line['from_mode'])}",)
+                )
             
     return discrete_spec, continuous_spec

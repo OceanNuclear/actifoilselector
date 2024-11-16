@@ -45,16 +45,23 @@ i.e. We assume that the scenarios in e.g.4 does not occur frequently enough to a
 
 import json
 import os
+from glob import glob
 from tqdm import tqdm
 import pandas as pd
 from numpy import array as ary
 from foilselector.foldermanagement import *
 from foilselector.constants import BARN
 from foilselector.simulation.decay import summed_cnt_and_rates
+from foilselector.simulation.efficiency import EfficiencyCurve
 
 # from foilselector.optimizer import max_num_atoms_from_count_rate_limit
 from uncertainties import nominal_value as nom
 
+
+def find_efficiency_file():
+    return glob(".efficiency.*")[0]
+
+eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
 
 def main(
     a_priori_flux,

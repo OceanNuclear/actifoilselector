@@ -9,7 +9,7 @@ from numpy import log as ln
 
 import openmc
 from openmc.data import INTERPOLATION_SCHEME
-from collections.abc import Iterable  # to check type
+from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 from foilselector.generic import SilenceNumpyDivisionError
@@ -47,7 +47,6 @@ def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
         interpolation=scheme.tolist(),
     )
 
-
 def tabulate(detabulated_dict: dict) -> openmc.data.Tabulated1D:
     """
     parameters
@@ -64,6 +63,7 @@ def tabulate(detabulated_dict: dict) -> openmc.data.Tabulated1D:
     return openmc.data.Tabulated1D(
         detabulated_dict["x"], detabulated_dict["y"], breakpoints, interpolation
     )
+
 
 class Integrate:
     __slots__ = [
@@ -329,9 +329,9 @@ class Integrate:
 
 class Tab1DExtended:
     """
-    To be finished later
+    Tabulated1D class extended so that it can be used for higher
     """
-
+    _fields = ("x", "y", "interpolation")
     def __init__(self, x, y, interpolation):
         assert np.shape(x) == np.shape(y)
         assert np.ndim(x) == 1
@@ -340,19 +340,46 @@ class Tab1DExtended:
         self.y = ary(y)
         self.interpolation = ary(interpolation)
 
-    def __call__(self, x_new):
-        x_new = ary(x_new)
-        
+    def _asdict(self):
+        return dict(x=self.x, y=self.y, interpolation=self.interpolation)
 
-    def __add__(self, other: float):
-        raise NotImplementedError
+    def restore_openmc_copy(self) -> openmc.data.Tabulated1D:
+        """Create a copy as a openmc.data.Tabulated1D table."""
+        return tabulate(
+            dict(x=self.x, y=self.y, interpolation=self.interpolation)
+        )
 
-    def __mul__(self, other: float):
-        if isinstance(other, (Tab1DExtended, openmc.data.Tabulated1D)):
+    def offset_x(self, x_offset: float | npt.NDArray) -> Tab1DExtended:
+        """Create a copy of itself, but with the x data points offset horizontally."""
+        return self.__class__(self.x+x_offset, self.y, self.interpolation)
+
+    def __call__(self, x: float | npt.NDArray):
+        """
+        Create a copy of this Tab1DExtended on the fly in openmc.data.Tabulated1D, then
+        direct all calls to that function.
+
+        A fairly bad bodge, but one that is guaranteed to work.
+        """
+        return self.restore_openmc_copy()(x)
+
+    def __add__(self, offset: float | npt.NDArray) -> Tab1DExtended:
+        """Create a copy of itself, but with the y data points offset vertically."""
+        return self.__class__(self.x, self.y+y_offset, self.interpolation)
+        # raise TypeError(
+        #     "Unsure if we're offsetting the x- or y-values of the underlying datapoints."
+        #     f" Please use {self.__class__}.offset_x or {self.__class__}.offset_y."
+        # )
+
+    def __mul__(self, scale_factor: float):
+        if isinstance(scale_factor, (Tab1DExtended, openmc.data.Tabulated1D)):
             raise NotImplementedError
-        scale_factor = other
         return self.__class__(self.x, self.y * scale_factor, self.interpolation)
             
+    def __hash__(self) -> int:
+        return hash((tuple(self.x), tuple(self.y), tuple(self.interpolation)))
+
+    def __repr__(self) -> str:
+        return f"<{str(self.__class__)} with {len(self.interpolation)} cells, where x is between {np.min(self.x)}-{np.max(self.x)} and y is between {np.min(self.y)}-{np.max(self.y)}>"
 
     def copy(self) -> Tab1DExtended:
         return self.__class__(self.x, self.y, self.interpolation)
