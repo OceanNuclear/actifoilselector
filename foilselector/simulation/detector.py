@@ -9,7 +9,7 @@ as
 """
 
 import numpy as np
-from typing import Callable, Iterable
+from collections.abc import Callable, Iterable
 from numpy import typing as npt
 
 __all__ = [
