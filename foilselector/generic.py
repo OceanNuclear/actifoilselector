@@ -23,7 +23,7 @@ def sorted_dict(dictionary: dict):
     """
     sorted_keys = sorted(list(dictionary.keys()))
     while sorted_keys:
-        next_lowest = sorted_keys.pop()
+        next_lowest = sorted_keys.pop(0)
         new_dict[next_lowest] = dictionary[next_lowest]
     return new_dict
 
