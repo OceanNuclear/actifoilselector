@@ -11,12 +11,13 @@ from tqdm import tqdm
 import numpy as np
 from numpy import array as ary
 import uncertainties
-from uncertainties.core import Variable
+from uncertainties.core import AffineScalarFunc, Variable
 import pandas as pd
 import openmc
 from openmc.data import ATOMIC_SYMBOL
 from foilselector.openmcextension.constants import AMBIGUOUS_MT, FISSION_MTS, MT_to_nuc_num
-from foilselector.openmcextension.table import tabulate, detabulate
+from foilselector.openmcextension.table import tabulate, detabulate, Tab1DExtended
+from foilselector.openmcextension.library_reader import DiscreteRadiation, ContinuousRadiationDistribution
 
 __all__ = [
     "sparsely_load_xs_and_decay_dict",
@@ -261,7 +262,7 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
         value= Tabulated1D (x=energy in eV, y=xs in barns)
     """
     xs_dict = OrderedDict()
-    for file in tqdm(inc_nuc_list, desc="Compiling the raw cross-section dictionary"):
+    for file in tqdm(inc_nuc_list, desc=f"Compiling the cross-sections of the {len(inc_nuc_list)} relevant isotopes"):
         inc_f = openmc.data.IncidentNeutron.from_endf(file)
         nuc_sort_name = str(inc_f.atomic_number).zfill(3) + inc_f.name
 
@@ -316,31 +317,14 @@ def _extract_xs(parent_atomic_number, parent_atomic_mass, rx_file, tabulated=Tru
     xs = rx_file.xs["0K"]
     if isinstance(xs, openmc.data.ResonancesWithBackground):
         xs = xs.background  # When shrinking the group structure, this contains everything you need. The Resonance part of xs can be ignored (only matters for self-shielding.)
-    if (
-        # len(rx_file.products) == 0
-        True # BODGE to skip the else condition below!
-    ):  # if no products are already available, then we can only assume there is only one product.
-        daughter_name = deduce_daughter_from_mt(
-            parent_atomic_number, parent_atomic_mass, rx_file.mt
-        )
-        if (
-            daughter_name
-        ):  # if the name is not None or False, i.e. a matching MT number is found.
-            name = (
-                daughter_name + "-MT=" + str(rx_file.mt)
-            )  # deduce_daughter_from_mt will return the ground state value
-            appending_name_list.append(name)
-            xs_list.append(detabulate(xs) if (not tabulated) else xs)
-    else:
-        for prod in rx_file.products:
-            appending_name_list.append(prod.particle + "-MT=" + str(rx_file.mt))
-            partial_xs = openmc.data.Tabulated1D(
-                xs.x,
-                prod.yield_(xs.x) * xs.y,
-                breakpoints=xs.breakpoints,
-                interpolation=xs.interpolation,
-            )
-            xs_list.append(detabulate(partial_xs) if (not tabulated) else partial_xs)
+    daughter_name = deduce_daughter_from_mt(
+        parent_atomic_number, parent_atomic_mass, rx_file.mt
+    )
+    if daughter_name:  # if a matching MT number is found.
+        # deduce_daughter_from_mt will return the ground state value
+        name = daughter_name + "-MT=" + str(rx_file.mt)
+        appending_name_list.append(name)
+        xs_list.append(detabulate(xs) if (not tabulated) else xs)
     return appending_name_list, xs_list
 
 
@@ -567,3 +551,64 @@ def unserialize_pd_DataFrame(df):
     for col in df.values.T:
         new_values.append(unserialize_dict(list(col)))
     return pd.DataFrame(ary(new_values).T, index=df.index, columns=df.columns)
+
+
+def serialize_radiation_dict(obj):
+    """Turn radiation dict into something that can be saved as a JSON file."""
+    if isinstance(obj, AffineScalarFunc):
+        # AffineScalarFunc -> dict{'n':float, 's':float}
+        return {"n":obj.n, "s":obj.s}
+    elif isinstance(obj, np.ndarray):
+        # np.ndarray -> list[float] | list[int]
+        return obj.tolist()
+    elif isinstance(obj, (DiscreteRadiation, ContinuousRadiationDistribution, Tab1DExtended)):
+        # namedtuple | Tab1DExtended -> dict
+        return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
+    elif isinstance(obj, dict):
+        # a dict of reactions and their xs: turn into list instead
+        if len(obj)==0:
+            return {}
+        k0 = list(obj.keys())[0]
+        if isinstance(k0, (DiscreteRadiation, ContinuousRadiationDistribution)):
+            # dict -> list[{             'DiscreteRadiation' : dict, 'xs':list[float]}, ...]
+            # dict -> list[{'ContinuousRadiationDistribution': dict, 'xs':list[float]}, ...]
+            return [{type(k).__name__:serialize_radiation_dict(k), "xs":serialize_radiation_dict(v)} for k, v in obj.items()]
+        # dict[str:'foil_name', dict] -> dict[str: 'foil_name', list]
+        return {k:serialize_radiation_dict(v) for k,v in obj.items()}
+    # str -> str
+    return obj
+
+def deserialize_radiation_dict(obj):
+    """Turn JSON file back into radiation dict."""
+    if isinstance(obj, dict):
+        keys = obj.keys()
+        if tuple(keys)==("n", "s"):
+            return Variable(obj["n"], obj["s"])
+        elif "DiscreteRadiation" in keys:
+            return {
+                DiscreteRadiation(
+                    **{k:deserialize_radiation_dict(v) for k, v in obj["DiscreteRadiation"].items()}):
+                np.array(obj["xs"])
+            }
+        elif "ContinuousRadiationDistribution" in keys:
+            return {
+                ContinuousRadiationDistribution(
+                    **{k:deserialize_radiation_dict(v) for k, v in obj["ContinuousRadiationDistribution"].items()}):
+                np.array(obj["xs"])
+            }
+        elif sorted(keys)==sorted(Tab1DExtended._fields):
+            return Tab1DExtended(x=obj["x"], y=obj["y"], interpolation=obj["interpolation"])
+        return {k:deserialize_radiation_dict(v) for k,v in obj.items()}
+
+    if isinstance(obj, list):
+        if isinstance(obj[0], (float, int)):
+            return np.array(obj)
+        # should be a list of len==2 dicts left at this stage.
+        d = {}
+        for item in obj:
+            prev_len = len(d)
+            d.update(deserialize_radiation_dict(item))
+            if (prev_len+1)!=len(d):
+                raise ValueError("Programmer error! List that was supposed to represent a dict contains repeated items.")
+        return d
+    return obj
