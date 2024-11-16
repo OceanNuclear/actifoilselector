@@ -1,30 +1,20 @@
-[]Kick out unused (deprecated) functions
-    - foilselector.openmcextension.extended_io.load_endf_directories()
-[]reformat step4-step6 so that they take in "number of reactant" for each isotope instead of a number density.
-[]Set up __all__'s for every .py file except files in script/
-
-[]Include a copy of the --irradiation-schedule (full link below) into the distribution
-    []Plus a document describing the syntax of the --irradiation-schedule file
-    - /home/ocean/Self/FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
-
-[]Tab1D: extended: Addition and multiplication
-[]FoilSelector folder Re-organization:
-    []FoilSelector/: a lot of outdated folders. Do they go somewhere?
-    []FoilSelector/ChipIR/fispact # a bit oddly placed, don't you think?
 []Deal with double-counting of some reactions,
     - example: see [i for i in xs_dict.keys() if i.startswith("Pd106")]:
     - "Pd106-Rh105-MT=28"
     - "Pd106-Rh105-MT=(650-669)"
     - "Pd106-Ru103-MT=107"
     - "Pd106-Ru103-MT=(800-819,849)"
-____
+    - use "~/Others/FoilSelector/JEFF/JEFF33-n/endf6/46-Pd-106g.jeff33" compared to another library's 46-Pd-106.
+    - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
+[]Kick out unused (deprecated) functions
+    - using vulture
+    - foilselector.openmcextension.extended_io.load_endf_directories()
+[]Tab1D: extended: Addition and multiplication
+[]use pathlib.Path instead of accepting strings
+
 []Tests/Unittest
-[]Continuous integration: https://github.com/python-poetry/poetry/issues/366
-[]Other possible CI methods:
-    []https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
-        []Consider if poetry clashes with my usual way of using github/gitlab/travis etc. CI?
-    []Otherwise, use gitlab (see below)
-        []/home/ocean/Self/NetworkDynamics/setup.py and .*.yml
-        []flake8 file could be found in /home/ocean/Self/hypercubeprojection
-        []More details in /home/ocean/Self/workshops/testing/python_exercises
-[]use pathlib.Path instead of accepting strings so you don't have to do anything like that.
+[]CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
+[]Include a copy of the --irradiation-schedule (full link below) into the distribution
+    []Plus a document describing the syntax of the --irradiation-schedule file
+    - /home/ocean/Self/FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
+    []Then add an option to calculate the activity at time d, where d>c.
