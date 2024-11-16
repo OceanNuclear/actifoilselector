@@ -14,7 +14,8 @@
 
 []Tests/Unittest
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
-[]Include a copy of the --irradiation-schedule (full link below) into the distribution
-    []Plus a document describing the syntax of the --irradiation-schedule file
-    - /home/ocean/Self/FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
-    []Then add an option to calculate the activity at time d, where d>c.
+[]Step4: copy of step2, but uses the true irradiation schedule, where each foil's irradiation times differ.
+    []Takes in the argument --irradiation-schedule into the distribution
+    - Make a document describing the syntax of the --irradiation-schedule file
+    - location of such a sample: ~/Self/FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
+    []Also calculate the activity at time d, where d>c, used for health physics reasons.
