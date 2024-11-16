@@ -22,6 +22,7 @@ def sorted_dict(dictionary: dict):
     Python dictionaries are sorted by default now, so we don't need to import OrderedDict
     """
     sorted_keys = sorted(list(dictionary.keys()))
+    new_dict = {}
     while sorted_keys:
         next_lowest = sorted_keys.pop(0)
         new_dict[next_lowest] = dictionary[next_lowest]
