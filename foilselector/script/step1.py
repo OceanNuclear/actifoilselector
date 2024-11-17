@@ -47,6 +47,7 @@ from foilselector.fluxconversion import (
     histogramic,
 )
 from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
+from foilselector.foldermanagement import ResolutionMaxCountRate, PeakToComptonCoefficients
 from foilselector.generic import minmax, SilenceNumpyDivisionError
 from foilselector.constants import MeV, keV
 from foilselector.openmcextension import Integrate, detabulate
@@ -501,14 +502,20 @@ def stage6_load_and_save_gamma_resolution():
                         "0123",
                     )
                     coefficients = fit_fwhms(E_keV * keV, fwhm_keV * keV, int(degree_of_fit))
+                    break
                 except Exception as e:
                     print(e, ", trying again...")
     else:
         coefficients = get_default_resolution_coefficients()
-    with open(".gamma-resolution-coefs.txt", "w") as f:
-        for coef in coefficients:
-            f.write(str(coef))
-    return coefficients
+
+    while True:
+        try:
+            max_count_rate = float(input("What is the maximum count rate (pulse/s) that the gamma-ray detector can be operated at without degrading this resolution?"))
+            break
+        except ValueError as e:
+            print(e, ". Please enter the numeric value of the max. count rate in pulse/s.")
+    resolution_max_count_rate = ResolutionMaxCountRate(coefficients, max_count_rate).save()
+    return resolution_max_count_rate
 
 
 def stage7_load_and_save_gamma_peak_to_Compton_ratio():
@@ -563,13 +570,12 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio():
                         "012",
                     )
                     coefficients = fit_peak_to_Compton(E_keV * keV, pc, int(degree_of_fit))
+                    break
                 except Exception as e:
                     print(e, ", trying again...")
     else:
         coefficients = get_default_peak_to_Compton_coefficients()
-    with open(".gamma-peak-to-Compton-coefs.txt", "w") as f:
-        for coef in coefficients:
-            f.write(str(coef))
+    coefficients = PeakToComptonCoefficients(coefficients).save()
     return coefficients
 
 
@@ -667,7 +673,7 @@ In the current directory {}, the following .csv files are found:""".format(cwd)
     stage5_save_apriori_files(gs_array, continuous_apriori, error_present)
 
     # stage 6
-    resolution_coefficients = stage6_load_and_save_gamma_resolution()
+    resolution_max_count_rate = stage6_load_and_save_gamma_resolution()
 
     # stage 7
     peak_to_Compton_coefficients = stage7_load_and_save_gamma_peak_to_Compton_ratio()

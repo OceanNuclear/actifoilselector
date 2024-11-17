@@ -58,17 +58,10 @@ from foilselector.simulation.efficiency import EfficiencyCurve
 from uncertainties import nominal_value as nom
 
 
-def find_efficiency_file():
-    return glob(".efficiency.*")[0]
-
-eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
 
 def main(
-    a_priori_flux,
     max_gamma_count_rate,
-    irradiation_duration,
-    transit_duration,
-    measurement_duration,
+    num_foils,
 ):
     expected_files = [
         ".atomic_composition.json",

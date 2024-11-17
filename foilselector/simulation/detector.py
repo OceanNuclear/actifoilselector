@@ -10,7 +10,6 @@ as
 
 import numpy as np
 from collections.abc import Callable, Iterable
-from numpy import typing as npt
 
 __all__ = [
     "get_default_resolution_coefficients",
@@ -35,8 +34,8 @@ def get_default_resolution_coefficients():
     return np.array([5.212873549440453*1E5, 2.4969943490051713])
 
 def fit_fwhms(
-    E: npt.NDArray[float], fwhm: npt.NDArray[float], degree_of_fit: int = 2
-) -> npt.NDArray[float]:
+    E: np.ndarray[float], fwhm: np.ndarray[float], degree_of_fit: int = 2
+) -> np.ndarray[float]:
     """
     Fit the FWHM curve R(E) = √(x_0 + x_1 * E + x_2 * E^2 + ...) where E has units eV.
     Parameters
@@ -56,7 +55,7 @@ def fit_fwhms(
 
 def resolution_curve_factory(
     coefficients: Iterable[float], min_fwhm: float=100,
-) -> Callable[[float | npt.NDArray], float | npt.NDArray]:
+) -> Callable[[float | np.ndarray], float | np.ndarray]:
     """
     Parameters
     ----------
@@ -73,7 +72,7 @@ def resolution_curve_factory(
     """
     raw_curve = np.poly1d(coefficients[::-1])
 
-    def resolution_curve(E: float | npt.NDArray) -> float | npt.NDArray:
+    def resolution_curve(E: float | np.ndarray) -> float | np.ndarray:
         """A function that clamps the resolution output from below."""
         return np.clip(raw_curve(E), min_fwhm, np.inf)
 
@@ -91,8 +90,8 @@ def get_default_peak_to_Compton_coefficients():
 
 
 def fit_peak_to_Compton(
-    E: npt.NDArray[float], pc_ratio: npt.NDArray[float], degree_of_fit: int = 1
-) -> npt.NDArray[float]:
+    E: np.ndarray[float], pc_ratio: np.ndarray[float], degree_of_fit: int = 1
+) -> np.ndarray[float]:
     """
     Parameters
     ----------
@@ -111,7 +110,7 @@ def fit_peak_to_Compton(
 
 def Compton_to_peak_curve_factory(
     coefficients: Iterable[float], min_peak_to_comp_ratio=1.0
-) -> Callable[[float | npt.NDArray], float | npt.NDArray]:
+) -> Callable[[float | np.ndarray], float | np.ndarray]:
     """
     Parameters
     ----------
@@ -130,7 +129,7 @@ def Compton_to_peak_curve_factory(
     """
     raw_curve = np.poly1d(coefficients[::-1])
 
-    def Compton_to_peak_curve(E: float | npt.NDArray) -> float | npt.NDArray:
+    def Compton_to_peak_curve(E: float | np.ndarray) -> float | np.ndarray:
         return 1 / np.clip(raw_curve(E), min_peak_to_comp_ratio, np.infty)
 
     return Compton_to_peak_curve

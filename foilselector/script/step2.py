@@ -20,6 +20,7 @@ A nuance that I have to clear up: if a(n advaned) user _knows_ that there's a sp
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 from collections import defaultdict
 from tqdm import tqdm
 from numpy import array as ary
@@ -32,11 +33,18 @@ from foilselector.reactionnaming import (
 )
 from foilselector.openmcextension import * # collapse_single_xs
 from foilselector.openmcextension.table import Tab1DExtended
+from foilselector.simulation.spectral_simulation import *
+from foilselector.optimizer.choose_mass import *
+from foilselector.optimizer import get_precision_weight_vector
 from foilselector.openmcextension.extended_io import serialize_radiation_dict, deserialize_radiation_dict
 from foilselector.constants import BARN
 from foilselector.generic import sorted_dict
 from foilselector.simulation.decay.bateman import mat_exp_num_decays
 from foilselector.simulation.decay import linearize_decay_chain, build_decay_chain_tree
+from foilselector.openmcextension.library_reader import DiscreteRadiation, ContinuousRadiationDistribution
+
+if TYPE_CHECKING:
+    from uncertainties.core import Variable
 
 default_gamma_energy_limits_keV = [20, 4600]
 
@@ -85,6 +93,7 @@ def calculate_response_matrix(
     a, b, c:
         Times when irradiation stops, acquisition starts, and acquisition stops.
         See `mat_exp_num_decays`.
+    efficiency_curve:
 
     Returns
     -------
@@ -97,6 +106,7 @@ def calculate_response_matrix(
         its source, stored as a ContinuousRadiationDistribution.
     """
 
+    # stage 4
     def xs_template_generator() -> np.ndarray[float]:
         """
         For creating an empty array representing the cross-section for generating a
@@ -123,17 +133,25 @@ def calculate_response_matrix(
                     pathway.decay_constants,
                     a, b, c
                 )
-                scaled_collapsed_xs = (
-                    collapse_single_xs(rx_xs, gs_array)
-                    * BARN
-                    * atomic_fraction
-                    * decay_correction_factor
-                )
-                for peak_energy, peak_intensity, source in pathway.discrete_photon_spectrum:
-                    this_foil[(peak_energy, source)] += scaled_collapsed_xs * peak_intensity
-                for background_dist, source in pathway.background_photon_spectrum:
-                    # the intensity correction value of the background is already built into background_dist
-                    this_background[(background_dist, source)] += scaled_collapsed_xs
+                if nom(decay_correction_factor):
+                    scaled_collapsed_xs = (
+                        collapse_single_xs(rx_xs, gs_array)
+                        * BARN
+                        * atomic_fraction
+                    )
+                    path_string = isotope+"+n->"+"->".join(pathway.names)
+                    for line in pathway.discrete_photon_spectrum:
+                        scaled_line = DiscreteRadiation(line.energy, line.intensity * decay_correction_factor, path_string+" "+line.source)
+                        this_foil[scaled_line] += scaled_collapsed_xs * efficiency_curve(line.energy)
+                        
+                    for continuum in pathway.background_photon_spectrum:
+                        # the intensity correction value of the background is already built into background_dist
+                        this_background[
+                            ContinuousRadiationDistribution(
+                                continuum.distribution.apply_scaling(efficiency_curve),
+                                # path_string+" "+
+                                continuum.source
+                        )] += scaled_collapsed_xs * nom(decay_correction_factor)
     return this_foil, this_background
 
 def main(
@@ -141,11 +159,13 @@ def main(
     libraries: list[Path],
     irradiation_duration: float,
     transit_duration: float,
-    measurement_duration: float
+    measurement_duration: float,
 ):
 
+    cwd = Path.cwd()
     # stage 1: read outputs of step1.
     gs_array = read_gs(".gs.csv")
+    w_vector = get_precision_weight_vector(gs_array)
     # stage 2: break down the foil composition into its consituent isotopes.
     with open(composition) as j:
         _composition_used_here = json.load(j)
@@ -158,10 +178,18 @@ def main(
     save_atomic_composition_json(processed_composition)  # for future reference
 
     xs_dict, decay_dict = load_relevant_xs_and_decay_info(processed_composition, libraries)
-    # TODO: rewrite this stage without openmc, and possibly implement an alternative using FISPACT-II.
 
+    apriori_flux, apriori_fluence = get_apriori(cwd, irradiation_duration)
+    resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load()
+    resolution_curve = resolution_curve_factory(resolution_curve_factory)
+    max_counts_per_foil = max_num_counts(max_count_rate, measurement_duration)
+    eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
+    compton_from_peak = Compton_to_peak_curve_factory(PeakToComptonCoefficients.load())
 
-    every_foil_response_matrix = {}
+    # stage 4: get respones matrices.
+    every_foil_response_matrix, every_foil_background, mass_record = {}, {}, {}
+    effective_foil_matrices = {}
+    foil_precision = []
     for foil_name, foil_comp in tqdm(processed_composition.items(), desc="Processing each foil individually"):
         this_foil, this_background = calculate_response_matrix(
             foil_comp,
@@ -173,16 +201,46 @@ def main(
             irradiation_duration+transit_duration+measurement_duration,
         )
 
-        every_foil_response_matrix[foil_name] = sorted_dict(this_foil)
-        # can't sort gamma-continua against each other, so no sorting on this_background.
-        every_foil_background[foil_name] = this_background
+        # can't sort gamma-continua against each other, so won't be sorting on background
+        foil_num_atoms, final_response_matrix, final_background = choose_num_reactant_in_foil(sorted_dict(this_foil), this_background, apriori_fluence, max_counts_per_foil, compton_from_peak)
+        every_foil_response_matrix[foil_name] = final_response_matrix
 
-    # Store response matrices and background spectra response matrices
+        every_foil_background[foil_name] = final_background
+        mass_record[foil_name] = {"number of atoms": foil_num_atoms, "mass (g)": mass_from_num_atoms(foil_num_atoms, foil_comp)}
+        # stage 4.2: calculate only effective counts.
+        peak_list = simulate_peaks_with_uncertainties(final_response_matrix, apriori_fluence)
+        peak_list = merge_peaks(peak_list, resolution_curve)
+        background_levels = corresponding_background_level(
+            peak_list,
+            fold_background(final_background, apriori_fluence),
+            compton_from_peak,
+        )
+        net_peak_areas = integrate_peak_area(peak_list, resolution, background_levels)
+
+        effective_matrix, reaction_info = [], []
+        for net_area, (peak, xs) in zip(net_peak_areas, final_response_matrix.items()):
+            if discoverable(net_area):
+                effective_matrix.append(nom(peak.intensity) * xs)
+                reaction_info.append(DiscreteRadiation(peak.energy, net_area, peak.source))
+
+        effective_matrix = np.array(effective_matrix, dtype=float)
+        effective_foil_matrices[foil_name] = {"matrix":effective_matrix, "photons":reaction_info}
+        foil_precision[foil_name] = w_vector @ np.diag(effective_matrix.T @ np.diag([1/(peak.intensity.s)**2 for peak in reaction_info]) @ effective_matrix)
+        foil_accuracy[foil_name] = ...
+
+
+    # stage 4.3: Store response matrices and background spectra response matrices
     print("Writing to response matrix...", end="\r")
     with open(".response_matrices.json", "w") as j:
         json.dump(serialize_radiation_dict(every_foil_response_matrix), j)
     print("Written to response matrix, writing to background radiation...", end="\r")
-    with open(".response_matrices.json", "w") as j:
-        json.dump(serialize_radiation_dict(every_foil_response_matrix), j)
-    print("Written response and background radiation, Done!")
+    with open(".background_response_matrices.json", "w") as j:
+        json.dump(serialize_radiation_dict(every_foil_background), j)
+    print("Written response and background radiation, Done!              ")
+    with open(".mass_records.json", "w") as j:
+        json.dump(mass_record, j)
+    with open(".effective_response_matrix.json", "w") as j:
+        json.dump(effective_foil_matrices, j)
 
+
+    return every_foil_response_matrix, every_foil_background, mass_record

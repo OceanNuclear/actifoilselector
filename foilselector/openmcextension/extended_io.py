@@ -514,7 +514,7 @@ def unserialize_dict(mixed_object):
 
 def save_csv_with_uncertainty(df, filename, *args, **kwargs):
     """Handles saving dataframes with uncertain values as csv. This is the counterpart of unserialize_pd_DataFrame
-    df: pandas.DataFrame object to be saved, possibly with uncertainties.core.AffineFunc values in one of the columns.
+    df: pandas.DataFrame object to be saved, possibly with uncertainties.core.AffineScalarFunc values in one of the columns.
     """
     try:
         df.to_csv(filename, *args, **kwargs)

@@ -385,5 +385,3 @@ class MergedGammaSpectrum(GammaSpectrum):
             else:
                 self.signatures.append(sig)
 
-
-# TODO: each line could've had a list as an attr called .parent = [] so that we know what that line originated from?

@@ -189,12 +189,12 @@ def get_durations_from_csv(file: str):
 
 
 #### The rest of these functions below aren't going to be needed. ####
-def get_apriori_from_folder(folder, irradiation_duration=None):
+def get_apriori(directory: Path, irradiation_duration: float | None = None):
     """
     Given the file location and irradiation duration,
     return the apriori_flux and the apriori_fluence
     """
-    assert exists(join(folder, "integrated_apriori.csv")), (
+    assert exists(join(directory, "integrated_apriori.csv")), (
         "Output directory must already have integrated_apriori.csv for calculating the radionuclide populations."
     )
     print(
@@ -203,7 +203,7 @@ def get_apriori_from_folder(folder, irradiation_duration=None):
         )
     )
     apriori_flux = pd.read_csv(
-        join(folder, "integrated_apriori.csv")
+        join(directory, ".integrated_apriori.csv")
     )[
         "value"
     ].values  # integrated_apriori.csv is a csv with header = value and number of rows = len(gs); no index.
@@ -213,6 +213,58 @@ def get_apriori_from_folder(folder, irradiation_duration=None):
         apriori_fluence = apriori_flux * irradiation_duration
         return apriori_flux, apriori_fluence
 
+class ResolutionMaxCountRate:
+    """
+    Data on the resolution curve of the gamma-ray detector, and the maximum count rate
+    at which this resolution can be achieved without degredation.
+    """
+    def __init__(self, resolution_coefficients: list[float], max_count_rate: float):
+        self.resolution_coefficients = resolution_coefficients
+        self.max_count_rate = max_count_rate
+
+    def save(self, directory="."):
+        """Store data as plain text file."""
+        with open(join(directory, ".gamma-resolution-count-rate-coefs.txt"), "w") as f:
+            for i, coef in enumerate(self.resolution_coefficients):
+                f.write(f"x_{i}={coef}\n")
+            f.write(f"max. count rate={self.max_count_rate}\n")
+
+    @classmethod
+    def load(cls, directory="."):
+        """Load data back from the '.gamma-resolution-count-rate-coefs.txt' file"""
+        with open(join(directory, ".gamma-resolution-count-rate-coefs.txt")) as f:
+            text = f.readlines()
+        while text[0].startswith("x"):
+            resolution_coefficients.append(float(text.pop(0).split("=")[1]))
+        assert text[0].startswith("max"), "Expected x_0=...,x_1=...,max. count rate=..."
+            max_count_rate = float(text.pop(0).split("=")[1])
+        return cls(resolution_coefficients, max_count_rate)
+
+class PeakToComptonCoefficients:
+    """
+    Data on the resolution curve of the gamma-ray detector, and the maximum count rate
+    at which this resolution can be achieved without degredation.
+    """
+    def __init__(self, peak_to_Compton_coefficients: list[float]):
+        self.peak_to_Compton_coefficients = peak_to_Compton_coefficients
+
+    def save(self, directory="."):
+        """Store data as plain text file."""
+        with open(join(directory, ".gamma-peak-to-Compton-coefs.txt"), "w") as f:
+            for i, coef in enumerate(self.peak_to_Compton_coefficients):
+                f.write(f"x_{i}={coef}\n")
+
+    @classmethod
+    def load(cls, directory="."):
+        """Load data back from the '.gamma-peak-to-Compton-coefs.txt' file"""
+        with open(join(directory, ".gamma-peak-to-Compton-coefs.txt")) as f:
+            text = f.readlines()
+        while text[0].startswith("x"):
+            peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
+        return cls(peak_to_Compton_coefficients)
+
+def find_efficiency_file():
+    return glob(".efficiency.*")[0]
 
 # def get_gs_and_flux(file_path, directory="."):
 #     return pd.read_csv(file_path, index_col=[0], comment="#")

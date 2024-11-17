@@ -225,7 +225,12 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         decay radiation type, immediate parent's name, and decay mode inducing the
         release of this radiation. e.g. "gamma from Y101 beta-"
     """
-    pass
+    def __hash__(self):
+        return hash((
+            (nom(self.energy), 0.0 if isinstance(self.energy, float) else self.energy.s),
+            (nom(self.intensity), 0.0 if isinstance(self.intensity, float) else self.intensity.s),
+            self.source
+        ))
 
 class ContinuousRadiationDistribution(namedtuple("RadiationDistribution", ["distribution", "source"])):
     """
@@ -285,7 +290,7 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
 
             if cont_norm:
                 continuous_spec.append(
-                    ContinuousRadiationDistribution(xray_dist, f"xray from {isotope_name} {','.join(line['from_mode'])}",)
+                    ContinuousRadiationDistribution(xray_dist, f"xray from {isotope_name} {','.join(openmc_decay_spectrum['xray']['continuous']['from_mode'])}",)
                 )
     if "gamma" in openmc_decay_spectrum:
         if "discrete" in openmc_decay_spectrum["gamma"]:
@@ -297,7 +302,7 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
         if "continuous" in openmc_decay_spectrum["gamma"]:
             prob_table = openmc_decay_spectrum["gamma"]["continuous"]["probability"]
             cont_norm = nom(openmc_decay_spectrum["gamma"]["continuous_normalization"])
-            gamma_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm,
+            gamma_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm
 
             # num_counts = Integrate(gamma_dist).definite_integral(*minmax(gamma_dist))
             # warnings.warn(
@@ -307,7 +312,7 @@ def flatten_photon_spectrum(openmc_decay_spectrum: dict, isotope_name: str) -> t
             # )
             if cont_norm:
                 continuous_spec.append(
-                    ContinuousRadiationDistribution(gamma_dist, f"gamma from {isotope_name} {','.join(line['from_mode'])}",)
+                    ContinuousRadiationDistribution(gamma_dist, f"gamma from {isotope_name} {','.join(openmc_decay_spectrum['gamma']['continuous']['from_mode'])}",)
                 )
             
     return discrete_spec, continuous_spec

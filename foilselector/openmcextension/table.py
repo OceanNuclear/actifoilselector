@@ -9,7 +9,7 @@ from numpy import log as ln
 
 import openmc
 from openmc.data import INTERPOLATION_SCHEME
-from collections.abc import Iterable
+from collections.abc import Iterable, Callable
 
 import matplotlib.pyplot as plt
 from foilselector.generic import SilenceNumpyDivisionError
@@ -370,12 +370,33 @@ class Tab1DExtended:
         #     f" Please use {self.__class__}.offset_x or {self.__class__}.offset_y."
         # )
 
-    def __mul__(self, scale_factor: float):
+    def __mul__(self, other: float) -> Tab1DExtended:
         if isinstance(scale_factor, (Tab1DExtended, openmc.data.Tabulated1D)):
-            raise NotImplementedError
+            raise NotImplementedError("Use apply_scaling instead!")
         return self.__class__(self.x, self.y * scale_factor, self.interpolation)
             
+
+    def apply_scaling(self, other_curve: Callable) -> Tab1DExtended:
+        """
+        If multiplying with another curve, then directly scale its data points by that
+        curve. This is a bodge method (as __mul__ is only intended to be used with a
+        scalar float, not a np.ndarray[float]), not ideal, but it will do for the time being for
+        calcaulating the continuous gamma distribution * absolute efficiency of the
+        detector setup.
+
+        Parameters
+        ----------
+        other_curve: Tab1DExtended | openmc.data.Tabulated1D | Callable
+            A function that returns a scale_factor for y when given x.
+            i.e. 
+            scale_factor = other_curve(x)
+            self.y *=scale_factor
+        """
+        scale_factor = other_curve(self.x)
+        return self * scale_factor
+
     def __hash__(self) -> int:
+        """Turn its data into tuples, then hash the resulting 3-tuple."""
         return hash((tuple(self.x), tuple(self.y), tuple(self.interpolation)))
 
     def __repr__(self) -> str:
