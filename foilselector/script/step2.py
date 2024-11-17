@@ -35,7 +35,8 @@ from foilselector.openmcextension import * # collapse_single_xs
 from foilselector.openmcextension.table import Tab1DExtended
 from foilselector.simulation.spectral_simulation import *
 from foilselector.optimizer.choose_mass import *
-from foilselector.optimizer import get_precision_weight_vector
+from foilselector.optimizer.precision import get_precision_weight_vector, get_precision
+from foilselector.optimizer.accuracy import get_accuracy
 from foilselector.openmcextension.extended_io import serialize_radiation_dict, deserialize_radiation_dict
 from foilselector.constants import BARN
 from foilselector.generic import sorted_dict
@@ -189,7 +190,7 @@ def main(
     # stage 4: get respones matrices.
     every_foil_response_matrix, every_foil_background, mass_record = {}, {}, {}
     effective_foil_matrices = {}
-    foil_precision = []
+    foil_precision, foil_accuracy = [], []
     for foil_name, foil_comp in tqdm(processed_composition.items(), desc="Processing each foil individually"):
         this_foil, this_background = calculate_response_matrix(
             foil_comp,
@@ -225,8 +226,8 @@ def main(
 
         effective_matrix = np.array(effective_matrix, dtype=float)
         effective_foil_matrices[foil_name] = {"matrix":effective_matrix, "photons":reaction_info}
-        foil_precision[foil_name] = w_vector @ np.diag(effective_matrix.T @ np.diag([1/(peak.intensity.s)**2 for peak in reaction_info]) @ effective_matrix)
-        foil_accuracy[foil_name] = ...
+        foil_precision[foil_name] = get_precision(effective_matrix, ary([1/(peak.intensity.s)**2 for peak in reaction_info]), weight_vector)
+        foil_accuracy[foil_name] = 
 
 
     # stage 4.3: Store response matrices and background spectra response matrices
