@@ -1,3 +1,5 @@
+"""Simulates the gamma-ray spectrum, including how the peak broadens."""
+
 from typing import TYPE_CHECKING
 
 from collections import defaultdict
@@ -47,11 +49,13 @@ def simulate_peaks_with_uncertainties(
 def merge_delete_peaks(
     peak_list: list[DiscreteRadiation],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
+    peak_ordering,
 ) -> list[DiscreteRadiation]:
     """Merge nearby peaks"""
-    peak_buffer = []
+    peak_buffer = [peak_list.pop(0)]
     for peak in peak_list:
         peak_buffer.append(peak.copy())
+
     return
 
 
