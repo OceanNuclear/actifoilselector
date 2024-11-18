@@ -15,6 +15,8 @@
     - use "~/Others/FoilSelector/JEFF/JEFF33-n/endf6/46-Pd-106g.jeff33" compared to another library's 46-Pd-106.
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
 []Change the name of `Integral` to `Intergrand`
+[]Instead of a flat distribution, use a better simulation of the Compton continuum
+[]Incorporate pair-production effects
 []Kick out unused (deprecated) functions
     - using vulture
     - foilselector.openmcextension.extended_io.load_endf_directories()
