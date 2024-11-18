@@ -1,4 +1,5 @@
 # typical system/python stuff
+from __future__ import annotations
 from collections import namedtuple
 
 # typical python numerical stuff
@@ -69,6 +70,9 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
             self.source,
         ))
 
+    def copy(self) -> DiscreteRadiation:
+        return self.__class__(self.energy, self.intensity, self.source)
+
 
 class ContinuousRadiationDistribution(
     namedtuple("RadiationDistribution", ["distribution", "source"])
@@ -86,6 +90,13 @@ class ContinuousRadiationDistribution(
         decay radiation type, immediate parent's name, and decay mode inducing the
         release of this radiation. e.g. "gamma from Y101 beta-"
     """
+
+    def copy(self) -> ContinuousRadiationDistribution:
+        self.__class__(self.distribution, self.source)
+        return
+
+    def deep_copy(self) -> ContinuousRadiationDistribution:
+        self.__class__(self.distribution.copy(), self.source)
 
 
 def flatten_photon_spectrum(
