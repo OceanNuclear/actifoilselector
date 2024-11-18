@@ -209,17 +209,18 @@ def main(
         every_foil_background[foil_name] = final_background
         mass_record[foil_name] = {"number of atoms": foil_num_atoms, "mass (g)": mass_from_num_atoms(foil_num_atoms, foil_comp)}
         # stage 4.2: calculate only effective counts.
-        peak_list = simulate_peaks_with_uncertainties(final_response_matrix, apriori_fluence)
-        peak_list = merge_peaks(peak_list, resolution_curve)
+        full_peak_list = simulate_peaks_with_uncertainties(final_response_matrix, apriori_fluence)
+        detectible_peaks, detectible_response_matrix = merge_delete_peaks(full_peak_list, resolution_curve, final_response_matrix)
         background_levels = corresponding_background_level(
-            peak_list,
+            full_peak_list,
             fold_background(final_background, apriori_fluence),
             compton_from_peak,
+            test_locations=detectible_peaks,
         )
-        net_peak_areas = integrate_peak_area(peak_list, resolution, background_levels)
+        net_peak_areas = integrate_peak_area(detectible_peaks, resolution, background_levels)
 
         effective_matrix, reaction_info = [], []
-        for net_area, (peak, xs) in zip(net_peak_areas, final_response_matrix.items()):
+        for net_area, (peak, xs) in zip(net_peak_areas, detectible_response_matrix.items()):
             if discoverable(net_area):
                 effective_matrix.append(nom(peak.intensity) * xs)
                 reaction_info.append(DiscreteRadiation(peak.energy, net_area, peak.source))
@@ -227,7 +228,7 @@ def main(
         effective_matrix = np.array(effective_matrix, dtype=float)
         effective_foil_matrices[foil_name] = {"matrix":effective_matrix, "photons":reaction_info}
         foil_precision[foil_name] = get_precision(effective_matrix, ary([1/(peak.intensity.s)**2 for peak in reaction_info]), weight_vector)
-        foil_accuracy[foil_name] = 
+        foil_accuracy[foil_name] = get_accuracy()
 
 
     # stage 4.3: Store response matrices and background spectra response matrices

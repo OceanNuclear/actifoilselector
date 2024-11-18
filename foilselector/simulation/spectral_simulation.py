@@ -34,7 +34,7 @@ def simulate_peaks_with_uncertainties(
         radiations.append(DiscreteRadiation(line.energy, multiplier*line.intensity, line.source))
     return radiations
 
-def merge_peaks(peak_list: list[DiscreteRadiation], resolution_curve: Callable[[float | np.ndarray], float | np.ndarray]) -> list[DiscreteRadiation]:
+def merge_delete_peaks(peak_list: list[DiscreteRadiation], resolution_curve: Callable[[float | np.ndarray], float | np.ndarray]) -> list[DiscreteRadiation]:
     """Merge nearby peaks"""
     return
 
