@@ -228,7 +228,7 @@ def main(
         effective_matrix = np.array(effective_matrix, dtype=float)
         effective_foil_matrices[foil_name] = {"matrix":effective_matrix, "photons":reaction_info}
         foil_precision[foil_name] = get_precision(effective_matrix, ary([1/(peak.intensity.s)**2 for peak in reaction_info]), weight_vector)
-        foil_accuracy[foil_name] = get_accuracy()
+        foil_accuracy[foil_name] = get_accuracy(effective_matrix, reaction_info)
 
 
     # stage 4.3: Store response matrices and background spectra response matrices
