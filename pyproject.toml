@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff", "pytest"]
+dev = ["ruff", "pytest", "precommit"]
 visual = ["networkx >=2.6.1"]
 
 [project.urls]
