@@ -1,13 +1,19 @@
 from typing import TYPE_CHECKING
 
 from collections import defaultdict
+from collections.abc import Callable
+import scipy
 import numpy as np
 from uncertainties import nominal_value as nom
 from foilselector.constants import me_eV
-from foilselector.openmcextension.library_reader import DiscreteRadiation, ContinuousRadiationDistribution
+from foilselector.openmcextension.library_reader import (
+    DiscreteRadiation,
+    ContinuousRadiationDistribution,
+)
 
 if TYPE_CHECKING:
     from unceratinties.core import Variable, AffineScalarFunc
+
 
 def get_response_matrix_and_peaks_without_uncertainty(
     discrete_response_matrix: dict[DiscreteRadiation, np.ndarray],
@@ -18,6 +24,7 @@ def get_response_matrix_and_peaks_without_uncertainty(
         matrix.append(np.array(nom(line.intensity) * resp))
         radiations[nom(line.energy)].append(line.source)
     return np.array(matrix, dtype=float), radiations
+
 
 def simulate_peaks_with_uncertainties(
     discrete_response_matrix: dict[DiscreteRadiation, np.ndarray],
@@ -31,28 +38,46 @@ def simulate_peaks_with_uncertainties(
 
     radiations = []
     for line, multiplier in zip(list(discrete_response_matrix.keys()), peaks_multiplier):
-        radiations.append(DiscreteRadiation(line.energy, multiplier*line.intensity, line.source))
+        radiations.append(
+            DiscreteRadiation(line.energy, multiplier * line.intensity, line.source)
+        )
     return radiations
 
-def merge_delete_peaks(peak_list: list[DiscreteRadiation], resolution_curve: Callable[[float | np.ndarray], float | np.ndarray]) -> list[DiscreteRadiation]:
+
+def merge_delete_peaks(
+    peak_list: list[DiscreteRadiation],
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
+) -> list[DiscreteRadiation]:
     """Merge nearby peaks"""
+    peak_buffer = []
+    for peak in peak_list:
+        peak_buffer.append(peak.copy())
     return
 
-def fold_background(background: dict[ContinuousRadiationDistribution, np.ndarray[float]], apriori_fluence: np.) -> list[ContinuousRadiationDistribution]:
+
+def fold_background(
+    background: dict[ContinuousRadiationDistribution, np.ndarray[float]],
+    apriori_fluence: np.ndarray,
+) -> list[ContinuousRadiationDistribution]:
     """Similar to simulate_peaks_with_uncertainties, but with background instead."""
     matrix = np.array(list(background.values()), dtype=float)
     bg_multipler = matrix @ apriori_fluence
 
     bgs = []
     for dist, multiplier in zip(list(background.keys()), bg_multipler):
-        bgs.append(ContinuousRadiationDistribution(dist.distribution*multiplier, dist.source))
+        bgs.append(
+            ContinuousRadiationDistribution(dist.distribution * multiplier, dist.source)
+        )
     return bgs
+
 
 def corresponding_background_level(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
-    compton_from_peak_curve: Callable[[float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc],
-    test_locations: list[float] | None = None
+    compton_from_peak_curve: Callable[
+        [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
+    ],
+    test_locations: list[float] | None = None,
 ) -> list[AffineScalarFunc]:
     """
     Get the background heights at the test_locations.
@@ -64,7 +89,7 @@ def corresponding_background_level(
     background:
         list of continuous peaks, including their energy and intensity.
     compton_from_peak_curve:
-        Curve showing the Compton-to-peak ratio. See 
+        Curve showing the Compton-to-peak ratio. See
         foilselector.simulation.detector.Compton_to_peak_curve_factory.
     test_locations
         Places on the gamma-ray energy axis where we want to calculate the background
@@ -87,15 +112,18 @@ def corresponding_background_level(
         # background due to Compton-scattering.
         for peak_zeta in peak_list:
             zeta_edge_E = compton_edge(nom(peak_zeta.energy))
-            if zeta_edge_E>=energy_l:
-                compton_total = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-                this_height += compton_total/zeta_edge_E
+            if zeta_edge_E >= energy_l:
+                compton_total = (
+                    compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
+                )
+                this_height += compton_total / zeta_edge_E
         # background due to continuous peaks
         for dist, _source in folded_background:
             this_height += dist(energy_l)
 
         bg_heights.append(this_height)
     return bg_heights
+
 
 def compton_edge(peak_energy: float) -> float:
     """
@@ -112,12 +140,16 @@ def compton_edge(peak_energy: float) -> float:
     Compton_edge_energy:
         energy of the compton edge corresponding to the thing.
     """
-    factor = 1.0 + 2 * peak_energy/me_eV
+    factor = 1.0 + 2 * peak_energy / me_eV
     return peak_energy * (1 - 1 / factor)
 
-def integrate_bg_area(background_level: float | AffineScalarFunc, width: float,
-    ) -> AffineScalarFunc:
+
+def integrate_bg_area(
+    background_level: float | AffineScalarFunc,
+    width: float,
+) -> AffineScalarFunc:
     return add_Poisson_error(background_level * width)
+
 
 def contained_by_interval(standard_score: float) -> float:
     """
@@ -128,16 +160,17 @@ def contained_by_interval(standard_score: float) -> float:
     area enclosed by a unit-Gaussian function (i.e. a normal distribution whose integral
     under the curve = 1) from -standard_score*sigma to +standard_score*sigma.
     """
-    erf_z = scipy.special.erf(standard_score/np.sqrt(2))
-    1/2*(1+erf_z)
+    erf_z = scipy.special.erf(standard_score / np.sqrt(2))
+    1 / 2 * (1 + erf_z)
     return
+
 
 def integrate_peak_area(
     peak_list: list[DiscreteRadiation],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     background_levels: list[float | AffineScalarFunc],
     *,
-    how_many_fwhm:float = 1.0
+    how_many_fwhm: float = 1.0,
 ) -> list[float | AffineScalarFunc]:
     """
     Get the number of background counts under a peak.
@@ -164,11 +197,14 @@ def integrate_peak_area(
     """
     truncated_net_peak_areas = []
     for peak, bg_lvl in zip(peak_list, background_levels):
-        bg_area = integrate_bg_area(bg_lvl, resolution_curve(peak.energy) * how_many_fwhm)
+        bg_area = integrate_bg_area(
+            bg_lvl, resolution_curve(peak.energy) * how_many_fwhm
+        )
         truncated_peak_area = peak.intensity * contained_by_interval(how_many_fwhm)
         full_trunc_peak_area = add_Poisson_error(truncated_peak_area + nom(bg_area))
         truncated_net_peak_areas.append(full_trunc_peak_area - bg_area)
     return truncated_net_peak_areas
+
 
 def add_Poisson_error(count_rate: float | AffineScalarFunc) -> AffineScalarFunc:
     """
@@ -176,6 +212,7 @@ def add_Poisson_error(count_rate: float | AffineScalarFunc) -> AffineScalarFunc:
     therefore a factor of np.sqrt(count_rate) will be added onto the error of the output.
     """
     return count_rate + Variable(0.0, np.sqrt(nom(count_rate)))
+
 
 def discoverable(count: AffineScalarFunc, *, num_sigmas=3) -> bool:
     """
