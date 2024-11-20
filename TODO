@@ -14,7 +14,7 @@
     - "Pd106-Ru103-MT=(800-819,849)"
     - use "~/Others/FoilSelector/JEFF/JEFF33-n/endf6/46-Pd-106g.jeff33" compared to another library's 46-Pd-106.
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
-[]Change the name of `Integral` to `Intergrand`
+[]Change the name of `Integrate` to `Intergral`
 []Instead of a flat distribution, use a better simulation of the Compton continuum
 []Incorporate pair-production effects
 []Kick out unused (deprecated) functions
