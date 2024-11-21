@@ -1,12 +1,13 @@
-from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
 import numpy as np
+from foilselector.generic import SilenceNumpyDivisionError
 from uncertainties.core import AffineScalarFunc
 
 def response_matrix_rank_at_given_vector(
-    response_matrix: np.ndarray,
-    response_vector: np.ndarray[AffineScalarFunc],
-    error_principle_ratio_threshold: float=1.0,
+    response_matrix: Iterable[Iterable[float]],
+    response_vector: Iterable[AffineScalarFunc],
+    error_principle_ratio_threshold: float=0.2,
     *, 
     rank_counter: int=0,
 ):
@@ -70,7 +71,8 @@ def response_matrix_rank_at_given_vector(
         return rank_counter
 
     error_principle_ratios = np.array([count.s/count.n for count in response_vector])
-    # remove rows that are too small to be effective.
+    # Keep only rows with a small enough fraction of uncertainty, i.e.
+    # remove rows of large uncertainty fraction
     keep_row = error_principle_ratios<error_principle_ratio_threshold
     if sum(keep_row)==0: 
         # Recursion termination condition:

@@ -4,6 +4,7 @@ All of the read_* and save_* functions all saves at the current directory by def
 
 from pathlib import Path
 import json as json
+from glob import glob
 import re
 import pandas as pd
 import numpy as np
@@ -194,7 +195,7 @@ def get_apriori(directory: Path, irradiation_duration: float | None = None):
     Given the file location and irradiation duration,
     return the apriori_flux and the apriori_fluence
     """
-    assert exists(join(directory, "integrated_apriori.csv")), (
+    assert exists(join(directory, ".integrated_apriori.csv")), (
         "Output directory must already have integrated_apriori.csv for calculating the radionuclide populations."
     )
     print(
@@ -229,16 +230,17 @@ class ResolutionMaxCountRate:
                 f.write(f"x_{i}={coef}\n")
             f.write(f"max. count rate={self.max_count_rate}\n")
 
-    @classmethod
-    def load(cls, directory="."):
+    @staticmethod
+    def load(directory="."):
         """Load data back from the '.gamma-resolution-count-rate-coefs.txt' file"""
         with open(join(directory, ".gamma-resolution-count-rate-coefs.txt")) as f:
             text = f.readlines()
+        resolution_coefficients = []
         while text[0].startswith("x"):
             resolution_coefficients.append(float(text.pop(0).split("=")[1]))
         assert text[0].startswith("max"), "Expected x_0=...,x_1=...,max. count rate=..."
         max_count_rate = float(text.pop(0).split("=")[1])
-        return cls(resolution_coefficients, max_count_rate)
+        return resolution_coefficients, max_count_rate
 
 class PeakToComptonCoefficients:
     """
@@ -254,14 +256,15 @@ class PeakToComptonCoefficients:
             for i, coef in enumerate(self.peak_to_Compton_coefficients):
                 f.write(f"x_{i}={coef}\n")
 
-    @classmethod
-    def load(cls, directory="."):
+    @staticmethod
+    def load(directory="."):
         """Load data back from the '.gamma-peak-to-Compton-coefs.txt' file"""
         with open(join(directory, ".gamma-peak-to-Compton-coefs.txt")) as f:
             text = f.readlines()
+        peak_to_Compton_coefficients = []
         while text[0].startswith("x"):
             peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
-        return cls(peak_to_Compton_coefficients)
+        return peak_to_Compton_coefficients
 
 def find_efficiency_file():
     return glob(".efficiency.*")[0]
