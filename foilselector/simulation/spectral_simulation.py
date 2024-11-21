@@ -1,7 +1,5 @@
 """Simulates the gamma-ray spectrum, including how the peak broadens."""
 
-from typing import TYPE_CHECKING
-
 from collections import defaultdict
 from collections.abc import Callable
 import scipy
@@ -13,8 +11,7 @@ from foilselector.openmcextension.library_reader import (
     ContinuousRadiationDistribution,
 )
 
-if TYPE_CHECKING:
-    from unceratinties.core import Variable, AffineScalarFunc
+from uncertainties.core import Variable, AffineScalarFunc
 
 
 def get_response_matrix_and_peaks_without_uncertainty(

@@ -9,12 +9,15 @@ from __future__ import annotations
 from openmc.data import atomic_mass
 from collections.abc import Callable
 from typing import TYPE_CHECKING
-from foilselector.constants import amu
-from foilselector.openmcextension.table import Tab1DExtended
 from uncertainties import nominal_value as nom
+
+from foilselector.generic import minmax
+from foilselector.constants import amu
+from foilselector.openmcextension.table import Tab1DExtended, Integral
 if TYPE_CHECKING:
     from foilselector.simulation.efficiency import EfficiencyCurve
     from foilselector.openmcextension.library_reader import DiscreteRadiation, ContinuousRadiationDistribution
+    import numpy as np
 
 __all__ = ["choose_num_reactant_in_foil", "mass_from_num_atoms", "max_num_counts"]
 
@@ -23,7 +26,7 @@ def choose_num_reactant_in_foil(
     foil_background: dict[ContinuousRadiationDistribution, np.ndarray[float]],
     apriori_fluence: np.ndarray[float],
     max_counts_per_foil: float,
-    compton_peak_ratio: Callable[[float | npt.NDArray], float | npt.NDArray] | None = None,
+    compton_peak_ratio: Callable[[float | np.ndarray], float | np.ndarray] | None = None,
 ):
     """
     Returns the maximum number of reactants in the reactant foil without breaking the
@@ -67,16 +70,20 @@ def choose_num_reactant_in_foil(
             total_counts_per_reactant += compton_peak_ratio(nom(line.energy)) * num_released_per_reactant
     for dist, resp in foil_background.items():
         # spectrum per decay of end-of-chain isotope
-        num_detected_per_decay = Integrate(dist).definite_integral(*minmax(dist))
+        num_detected_per_decay = Integral(dist).definite_integral(*minmax(dist))
         total_counts_per_reactant += num_detected_per_decay * (resp @ apriori_fluence)
         if compton_peak_ratio:
             compton_per_decay = dist.apply_scaling(compton_peak_ratio)
-            total_counts_per_reactant += Integrate(compton_per_decay).definite_integral(*minmax(compton_per_decay)) * (resp @ apriori_fluence)
+            total_counts_per_reactant += Integral(compton_per_decay).definite_integral(*minmax(compton_per_decay)) * (resp @ apriori_fluence)
 
-    num_reactants_in_foil = max_counts_per_foil/total_counts_per_reactant
+    # catch divide by 0s
+    if total_counts_per_reactant:
+        num_reactants_in_foil = max_counts_per_foil/total_counts_per_reactant
+    else:
+        num_reactants_in_foil = 0.0
     return (
         num_reactants_in_foil, 
-        {line: resp*num_reactants_in_foil for line, resp in foil_response_matrix.items()}
+        {line: resp*num_reactants_in_foil for line, resp in foil_response_matrix.items()},
         {dist: resp*num_reactants_in_foil for dist, resp in foil_background.items()}
     )
 

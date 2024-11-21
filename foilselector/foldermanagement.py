@@ -2,6 +2,7 @@
 All of the read_* and save_* functions all saves at the current directory by default,
     unless their save filepath is changed"""
 
+from pathlib import Path
 import json as json
 import re
 import pandas as pd
@@ -9,7 +10,6 @@ import numpy as np
 from os.path import exists, join
 from foilselector.openmcextension.extended_io import *
 from foilselector.selfshielding import MaxSigma
-
 
 # sigma_df
 def save_microscopic_cross_section_csv(sigma_df, csv_path=".sigma_df.csv"):
@@ -237,7 +237,7 @@ class ResolutionMaxCountRate:
         while text[0].startswith("x"):
             resolution_coefficients.append(float(text.pop(0).split("=")[1]))
         assert text[0].startswith("max"), "Expected x_0=...,x_1=...,max. count rate=..."
-            max_count_rate = float(text.pop(0).split("=")[1])
+        max_count_rate = float(text.pop(0).split("=")[1])
         return cls(resolution_coefficients, max_count_rate)
 
 class PeakToComptonCoefficients:

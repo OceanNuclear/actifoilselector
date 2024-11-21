@@ -1,9 +1,7 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from uncertainties.core import AffineScalarFunc
+from uncertainties.core import AffineScalarFunc
 
 def response_matrix_rank_at_given_vector(
     response_matrix: np.ndarray,

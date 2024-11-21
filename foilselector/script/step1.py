@@ -50,9 +50,9 @@ from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
 from foilselector.foldermanagement import ResolutionMaxCountRate, PeakToComptonCoefficients
 from foilselector.generic import minmax, SilenceNumpyDivisionError
 from foilselector.constants import MeV, keV
-from foilselector.openmcextension import Integrate, detabulate
+from foilselector.openmcextension import Integral, detabulate
 from foilselector.simulation.efficiency import (
-    list_dir_eff_files, EfficiencyCurve, APPROVED_EFFICIENCY_FILE_EXTENSIONS
+    list_dir_eff_files, EfficiencyCurve, APPROVED_EFFICIENCY_FILE_EXTENSIONS, get_default_efficiency_curve_path
 )
 from foilselector.simulation.detector import (
     Compton_to_peak_curve_factory,
@@ -217,23 +217,16 @@ def stage3_modify_apriori(
     # scale the peak up and down (while keeping the total flux the same)
     if ask_yn_question("Would you like to shift the energy scale up/down?"):
         while True:
-            print("new energy scale = (scale_factor) * current energy scale + offset")
+            print("new energy scale = (scale_factor * current energy scale) + offset")
             try:
                 # Setting the affine scaling coefficients
                 scale_factor = float(input("scale_factor="))
                 offset = float(input("offset="))
                 # Scale E_values and apriori
+                continuous_apriori = continuous_apriori.scale_x(scale_factor)
+                continuous_apriori = continuous_apriori.offset_x(offset)
                 E_values = scale_factor * E_values + offset
-                continuous_apriori = Tabulated1D(
-                    E_values,
-                    apriori,
-                    breakpoints=[
-                        len(apriori),
-                    ],
-                    interpolation=[
-                        scheme,
-                    ],
-                )
+                apriori *= scale_factor
                 # plotting
                 x = calculate_x_points(E_values)
                 plt.loglog(x, continuous_apriori(x))
@@ -245,7 +238,7 @@ def stage3_modify_apriori(
                 print(e, ", trying again")
 
     # increase the flux up to a set total flux
-    total_flux = Integrate(continuous_apriori).definite_integral(*minmax(E_values))
+    total_flux = sum(apriori)
     if ask_yn_question(f"{total_flux = }, would you like to scale it up/down?"):
         while True:
             try:
@@ -254,16 +247,10 @@ def stage3_modify_apriori(
             except ValueError as e:
                 print(e, ", trying again")
         # scaling y values
-        apriori = apriori * new_total_flux / total_flux
-        continuous_apriori = Tabulated1D(
-            E_values,
-            apriori,
-            breakpoints=[len(apriori)],
-            interpolation=[
-                scheme,
-            ],
-        )
-        total_flux = Integrate(continuous_apriori).definite_integral(*minmax(E_values))
+        scale_factor = new_total_flux / total_flux
+        apriori *= scale_factor
+        continuous_apriori *= scale_factor
+        total_flux = sum(apriori)
         # plotting
         x = calculate_x_points(E_values)
         plt.loglog(x, continuous_apriori(x))
@@ -414,13 +401,13 @@ def stage5_save_apriori_files(
     gs_df = pd.DataFrame(gs_array, columns=["min", "max"])
     gs_df.to_csv(".gs.csv", index=False)
 
-    integrated_flux = Integrate(continuous_apriori).definite_integral(*gs_array.T)
+    integrated_flux = Integral(continuous_apriori).definite_integral(*gs_array.T)
 
     if error_present:
         continuous_apriori_lower, continuous_apriori_upper = error_present
         uncertainty = (
-            Integrate(continuous_apriori_upper).definite_integral(*gs_array.T)
-            - Integrate(continuous_apriori_lower).definite_integral(*gs_array.T)
+            Integral(continuous_apriori_upper).definite_integral(*gs_array.T)
+            - Integral(continuous_apriori_lower).definite_integral(*gs_array.T)
         ) / 2
         print(
             "An (inaccurate) estimate of the error is provided as well. If a different group structure than the input file's group structure is used, then this error likely overestimated (by a factor of ~ sqrt(2)) as it does not obey the rules of error propagation properly."
@@ -660,7 +647,7 @@ In the current directory {}, the following .csv files are found:""".format(cwd)
 
     # stage 3
     E_values, apriori, continuous_apriori = stage3_modify_apriori(
-        E_values, apriori, continuous_apriori
+        continuous_apriori
     )
 
     # stage 4
