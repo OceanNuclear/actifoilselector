@@ -12,6 +12,7 @@ from os.path import exists, join
 from foilselector.openmcextension.extended_io import *
 from foilselector.selfshielding import MaxSigma
 
+
 # sigma_df
 def save_microscopic_cross_section_csv(sigma_df, csv_path=".sigma_df.csv"):
     return sigma_df.to_csv(csv_path)
@@ -92,9 +93,9 @@ def save_counts_csv(population_df, csv_path=".counts.csv", comments: str = None)
         if isinstance(comments, str):
             comments = comments.split("\n")  # break strings at newlines.
         elif isinstance(comments, (list, tuple)):
-            assert all([isinstance(c, str) for c in comments]), (
-                "Comment must a list or tuple of strings."
-            )
+            assert all([
+                isinstance(c, str) for c in comments
+            ]), "Comment must a list or tuple of strings."
         else:
             raise TypeError(
                 "Comment provided must be a string, or list/tuple of strings."
@@ -195,9 +196,9 @@ def get_apriori(directory: Path, irradiation_duration: float | None = None):
     Given the file location and irradiation duration,
     return the apriori_flux and the apriori_fluence
     """
-    assert exists(join(directory, ".integrated_apriori.csv")), (
-        "Output directory must already have integrated_apriori.csv for calculating the radionuclide populations."
-    )
+    assert exists(
+        join(directory, ".integrated_apriori.csv")
+    ), "Output directory must already have integrated_apriori.csv for calculating the radionuclide populations."
     print(
         "Reading integrated_apriori.csv as the fluence, i.e. total number of neutrons/cm^2/eV/s, averaged over the IRRADIATION_DURATION = {} s\n".format(
             irradiation_duration
@@ -214,11 +215,13 @@ def get_apriori(directory: Path, irradiation_duration: float | None = None):
         apriori_fluence = apriori_flux * irradiation_duration
         return apriori_flux, apriori_fluence
 
+
 class ResolutionMaxCountRate:
     """
     Data on the resolution curve of the gamma-ray detector, and the maximum count rate
     at which this resolution can be achieved without degredation.
     """
+
     def __init__(self, resolution_coefficients: list[float], max_count_rate: float):
         self.resolution_coefficients = resolution_coefficients
         self.max_count_rate = max_count_rate
@@ -236,17 +239,22 @@ class ResolutionMaxCountRate:
         with open(join(directory, ".gamma-resolution-count-rate-coefs.txt")) as f:
             text = f.readlines()
         resolution_coefficients = []
-        while text[0].startswith("x"):
-            resolution_coefficients.append(float(text.pop(0).split("=")[1]))
+        while text:
+            if text[0].startswith("x"):
+                resolution_coefficients.append(float(text.pop(0).split("=")[1]))
+            else:
+                break
         assert text[0].startswith("max"), "Expected x_0=...,x_1=...,max. count rate=..."
         max_count_rate = float(text.pop(0).split("=")[1])
         return resolution_coefficients, max_count_rate
+
 
 class PeakToComptonCoefficients:
     """
     Data on the resolution curve of the gamma-ray detector, and the maximum count rate
     at which this resolution can be achieved without degredation.
     """
+
     def __init__(self, peak_to_Compton_coefficients: list[float]):
         self.peak_to_Compton_coefficients = peak_to_Compton_coefficients
 
@@ -262,12 +270,17 @@ class PeakToComptonCoefficients:
         with open(join(directory, ".gamma-peak-to-Compton-coefs.txt")) as f:
             text = f.readlines()
         peak_to_Compton_coefficients = []
-        while text[0].startswith("x"):
-            peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
+        while text:
+            if text[0].startswith("x"):
+                peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
+            else:
+                break
         return peak_to_Compton_coefficients
+
 
 def find_efficiency_file():
     return glob(".efficiency.*")[0]
+
 
 # def get_gs_and_flux(file_path, directory="."):
 #     return pd.read_csv(file_path, index_col=[0], comment="#")
@@ -279,9 +292,9 @@ def get_microscopic_cross_sections_df(directory="."):
     And return it as a pandas dataframe.
     """
     expected_microscopic_xs_path = join(directory, "microscopic_xs.csv")
-    assert exists(expected_microscopic_xs_path), (
-        "Output directory must already contain microscopic_xs.csv"
-    )
+    assert exists(
+        expected_microscopic_xs_path
+    ), "Output directory must already contain microscopic_xs.csv"
     microscopic_xs = pd.read_csv(expected_microscopic_xs_path, index_col=[0])
     return microscopic_xs
 
