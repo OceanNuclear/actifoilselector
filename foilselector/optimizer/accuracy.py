@@ -1,15 +1,16 @@
 from collections.abc import Iterable
 
 import numpy as np
-from foilselector.generic import SilenceNumpyDivisionError
+from foilselector.generic import SilenceNumpyDivisionError, SilenceNumpyInvalidError
 from uncertainties.core import AffineScalarFunc
+
 
 def response_matrix_rank_at_given_vector(
     response_matrix: Iterable[Iterable[float]],
     response_vector: Iterable[AffineScalarFunc],
-    error_principle_ratio_threshold: float=0.2,
-    *, 
-    rank_counter: int=0,
+    error_principle_ratio_threshold: float = 0.2,
+    *,
+    rank_counter: int = 0,
 ):
     """
     Find the number of useful directions of the response matrix near the a priori vector,
@@ -67,14 +68,21 @@ def response_matrix_rank_at_given_vector(
     )
     DONE
     """
-    if len(response_matrix)==0:
+    if len(response_matrix) == 0:
         return rank_counter
 
-    error_principle_ratios = np.array([count.s/count.n for count in response_vector])
+    with SilenceNumpyDivisionError():
+        error_principle_ratios = np.nan_to_num(
+            np.array([count.s for count in response_vector])
+            / np.array([count.n for count in response_vector]),
+            copy=False,
+            nan=np.inf,
+            neginf=np.inf,
+        )
     # Keep only rows with a small enough fraction of uncertainty, i.e.
     # remove rows of large uncertainty fraction
-    keep_row = error_principle_ratios<error_principle_ratio_threshold
-    if sum(keep_row)==0: 
+    keep_row = error_principle_ratios < error_principle_ratio_threshold
+    if sum(keep_row) == 0:
         # Recursion termination condition:
         # stop if no rows is left to be used for the row reduction
         return rank_counter
@@ -83,26 +91,30 @@ def response_matrix_rank_at_given_vector(
     most_effective_count = response_vector[most_effective_row_index]
     remaining_response_matrix, remaining_response_vector = [], []
     for i, (response_row, count) in enumerate(zip(response_matrix, response_vector)):
-        if i==most_effective_row_index:  # remove most effective row.
+        if i == most_effective_row_index:  # remove most effective row.
             continue
         if keep_row[i]:
             with SilenceNumpyDivisionError():
-                number_of_basis_contained = np.min(response_row/most_effective_row)
-                remaining_response_matrix.append(
-                    response_row - number_of_basis_contained * most_effective_row
-                )
-                remaining_response_vector.append(
-                    count - number_of_basis_contained * most_effective_count
-                )
+                # sometimes 0/0 yields invalid rather than division error.
+                with SilenceNumpyInvalidError():
+                    num_basis_contained = np.nanmin(response_row / most_effective_row)
+            remaining_response_matrix.append(
+                response_row - num_basis_contained * most_effective_row
+            )
+            remaining_response_vector.append(
+                count - num_basis_contained * most_effective_count
+            )
     return response_matrix_rank_at_given_vector(
         np.array(remaining_response_matrix),
         np.array(remaining_response_vector),
         error_principle_ratio_threshold=error_principle_ratio_threshold,
-        rank_counter=rank_counter+1
+        rank_counter=rank_counter + 1,
     )
 
 
-def get_accuracy(response_matrix: np.ndarray, response_vector: np.ndarray[AffineScalarFunc]) -> int:
+def get_accuracy(
+    response_matrix: np.ndarray, response_vector: np.ndarray[AffineScalarFunc]
+) -> int:
     return response_matrix_rank_at_given_vector(response_matrix, response_vector)
     # singular_values = np.linalg.svdvals(foil_response_matrix)
     # accuracy = np.sum(np.tanh(singular_values/singular_values[0]))

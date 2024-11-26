@@ -38,6 +38,8 @@ import uncertainties.unumpy as unpy
 import uncertainties as unc
 import scipy.linalg as spln
 
+from foilselector.generic import SilenceNumpyInvalidError
+
 __all__ = [
     "Bateman_equation_generator",
     "Bateman_convolved_generator",
@@ -90,7 +92,7 @@ def Bateman_equation_generator(
             lambda x: x - x
         )  # Zero. Because any near-zero decay constant in the preceeding chain will lead to near-zero production rate of this isotope.
         # It's expressed this way to ensure the data output format matches the input format.
-    if len(decay_constants) == 1 and decay_constant[0] <= decay_constant_threshold:
+    if len(decay_constants) == 1 and decay_constants[0] <= decay_constant_threshold:
         return lambda x: x - x + 1  # stable population, no decay.
     # expand out the Bateman equation into a matrix, we can then multiply the columns together and then summed the rows.
     premultiplying_factor = np.product(decay_constants[:-1]) * np.product(
@@ -150,7 +152,7 @@ def Bateman_convolved_generator(
         return (
             lambda x: x - x
         )  # catch the cases where there are zeros in the decay rates.
-    if len(decay_constants) == 1 and decay_constant[0] <= decay_constant_threshold:
+    if len(decay_constants) == 1 and decay_constants[0] <= decay_constant_threshold:
         return lambda x: x - x + 1  # stable population, no decay.
     premultiplying_factor = (
         np.product(decay_constants[:-1]) * np.product(branching_ratios[1:]) / a
@@ -226,7 +228,7 @@ def Bateman_num_decays_factorized(
         # catch the cases where there are zeros in the decay_rates
         # in practice this should only happen for chains with stable parents, i.e.
         # this if-condition would only be used if the decay chain is of length==1.
-        return 0 * np.product(branching_ratio) * a * b * c
+        return 0 * np.product(branching_ratios) * a * b * c
     premultiplying_factor = (
         np.product(decay_constants[:]) * np.product(branching_ratios[1:]) / a
     )
@@ -302,7 +304,14 @@ def create_lambda_matrix(l_vec, decay_constant_threshold=1e-23):
     return -np.diag(lambda_vec, 0) + np.diag(lambda_vec[:-1], -1)
 
 
-_expm = lambda M: spln.expm(M)
+def _expm(M):
+    """
+    Matrix exponentiation. Invalid multiply and invalid subtracts are silenced, which is
+    dangerous to apply; TODO: need to audit to see if there's a safer way of calculating
+    without ignoring the invalids! Or see if this ignoring of error is acceptable or not!
+    """
+    with SilenceNumpyInvalidError():  # dangerous to use!
+        return spln.expm(M)
 
 
 # population after drawn out irrdiation, calculated by matrix exponentiation

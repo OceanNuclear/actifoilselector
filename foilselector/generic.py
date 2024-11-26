@@ -48,25 +48,34 @@ def minmax(array):
 class SilenceNumpyDivisionError(contextlib.ContextDecorator):
     """Context manager to suppress warnings and errors for dividing by zero."""
 
-    def __init__(self, ignore_invalid: bool = False):
-        self.ignore_invalid = ignore_invalid
-        super().__init__()
-
     def __enter__(self):
-        """Use ignore_invalid=True to STRONGLY ignore any errors."""
-        self.prev_divide_error_state = np.geterr()[
-            "divide"
-        ]  # record current state of error handling style
+        # record current state of error handling style for division
+        self.prev_divide_error_state = np.geterr()["divide"]
         np.seterr(divide="ignore")  # force ignore all division errors
-        if self.ignore_invalid:
-            self.prev_invalid_error_state = np.geterr()["invalid"]
-            np.seterr(invalid="ignore")
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        np.seterr(divide=self.prev_divide_error_state)  # undo error silencing
-        if self.ignore_invalid:
-            np.seterr(invalid=self.prev_invalid_error_state)
+        np.seterr(divide=self.prev_divide_error_state)  # restore to previous settings
+        if exc_type is None:
+            return True
+        else:  # any type of error
+            return False
+
+
+class SilenceNumpyInvalidError(contextlib.ContextDecorator):
+    """
+    Context manager to suppress warning specifically about invalid values.
+    Dangerous to use. Its use in foilselector.simulation.decay.bateman needs to be audited.
+    """
+
+    def __enter__(self):
+        # record current state of error handling style for invalid
+        self.prev_invalid_error_state = np.geterr()["invalid"]
+        np.seterr(invalid="ignore")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        np.seterr(invalid=self.prev_invalid_error_state)  # restore to previous settings
         if exc_type is None:
             return True
         else:  # any type of error
