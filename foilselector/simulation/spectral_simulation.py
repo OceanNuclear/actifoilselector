@@ -57,6 +57,8 @@ def merge_peaks(
     peak_list: list[DiscreteRadiation],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     full_response_matrix: dict[DiscreteRadiation, np.ndarray],
+    *,
+    debug_mode: bool = False,
 ) -> tuple[list[DiscreteRadiation], dict[DiscreteRadiation, np.ndarray]]:
     """
     Merge peaks that are close together.
@@ -136,8 +138,8 @@ def merge_peaks(
         index_buffer.append(j + 1)
     clear_buffers()
     # merging_matrix = np.array(merging_matrix)
-    if offending_merged_peaks:
-        print(offending_merged_peaks, "is the list of over-merged peaks.")
+    if debug_mode:
+        return merged_peaks, merged_response_matrix, offending_merged_peaks
     return merged_peaks, merged_response_matrix
 
 
@@ -305,25 +307,17 @@ def corresponding_background_level(
     bg_heights:
         list of background levels at the test_energies, given in unit [counts/eV].
     """
-    bg_heights = []
     if test_energies is None:
         test_energies = [nom(peak.energy) for peak in peak_list]
 
-    for energy_l in test_energies:
-        this_height = 0.0
-        # background due to Compton-scattering.
-        for peak_zeta in peak_list:
-            zeta_edge_E = compton_edge(nom(peak_zeta.energy))
-            if zeta_edge_E >= energy_l:
-                compton_total = (
-                    compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-                )
-                this_height += compton_total / zeta_edge_E
-        # background due to continuous peaks
-        for dist, _source in folded_background:
-            this_height += dist(energy_l)
+    bg_heights = np.zeros_like(test_energies)
+    for peak_zeta in peak_list:
+        zeta_edge_E = compton_edge(nom(peak_zeta.energy))
+        compton_total = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
+        bg_heights[test_energies <= zeta_edge_E] += compton_total / zeta_edge_E
+    for dist, _source in folded_background:
+        bg_heights += dist(test_energies)
 
-        bg_heights.append(this_height)
     return bg_heights
 
 
