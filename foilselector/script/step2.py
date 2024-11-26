@@ -337,14 +337,13 @@ def main(
             ),
         }
         if sum(spectra[foil_name]["spectrum"]) > 0:
-            if foil_name not in "Na,Mg,Al,Ca,Si,Sc,K".split(","):
-                ax = plot_spectrum(
-                    np.array(spectra[foil_name]["energy (keV)"]),
-                    np.array(spectra[foil_name]["spectrum"]),
-                    peak_labels=reaction_info,
-                )
-                ax.set_title(foil_name)
-                plt.show()
+            ax = plot_spectrum(
+                np.array(spectra[foil_name]["energy (keV)"]),
+                np.array(spectra[foil_name]["spectrum"]),
+                peak_labels=reaction_info,
+            )
+            ax.set_title(foil_name)
+            plt.show()
 
     # stage 4.3: Store response matrices and background spectra response matrices
     print("Writing to response matrix...", end="\r")
