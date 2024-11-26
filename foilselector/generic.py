@@ -1,5 +1,5 @@
 import numpy as np
-import contextlib # to silence numpy error
+import contextlib  # to silence numpy error
 
 
 def ordered_set(sequence):
@@ -17,6 +17,7 @@ def ordered_set(sequence):
     #   -> negated by "not" in front of bracket -> adds element to list
     # This should be an O(n) operation.
 
+
 def sorted_dict(dictionary: dict):
     """
     Python dictionaries are sorted by default now, so we don't need to import OrderedDict
@@ -27,6 +28,7 @@ def sorted_dict(dictionary: dict):
         next_lowest = sorted_keys.pop(0)
         new_dict[next_lowest] = dictionary[next_lowest]
     return new_dict
+
 
 def minmax(array):
     """
@@ -42,16 +44,30 @@ def minmax(array):
 
     return np.min(array), np.max(array)
 
+
 class SilenceNumpyDivisionError(contextlib.ContextDecorator):
     """Context manager to suppress warnings and errors for dividing by zero."""
+
+    def __init__(self, ignore_invalid: bool = False):
+        self.ignore_invalid = ignore_invalid
+        super().__init__()
+
     def __enter__(self):
-        self.prev_divide_error_state = np.geterr()["divide"] # record current state of error handling style
-        np.seterr(divide="ignore") # force ignore all division errors
+        """Use ignore_invalid=True to STRONGLY ignore any errors."""
+        self.prev_divide_error_state = np.geterr()[
+            "divide"
+        ]  # record current state of error handling style
+        np.seterr(divide="ignore")  # force ignore all division errors
+        if self.ignore_invalid:
+            self.prev_invalid_error_state = np.geterr()["invalid"]
+            np.seterr(invalid="ignore")
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        np.seterr(divide=self.prev_divide_error_state) # undo error silencing
+        np.seterr(divide=self.prev_divide_error_state)  # undo error silencing
+        if self.ignore_invalid:
+            np.seterr(invalid=self.prev_invalid_error_state)
         if exc_type is None:
             return True
-        else: # any type of error
+        else:  # any type of error
             return False
