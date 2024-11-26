@@ -9,7 +9,12 @@ import re
 import pandas as pd
 import numpy as np
 from os.path import exists, join
-from foilselector.openmcextension.extended_io import *
+from foilselector.openmcextension.extended_io import (
+    EncoderOpenMC,
+    unserialize_dict,
+    unserialize_pd_DataFrame,
+    save_csv_with_uncertainty,
+)
 from foilselector.selfshielding import MaxSigma
 
 
