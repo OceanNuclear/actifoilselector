@@ -14,7 +14,8 @@ from uncertainties.core import Variable
 from uncertainties import nominal_value as nom
 
 # local modules
-from foilselector.openmcextension.table import Integrate, Tab1DExtended
+from foilselector.constants import keV
+from foilselector.openmcextension.table import Integral, Tab1DExtended
 
 __all__ = [
     "collapse_single_xs",
@@ -41,7 +42,7 @@ def collapse_single_xs(xs_entry: Tabulated1D, gs_array: npt.NDArray):
 
     """
     return (
-        Integrate(xs_entry).definite_integral(*gs_array.T)
+        Integral(xs_entry).definite_integral(*gs_array.T)
         / np.diff(gs_array, axis=1).flatten()
     )
 
@@ -72,6 +73,15 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
 
     def copy(self) -> DiscreteRadiation:
         return self.__class__(self.energy, self.intensity, self.source)
+
+    def plot_label_format(self) -> str:
+        """
+        Return a str representation of itself that that can be used as a label for itself
+        when plotting.
+        """
+        return "{} keV\n{} counts\nby {}".format(
+            nom(self.energy) / keV, nom(self.intensity), self.source.replace("; ", ";\n")
+        )
 
 
 class ContinuousRadiationDistribution(
@@ -168,7 +178,7 @@ def flatten_photon_spectrum(
             cont_norm = nom(openmc_decay_spectrum["gamma"]["continuous_normalization"])
             gamma_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm
 
-            # num_counts = Integrate(gamma_dist).definite_integral(*minmax(gamma_dist))
+            # num_counts = Integral(gamma_dist).definite_integral(*minmax(gamma_dist))
             # warnings.warn(
             #     "Continuous gamma-ray distribution found in the decay gamma-ray spectrum"
             #     f"! This distribution sums up to {num_counts * nom()} gamma-rays "
