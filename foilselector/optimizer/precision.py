@@ -1,18 +1,26 @@
 import numpy as np
 
-def get_precision_weight_vector(gs_array: np.ndarray, *, log_flux: bool=False, const_lethargy: bool=False):
-    """Get the weight vector w for calculating precision. """
-    diff = np.diff(gs_ary, axis=1).flatten()
-    log_diff = np.diff(np.log(gs_ary), axis=1).flatten()
+
+def get_precision_weight_vector(
+    gs_array: np.ndarray, *, log_flux: bool = False, const_lethargy: bool = False
+):
+    """Get the weight vector w for calculating precision."""
+    diff = np.diff(gs_array, axis=1).flatten()
+    log_diff = np.diff(np.log(gs_array), axis=1).flatten()
     if const_lethargy:
         if log_flux:
             return log_diff**3
-        return log_diff*log_diff*diff
+        return log_diff * log_diff * diff
     elif log_flux:
-        return log_diff*diff*diff
+        return log_diff * diff * diff
     return diff**3
 
-def get_precision(foil_response_matrix: np.ndarray, measured_variance: np.ndarray[float], weight_vector: np.ndarray) -> float:
+
+def get_precision(
+    foil_response_matrix: np.ndarray,
+    measured_variance: np.ndarray[float],
+    weight_vector: np.ndarray,
+) -> float:
     """
     Parameters
     ----------
@@ -24,4 +32,8 @@ def get_precision(foil_response_matrix: np.ndarray, measured_variance: np.ndarra
     weight_vector:
         Obtained by get_precision_weight_vector
     """
-    return weight_vector @ np.diag(foil_response_matrix.T @ np.diag(1/variance) @ foil_response_matrix)
+    if len(measured_variance) == 0:
+        return 0.0
+    return weight_vector @ np.diag(
+        foil_response_matrix.T @ np.diag(1 / measured_variance) @ foil_response_matrix
+    )
