@@ -282,7 +282,9 @@ def corresponding_background_level(
     compton_from_peak_curve: Callable[
         [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
     ],
-    test_energies: list[float] | None = None,
+    test_energies: np.ndarray[float],
+    *,
+    include_uncertainties: bool = False,
 ) -> list[AffineScalarFunc]:
     """
     TODO: speed up
@@ -299,22 +301,25 @@ def corresponding_background_level(
         foilselector.simulation.detector.Compton_to_peak_curve_factory.
     test_energies
         Places on the gamma-ray energy axis where we want to calculate the background
-        heights at. (unit: eV) If not provided, this is copied from the energies of
-        peak_list.
+        heights at. (unit: eV)
+    include_uncertainties:
+        Whether the outputted bg_heights should include uncertainties or not.
 
     Returns
     -------
     bg_heights:
         list of background levels at the test_energies, given in unit [counts/eV].
     """
-    if test_energies is None:
-        test_energies = [nom(peak.energy) for peak in peak_list]
-
-    bg_heights = np.zeros_like(test_energies)
+    bg_heights = np.zeros(
+        len(test_energies), dtype=object if include_uncertainties else float
+    )
     for peak_zeta in peak_list:
         zeta_edge_E = compton_edge(nom(peak_zeta.energy))
         compton_total = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-        bg_heights[test_energies <= zeta_edge_E] += compton_total / zeta_edge_E
+        if include_uncertainties:
+            bg_heights[test_energies <= zeta_edge_E] += compton_total / zeta_edge_E
+        else:
+            bg_heights[test_energies <= zeta_edge_E] += nom(compton_total / zeta_edge_E)
     for dist, _source in folded_background:
         bg_heights += dist(test_energies)
 
@@ -385,12 +390,9 @@ def simulate_full_spectrum(
         count density [1/eV] at the specified sampling_points
     """
     spectrum = np.zeros_like(sampling_points)
-    spectrum += [
-        nom(bg_lvl)
-        for bg_lvl in corresponding_background_level(
-            peak_list, folded_background, compton_from_peak_curve, sampling_points * keV
-        )
-    ]
+    spectrum += corresponding_background_level(
+        peak_list, folded_background, compton_from_peak_curve, sampling_points * keV
+    )
     for peak in peak_list:
         spectrum += normal_dist_factory(
             nom(peak.energy),
@@ -405,6 +407,7 @@ def plot_spectrum(
     spectrum: np.ndarray[float],
     peak_labels: list[DiscreteRadiation],
     *,
+    plot_min: float = 0.05,
     ax=None,
 ) -> plt.Axes:
     """
@@ -426,12 +429,17 @@ def plot_spectrum(
         ax = plt.subplot()
     spectrum_new_scale = spectrum * keV
     ax.semilogy(sampling_points, spectrum_new_scale)
+    # plotting parameters
+    y_max = max(spectrum_new_scale)
+    log_data_height = np.log(y_max / plot_min)
+    plot_max = y_max * np.exp(log_data_height * 0.1)  # 10% taller than max in log scale
+    ax.set_ylim(*sorted([plot_min, plot_max]))
     for peak in peak_labels:
         E = nom(peak.energy)
         i = np.argmin(abs(sampling_points * keV - E))
         x = sampling_points[i]
-        ytip = spectrum_new_scale[i] * 1.1
-        yend = spectrum_new_scale[i] * 1.5
+        ytip = spectrum_new_scale[i] * np.exp(log_data_height * 0.1)
+        yend = spectrum_new_scale[i] * np.exp(log_data_height * 0.2)
         ax.annotate(
             peak.plot_label_format(),
             xy=(x, ytip),
@@ -442,7 +450,6 @@ def plot_spectrum(
         )
     ax.set_ylabel("counts /keV")
     ax.set_xlabel(r"$E_\gamma$ (keV)")
-    ax.set_ylim(1, ax.get_ylim()[1])
     return ax
 
 
