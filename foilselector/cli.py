@@ -3,7 +3,6 @@ from pathlib import Path
 from foilselector.script.step1 import main as main_step1
 from foilselector.script.step2 import main as main_step2
 from foilselector.script.step3 import main as main_step3
-import os
 
 
 @click.group()
@@ -61,8 +60,29 @@ def step1():
     required=True,
     help="Number of seconds the detector spend acquiring a spectrum of the activated foil sample.",
 )
+@click.option(
+    "-G",
+    "--gamma-spectrum-parameters",
+    type=float,
+    required=False,
+    help="If provided, a simulated gamma-ray spectrum will be generated, at gamma energies = np.arange(*gamma_spectrum_parameters) keV, where G specifies minimum gamma-ray energy, maximum gamma-ray energy, and the step size of the gamma-ray simulation.",
+    nargs=3,
+)
+@click.option(
+    "-n",
+    "--number-of-foils",
+    type=int,
+    default=1,
+    help="Number of foil required in the final foil set.",
+)
 def step2(
-    composition, library, irradiation_duration, transit_duration, measurement_duration
+    composition,
+    library,
+    irradiation_duration,
+    transit_duration,
+    measurement_duration,
+    gamma_spectrum_parameters,
+    number_of_foils=1,
 ):
     """Extract the relevant cross-sections and decay data from the nuclear data library.
     Then save them as functionst ath will never be used again.
@@ -73,27 +93,15 @@ def step2(
         irradiation_duration,
         transit_duration,
         measurement_duration,
+        number_of_foils,
+        gamma_spectrum_parameters,
     )
 
 
 @cli.command("step3", no_args_is_help=True)
-@click.option(
-    "-n",
-    type=float,
-    required=True,
-    help="Number of foil required in the final foil set."
-)
-@click.option(
-    "-r",
-    "--max-gamma-count-rate",
-    type=float,
-    required=True,
-    # default=10000,
-    help="Maximum pulse rate that the gamma detector can handle without losing its resolution.",
-)
-def step3(max_gamma_count_rate):
+def step3(number_of_foils):
     """Calculate the number of decays from each reaction."""
-    main_step3(max_gamma_count_rate)
+    main_step3(number_of_foils)
 
 
 @cli.command("step4", no_args_is_help=False)

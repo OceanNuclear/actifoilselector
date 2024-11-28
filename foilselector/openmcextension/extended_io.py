@@ -10,14 +10,21 @@ from collections import OrderedDict
 from tqdm import tqdm
 import numpy as np
 from numpy import array as ary
-import uncertainties
 from uncertainties.core import AffineScalarFunc, Variable
+from uncertainties import nominal_value as nom
 import pandas as pd
 import openmc
 from openmc.data import ATOMIC_SYMBOL
-from foilselector.openmcextension.constants import AMBIGUOUS_MT, FISSION_MTS, MT_to_nuc_num
+from foilselector.openmcextension.constants import (
+    AMBIGUOUS_MT,
+    FISSION_MTS,
+    MT_to_nuc_num,
+)
 from foilselector.openmcextension.table import tabulate, detabulate, Tab1DExtended
-from foilselector.openmcextension.library_reader import DiscreteRadiation, ContinuousRadiationDistribution
+from foilselector.openmcextension.library_reader import (
+    DiscreteRadiation,
+    ContinuousRadiationDistribution,
+)
 
 __all__ = [
     "sparsely_load_xs_and_decay_dict",
@@ -33,7 +40,7 @@ __all__ = [
     "unserialize_pd_DataFrame",
 ]
 
-"""Functions to 
+"""Functions to
 1. convert between uncertainties and python friendly objects (str representations)
 2. load files as openmc class objects procedurally (load_endf_directories) # (wait no this should be a script?)
 """
@@ -262,7 +269,10 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
         value= Tabulated1D (x=energy in eV, y=xs in barns)
     """
     xs_dict = OrderedDict()
-    for file in tqdm(inc_nuc_list, desc=f"Compiling the cross-sections of the {len(inc_nuc_list)} relevant isotopes"):
+    for file in tqdm(
+        inc_nuc_list,
+        desc=f"Compiling the cross-sections of the {len(inc_nuc_list)} relevant isotopes",
+    ):
         inc_f = openmc.data.IncidentNeutron.from_endf(file)
         nuc_sort_name = str(inc_f.atomic_number).zfill(3) + inc_f.name
 
@@ -297,12 +307,14 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
                 xs_dict[nuc_sort_name + "-" + name] = xs
     return xs_dict
 
-def reactions_matching(xs_dict: dict, isotope:str) -> dict:
+
+def reactions_matching(xs_dict: dict, isotope: str) -> dict:
     """
     Get the subset of the dictionary containing only reactions that uses the specified
     isotopes as the reactant.
     """
-    return {k:v for k,v in xs_dict.items() if k.split("-")[0]==isotope}
+    return {k: v for k, v in xs_dict.items() if k.split("-")[0] == isotope}
+
 
 def _extract_xs(parent_atomic_number, parent_atomic_mass, rx_file, tabulated=True):
     """
@@ -424,7 +436,7 @@ class EncoderOpenMC(json.JSONEncoder):
         elif isinstance(o, np.float64):
             return float(o)
         # uncertainties types
-        elif isinstance(o, uncertainties.core.AffineScalarFunc):
+        elif isinstance(o, AffineScalarFunc):
             try:
                 return str(o)
             except ZeroDivisionError:
@@ -468,7 +480,7 @@ def serialize_dict(mixed_object):
     elif isinstance(mixed_object, list):
         for ind, item in enumerate(mixed_object):
             mixed_object[ind] = serialize_dict(item)
-    elif isinstance(mixed_object, uncertainties.core.AffineScalarFunc):
+    elif isinstance(mixed_object, AffineScalarFunc):
         mixed_object = str(mixed_object)  # rewrite into str format
     elif isinstance(mixed_object, openmc.data.Tabulated1D):
         mixed_object = detabulate(mixed_object)
@@ -524,8 +536,7 @@ def save_csv_with_uncertainty(df, filename, *args, **kwargs):
         )
         cols = df.columns
         is_uncertain = ary([
-            isinstance(df.iloc[0][col], uncertainties.core.AffineScalarFunc)
-            for col in cols
+            isinstance(df.iloc[0][col], AffineScalarFunc) for col in cols
         ])
         uncertain_columns = cols[is_uncertain]
         for col in tqdm(
@@ -557,48 +568,63 @@ def serialize_radiation_dict(obj):
     """Turn radiation dict into something that can be saved as a JSON file."""
     if isinstance(obj, AffineScalarFunc):
         # AffineScalarFunc -> dict{'n':float, 's':float}
-        return {"n":obj.n, "s":obj.s}
+        return {"n": obj.n, "s": obj.s}
     elif isinstance(obj, np.ndarray):
+        if obj.dtype.name == "object":
+            return [nom(var) for var in obj]
         # np.ndarray -> list[float] | list[int]
         return obj.tolist()
-    elif isinstance(obj, (DiscreteRadiation, ContinuousRadiationDistribution, Tab1DExtended)):
+    elif isinstance(
+        obj, (DiscreteRadiation, ContinuousRadiationDistribution, Tab1DExtended)
+    ):
         # namedtuple | Tab1DExtended -> dict
         return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
     elif isinstance(obj, dict):
         # a dict of reactions and their xs: turn into list instead
-        if len(obj)==0:
+        if len(obj) == 0:
             return {}
         k0 = list(obj.keys())[0]
         if isinstance(k0, (DiscreteRadiation, ContinuousRadiationDistribution)):
             # dict -> list[{             'DiscreteRadiation' : dict, 'xs':list[float]}, ...]
             # dict -> list[{'ContinuousRadiationDistribution': dict, 'xs':list[float]}, ...]
-            return [{type(k).__name__:serialize_radiation_dict(k), "xs":serialize_radiation_dict(v)} for k, v in obj.items()]
+            return [
+                {
+                    type(k).__name__: serialize_radiation_dict(k),
+                    "xs": serialize_radiation_dict(v),
+                }
+                for k, v in obj.items()
+            ]
         # dict[str:'foil_name', dict] -> dict[str: 'foil_name', list]
-        return {k:serialize_radiation_dict(v) for k,v in obj.items()}
+        return {k: serialize_radiation_dict(v) for k, v in obj.items()}
     # str -> str
     return obj
+
 
 def deserialize_radiation_dict(obj):
     """Turn JSON file back into radiation dict."""
     if isinstance(obj, dict):
         keys = obj.keys()
-        if tuple(keys)==("n", "s"):
+        if tuple(keys) == ("n", "s"):
             return Variable(obj["n"], obj["s"])
         elif "DiscreteRadiation" in keys:
             return {
-                DiscreteRadiation(
-                    **{k:deserialize_radiation_dict(v) for k, v in obj["DiscreteRadiation"].items()}):
-                np.array(obj["xs"])
+                DiscreteRadiation(**{
+                    k: deserialize_radiation_dict(v)
+                    for k, v in obj["DiscreteRadiation"].items()
+                }): np.array(obj["xs"])
             }
         elif "ContinuousRadiationDistribution" in keys:
             return {
-                ContinuousRadiationDistribution(
-                    **{k:deserialize_radiation_dict(v) for k, v in obj["ContinuousRadiationDistribution"].items()}):
-                np.array(obj["xs"])
+                ContinuousRadiationDistribution(**{
+                    k: deserialize_radiation_dict(v)
+                    for k, v in obj["ContinuousRadiationDistribution"].items()
+                }): np.array(obj["xs"])
             }
-        elif sorted(keys)==sorted(Tab1DExtended._fields):
-            return Tab1DExtended(x=obj["x"], y=obj["y"], interpolation=obj["interpolation"])
-        return {k:deserialize_radiation_dict(v) for k,v in obj.items()}
+        elif sorted(keys) == sorted(Tab1DExtended._fields):
+            return Tab1DExtended(
+                x=obj["x"], y=obj["y"], interpolation=obj["interpolation"]
+            )
+        return {k: deserialize_radiation_dict(v) for k, v in obj.items()}
 
     if isinstance(obj, list):
         if isinstance(obj[0], (float, int)):
@@ -608,7 +634,32 @@ def deserialize_radiation_dict(obj):
         for item in obj:
             prev_len = len(d)
             d.update(deserialize_radiation_dict(item))
-            if (prev_len+1)!=len(d):
-                raise ValueError("Programmer error! List that was supposed to represent a dict contains repeated items.")
+            if (prev_len + 1) != len(d):
+                raise ValueError(
+                    "Programmer error! This list is supposed to represent a dict; but this list contains repeated items!"
+                )
         return d
+    return obj
+
+
+def serialize_radiation_list(obj):
+    if isinstance(obj, list):
+        return [serialize_radiation_list(o) for o in obj]
+    elif isinstance(obj, (DiscreteRadiation, ContinuousRadiationDistribution)):
+        return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
+
+
+def deserialize_radiation_list(obj):
+    if isinstance(obj, list):
+        return [deserialize_radiation_list(o) for o in obj]
+    elif isinstance(obj, dict):
+        if tuple(obj.keys()) == DiscreteRadiation._fields:
+            return DiscreteRadiation(**{
+                k: deserialize_radiation_dict(v) for k, v in obj.items()
+            })
+        elif tuple(obj.keys()) == ContinuousRadiationDistribution._fields:
+            return ContinuousRadiationDistribution(**{
+                k: deserialize_radiation_dict(v) for k, v in obj.items()
+            })
+        return {k: deserialize_radiation_list(v) for k, v in obj.items()}
     return obj

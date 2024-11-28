@@ -34,8 +34,8 @@ from foilselector.reactionnaming import (
 )
 from foilselector.generic import sorted_dict
 from foilselector.foldermanagement import (
+    append_to_json,
     get_apriori,
-    sparsely_load_xs_and_decay_dict,
     read_gs,
     find_efficiency_file,
     ResolutionMaxCountRate,
@@ -43,7 +43,9 @@ from foilselector.foldermanagement import (
     save_atomic_composition_json,
 )
 from foilselector.openmcextension.extended_io import (
+    sparsely_load_xs_and_decay_dict,
     serialize_radiation_dict,
+    serialize_radiation_list,
     reactions_matching,
 )
 from foilselector.openmcextension.library_reader import (
@@ -51,7 +53,7 @@ from foilselector.openmcextension.library_reader import (
     ContinuousRadiationDistribution,
     collapse_single_xs,
 )
-from foilselector.constants import BARN
+from foilselector.constants import BARN, keV
 from foilselector.simulation.spectral_simulation import (
     merge_peaks,
     delete_peaks,
@@ -80,8 +82,6 @@ from foilselector.optimizer.accuracy import get_accuracy
 
 if TYPE_CHECKING:
     pass
-
-default_gamma_energy_limits_keV = [20, 4600]
 
 
 def load_relevant_xs_and_decay_info(
@@ -203,13 +203,16 @@ def calculate_response_matrix(
 
 
 def main(
-    composition: dict,
+    composition: Path,
     libraries: list[Path],
     irradiation_duration: float,
     transit_duration: float,
     measurement_duration: float,
+    gamma_spectrum_parameters: list[float],
+    number_of_foils: int = 1,
 ):
     cwd = Path.cwd()
+    gspec_directory = Path(cwd, "gamma_spectra")
     # stage 1: read outputs of step1.
     gs_array = read_gs(".gs.csv")
     w_vector = get_precision_weight_vector(gs_array)
@@ -222,12 +225,14 @@ def main(
     }
     # save a version of the processed_composition dictionary
 
-    save_atomic_composition_json(processed_composition)  # for future reference
+    save_atomic_composition_json(processed_composition, cwd=cwd)  # for future reference
 
+    # stage 3: get nuclear data
     xs_dict, decay_dict = load_relevant_xs_and_decay_info(
         processed_composition, libraries
     )
 
+    # fomat
     apriori_flux, apriori_fluence = get_apriori(cwd, irradiation_duration)
     resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load()
     resolution_curve = resolution_curve_factory(resolution_coefficients)
@@ -235,11 +240,10 @@ def main(
     eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
     compton_from_peak = Compton_to_peak_curve_factory(PeakToComptonCoefficients.load())
 
-    # stage 4: get respones matrices.
-    every_foil_response_matrix, every_foil_background, mass_record = {}, {}, {}
-    effective_foil_matrices = {}
+    # stage 4: for each foil, optimize mass, and then whittle down radiation list.
+    mass_record = {}
+    effective_foil_matrices, effective_foil_peaks = {}, {}
     foil_precision, foil_accuracy = {}, {}
-    spectra = {}
     for foil_name, foil_comp in (
         pbar := tqdm(
             processed_composition.items(), desc="Processing each foil individually"
@@ -267,17 +271,27 @@ def main(
                 compton_from_peak,
             )
         )
-        every_foil_response_matrix[foil_name] = final_response_matrix
+        append_to_json(
+            serialize_radiation_dict({foil_name: final_response_matrix}),
+            Path(cwd, ".response_matrices.json"),
+        )
 
-        every_foil_background[foil_name] = final_background
+        append_to_json(
+            serialize_radiation_dict({foil_name: final_background}),
+            Path(cwd, ".background_response_matrices.json"),
+        )
         mass_record[foil_name] = {
             "number of atoms": foil_num_atoms,
             "mass (g)": mass_from_num_atoms(foil_num_atoms, foil_comp),
         }
-        # stage 4.2: calculate only effective counts.
+        append_to_json(
+            {foil_name: mass_record[foil_name]}, Path(cwd, ".mass_records.json")
+        )
+        # stage 4.2: calculate all gamma-peaks (and the response matrix for that).
         full_peak_list = simulate_peaks_with_uncertainties(
             final_response_matrix, apriori_fluence
         )
+        # stage 4.3: (final_response_matrix, full_peak_list) -merge-delete-> (detectible_peaks, detectible_response_matrix)
         detectible_peaks, detectible_response_matrix = merge_peaks(
             full_peak_list,
             resolution_curve,
@@ -286,7 +300,7 @@ def main(
         detectible_peaks, detectible_response_matrix = delete_peaks(
             detectible_peaks,
             detectible_response_matrix,
-            gamma_range=[20, 2700],
+            gamma_range=gamma_spectrum_parameters[0:2],
             exclusion_zone_511=0.0,
         )
         folded_bg = fold_background(final_background, apriori_fluence)
@@ -294,12 +308,14 @@ def main(
             full_peak_list,
             folded_bg,
             compton_from_peak,
-            test_energies=[nom(peak.energy) for peak in detectible_peaks],
+            test_energies=np.array([nom(peak.energy) for peak in detectible_peaks]),
+            include_uncertainties=True,
         )
         net_peak_areas = integrate_peak_area(
             detectible_peaks, resolution_curve, background_levels
         )
 
+        # stage 4.4: (detectible_peaks, detectible_response_matrix) -merge-delete-> (effective_matrix, reaction_info)
         effective_matrix, reaction_info = [], []
         for net_area, (peak, xs) in zip(
             net_peak_areas, detectible_response_matrix.items()
@@ -311,65 +327,80 @@ def main(
                 )
 
         effective_matrix = np.array(effective_matrix, dtype=float)
-        effective_foil_matrices[foil_name] = {
-            "matrix": effective_matrix,
-            "photons": reaction_info,
-        }
+        # During merging, a mixing ratio is decided upon.
+        # This mixing ratio is only correct if neutron spectrum == a priori.
+        # Hence, if we want to reload the effective response matrix during the
+        # experiment, the best course of action is to reconstruct from
+        # .response_matrices.json + .background_response_matrices.json.
+        effective_foil_matrices[foil_name] = effective_matrix
+        effective_foil_peaks[foil_name] = reaction_info
+
+        append_to_json(
+            serialize_radiation_dict({foil_name: effective_matrix}),
+            Path(cwd, ".effective_response_matrices.json"),
+        )
+        append_to_json(
+            {foil_name: serialize_radiation_list(reaction_info)},
+            Path(cwd, ".effective_peaks.json"),
+        )
+        # [deserialize_radiation_dict(rad) for rad in json.load(j)]
         foil_precision[foil_name] = get_precision(
             effective_matrix,
             ary([peak.intensity.s**2 for peak in reaction_info]),
             w_vector,
         )
+        append_to_json(
+            {foil_name: foil_precision[foil_name]}, Path(cwd, "sensitivity.json")
+        )
         foil_accuracy[foil_name] = get_accuracy(
             effective_matrix, [peak.intensity for peak in reaction_info]
         )
-        gamma_simulation_energies = np.arange(20, 2700, 0.05)
-        spectra[foil_name] = {
-            "energy (keV)": list(gamma_simulation_energies),
-            "spectrum": list(
-                simulate_full_spectrum(
-                    full_peak_list,
-                    folded_bg,
-                    compton_from_peak,
-                    resolution_curve,
-                    gamma_simulation_energies,
-                )
-            ),
-        }
-        if sum(spectra[foil_name]["spectrum"]) > 0:
-            ax = plot_spectrum(
-                np.array(spectra[foil_name]["energy (keV)"]),
-                np.array(spectra[foil_name]["spectrum"]),
-                peak_labels=reaction_info,
+        append_to_json(
+            {foil_name: foil_accuracy[foil_name]}, Path(cwd, "specificty.json")
+        )
+
+        if (
+            not Path(gspec_directory, foil_name + ".pdf").exists()
+            and gamma_spectrum_parameters
+        ):
+            gspec_directory.mkdir(exist_ok=True)
+            gamma_simulation_energies = np.arange(*gamma_spectrum_parameters)
+            # simulating it at such high resolution will blow up the RAM,
+            # so we'll have to dump the data as we create them, keeping memory usage low.
+            spectrum = simulate_full_spectrum(
+                full_peak_list,
+                folded_bg,
+                compton_from_peak,
+                resolution_curve,
+                gamma_simulation_energies,
             )
-            ax.set_title(foil_name)
-            plt.show()
+            with open(Path(gspec_directory, foil_name + ".json"), "w") as j:
+                json.dump(
+                    {
+                        "energy (keV)": gamma_simulation_energies.tolist(),
+                        "spectrum": (spectrum * keV).tolist(),
+                    },
+                    j,
+                )
+            if spectrum.sum() > 0:  # only bother to create the plot if counts=non-zero.
+                ax = plot_spectrum(
+                    gamma_simulation_energies,
+                    spectrum,
+                    peak_labels=reaction_info,
+                )
+                ax.set_title(
+                    foil_name + f"\n(foil mass= {mass_record[foil_name]['mass (g)']} g)"
+                )
+                ax.get_figure().set_size_inches(20, 12)
+                plt.savefig(Path(gspec_directory, foil_name + ".pdf"))
+                plt.close()
 
     # stage 4.3: Store response matrices and background spectra response matrices
-    print("Writing to response matrix...", end="\r")
-    with open(".response_matrices.json", "w") as j:
-        json.dump(serialize_radiation_dict(every_foil_response_matrix), j)
-    print("Written to response matrix, writing to background radiation...", end="\r")
-    with open(".background_response_matrices.json", "w") as j:
-        json.dump(serialize_radiation_dict(every_foil_background), j)
-    print("Written response and background radiation, Done!              ")
-    with open(".mass_records.json", "w") as j:
-        json.dump(mass_record, j)
-    with open(".effective_response_matrix.json", "w") as j:
-        # During merging, a mixing ratio is decided upon.
-        # This mixing ratio is only correct if neutron spectrum == a priori.
-        # Hence, during the experiment, the best course of action is to reconstruct from
-        # .response_matrices.json + .background_response_matrices.json.
-        json.dump(serialize_radiation_dict(effective_foil_matrices), j)
-    with open(".spectra.json", "w") as j:
-        json.dump(spectra, j)
 
     return (
-        every_foil_response_matrix,
-        every_foil_background,
         mass_record,
         effective_foil_matrices,
+        effective_foil_peaks,
         foil_precision,
         foil_accuracy,
-        spectra,
     )
