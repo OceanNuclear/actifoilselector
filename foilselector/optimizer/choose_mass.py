@@ -13,13 +13,17 @@ from uncertainties import nominal_value as nom
 
 from foilselector.generic import minmax
 from foilselector.constants import amu
-from foilselector.openmcextension.table import Tab1DExtended, Integral
+from foilselector.openmcextension.table import Integral
+
 if TYPE_CHECKING:
-    from foilselector.simulation.efficiency import EfficiencyCurve
-    from foilselector.openmcextension.library_reader import DiscreteRadiation, ContinuousRadiationDistribution
+    from foilselector.openmcextension.library_reader import (
+        DiscreteRadiation,
+        ContinuousRadiationDistribution,
+    )
     import numpy as np
 
 __all__ = ["choose_num_reactant_in_foil", "mass_from_num_atoms", "max_num_counts"]
+
 
 def choose_num_reactant_in_foil(
     foil_response_matrix: dict[DiscreteRadiation, np.ndarray[float]],
@@ -48,8 +52,8 @@ def choose_num_reactant_in_foil(
     max_gamma_count_rate:
         gamma-count rate capability of the gamma-ray spectrum acquisition set-up.
     compton_peak_ratio:
-        optional to include, accounts for the extra counts that 
-    
+        optional to include, accounts for the extra counts that
+
     Returns
     -------
     num_reactants_in_foil:
@@ -67,24 +71,34 @@ def choose_num_reactant_in_foil(
         num_released_per_reactant = (resp @ apriori_fluence) * nom(line.intensity)
         total_counts_per_reactant += num_released_per_reactant
         if compton_peak_ratio:
-            total_counts_per_reactant += compton_peak_ratio(nom(line.energy)) * num_released_per_reactant
+            total_counts_per_reactant += (
+                compton_peak_ratio(nom(line.energy)) * num_released_per_reactant
+            )
     for dist, resp in foil_background.items():
         # spectrum per decay of end-of-chain isotope
-        num_detected_per_decay = Integral(dist).definite_integral(*minmax(dist))
+        radiation = dist.distribution
+        num_detected_per_decay = Integral(radiation).definite_integral(
+            *minmax(radiation.x)
+        )
         total_counts_per_reactant += num_detected_per_decay * (resp @ apriori_fluence)
         if compton_peak_ratio:
-            compton_per_decay = dist.apply_scaling(compton_peak_ratio)
-            total_counts_per_reactant += Integral(compton_per_decay).definite_integral(*minmax(compton_per_decay)) * (resp @ apriori_fluence)
+            compton_per_decay = radiation.apply_scaling(compton_peak_ratio)
+            total_counts_per_reactant += Integral(compton_per_decay).definite_integral(
+                *minmax(compton_per_decay.x)
+            ) * (resp @ apriori_fluence)
 
     # catch divide by 0s
     if total_counts_per_reactant:
-        num_reactants_in_foil = max_counts_per_foil/total_counts_per_reactant
+        num_reactants_in_foil = max_counts_per_foil / total_counts_per_reactant
     else:
         num_reactants_in_foil = 0.0
     return (
-        num_reactants_in_foil, 
-        {line: resp*num_reactants_in_foil for line, resp in foil_response_matrix.items()},
-        {dist: resp*num_reactants_in_foil for dist, resp in foil_background.items()}
+        num_reactants_in_foil,
+        {
+            line: resp * num_reactants_in_foil
+            for line, resp in foil_response_matrix.items()
+        },
+        {dist: resp * num_reactants_in_foil for dist, resp in foil_background.items()},
     )
 
 
@@ -100,7 +114,10 @@ def mass_of_one_reactant_atom(composition_dict):
         for isotope, fraction in composition_dict.items()
     )
 
-def mass_from_num_atoms(num_atoms:float, isotope_composition: dict[str, float]) -> float:
+
+def mass_from_num_atoms(
+    num_atoms: float, isotope_composition: dict[str, float]
+) -> float:
     """
     Parameters
     ----------
@@ -116,6 +133,7 @@ def mass_from_num_atoms(num_atoms:float, isotope_composition: dict[str, float]) 
         unit [g]
     """
     return num_atoms * mass_of_one_reactant_atom(isotope_composition)
+
 
 def max_num_counts(max_gamma_count_rate, acquisition_duration):
     """
