@@ -75,7 +75,6 @@ def response_matrix_rank_at_given_vector(
         error_principle_ratios = np.nan_to_num(
             np.array([count.s for count in response_vector])
             / np.array([count.n for count in response_vector]),
-            copy=False,
             nan=np.inf,
             neginf=np.inf,
         )
@@ -99,7 +98,9 @@ def response_matrix_rank_at_given_vector(
                 with SilenceNumpyInvalidError():
                     num_basis_contained = np.nanmin(response_row / most_effective_row)
             remaining_response_matrix.append(
-                response_row - num_basis_contained * most_effective_row
+                np.clip(
+                    response_row - num_basis_contained * most_effective_row, 0, np.inf
+                )
             )
             remaining_response_vector.append(
                 count - num_basis_contained * most_effective_count
