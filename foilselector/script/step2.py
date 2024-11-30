@@ -346,7 +346,7 @@ def main(
         # [deserialize_radiation_dict(rad) for rad in json.load(j)]
         foil_precision[foil_name] = get_precision(
             effective_matrix,
-            ary([peak.intensity.s**2 for peak in reaction_info]),
+            ary([peak.intensity for peak in reaction_info]),
             w_vector,
         )
         append_to_json(

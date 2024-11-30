@@ -1,4 +1,5 @@
 import numpy as np
+import uncertainties
 
 
 def get_precision_weight_vector(
@@ -38,8 +39,8 @@ def get_precision_weight_vector(
 
 def get_precision(
     foil_response_matrix: np.ndarray,
-    measured_variance: np.ndarray[float],
-    weight_vector: np.ndarray,
+    foil_response_vector: np.ndarray[uncertainties.core.AffineScalarFunc],
+    weight_vector: np.ndarray[float],
 ) -> float:
     """
     Parameters
@@ -64,8 +65,9 @@ def get_precision(
         [cm^2 eV^3] (log_flux==True , const_lethargy==True )
         where log_flux, const_lethargy are parameters used in get_precision_weight_vector.
     """
-    if len(measured_variance) == 0:
+    if len(foil_response_matrix) == 0:
         return 0.0
+    covariance_matrix = uncertainties.covariance_matrix(foil_response_vector)
     return weight_vector @ np.diag(
-        foil_response_matrix.T @ np.diag(1 / measured_variance) @ foil_response_matrix
+        foil_response_matrix.T @ np.linalg.pinv(covariance_matrix) @ foil_response_matrix
     )
