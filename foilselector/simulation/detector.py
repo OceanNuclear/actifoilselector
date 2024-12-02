@@ -31,7 +31,8 @@ def get_default_resolution_coefficients():
     https://github.com/OceanNuclear/PeakFinding/commit/dd17a8d9cbbb80ce62f3bd10f4a24c5c6594b217
     .
     """
-    return np.array([5.212873549440453*1E5, 2.4969943490051713])
+    return np.array([5.212873549440453 * 1e5, 2.4969943490051713])
+
 
 def fit_fwhms(
     E: np.ndarray[float], fwhm: np.ndarray[float], degree_of_fit: int = 2
@@ -54,7 +55,8 @@ def fit_fwhms(
 
 
 def resolution_curve_factory(
-    coefficients: Iterable[float], min_fwhm: float=100,
+    coefficients: Iterable[float],
+    min_fwhm: float = 10,
 ) -> Callable[[float | np.ndarray], float | np.ndarray]:
     """
     Parameters
