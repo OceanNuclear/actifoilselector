@@ -1,3 +1,10 @@
+import numpy as np
+from numpy import array as ary
+from matplotlib.pyplot import plt
+from .__init__ import top_n_sums_generator
+from .__init__ import *
+
+
 def plot_nodes(
     all_nodes,
     sorted_sum_result,
@@ -57,8 +64,7 @@ def plot_nodes(
 
     handles, labels = [], []
 
-    if ax is None:
-        ax = plt.subplot()
+    ax = ax or plt.subplot()
     b_node = transform_matrix @ (ary(birthed) + offset).T
     ax.scatter(
         *b_node,
@@ -214,7 +220,5 @@ def main(list_length, n_chosen, artisitc_plot=False, _MAKE_ANIMATION=False):
             plt.show()
             ax.cla()
 
-
-from .__init__ import *
 
 main(*sys.argv[1:])

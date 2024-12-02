@@ -18,8 +18,7 @@ def save_atomic_composition_json(
     json_filename: str = ".atomic_composition.json",
     cwd: str | None = None,
 ):
-    if cwd is None:
-        cwd = Path.cwd()
+    cwd = cwd or Path.cwd()
     json_fullpath = Path(cwd, json_filename)
     print("saving the processed composition file to", json_fullpath)
     with open(json_fullpath, "w") as j:

@@ -42,9 +42,9 @@ class DecayPhoton(object):
 
     def __add__(self, duplicate_line):
         new_dict = self.__dict__.copy()
-        assert self.energy == duplicate_line.energy, (
-            "Only allowed to add lines of exactly the same energy"
-        )
+        assert (
+            self.energy == duplicate_line.energy
+        ), "Only allowed to add lines of exactly the same energy"
         new_dict["intensity"] = self.intensity + duplicate_line.intensity
         return self.__class__(new_dict, self.parent)
 
@@ -92,8 +92,7 @@ class GammaSpectrumABC(object):
         Note: This always plots in keV. (This is the only place in the entire program where keV is used instead of eV.)
         This is important to bear in mind when the user use ax.set_xlim to manually set the visualized gamma spectrum window.
         """
-        if ax is None:
-            ax = plt.subplot()
+        ax = ax or plt.subplot()
         x, y = self._init_plot_values(default_width)
         if sqrt_scale:
             (line,) = ax.plot(x, sqrt(y), **plot_kwargs)
@@ -117,9 +116,9 @@ class GammaSpectrumABC(object):
         elif sort_by == "energy":
             return sorted(output_list, key=lambda i: i.energy)
         else:
-            assert sort_by is None or sort_by == "", (
-                "Can only accept 'intensity'/'counts', 'energy', and None as arguments to 'sort_by'."
-            )
+            assert (
+                sort_by is None or sort_by == ""
+            ), "Can only accept 'intensity'/'counts', 'energy', and None as arguments to 'sort_by'."
             return output_list
 
 
@@ -153,7 +152,7 @@ class SingleDecayGammaSignature(GammaSpectrumABC):
             # ignore all other types of radiations, including beta, alpha, etc.
 
     def __mul__(self, multiplier):
-        new_lines = [l * multiplier for l in self.lines]
+        new_lines = [line * multiplier for line in self.lines]
         return GammaSignature(new_lines, self.isotope)
 
     def __str__(self):
@@ -163,9 +162,9 @@ class SingleDecayGammaSignature(GammaSpectrumABC):
         """
         another_signature is assumed to be the signature of the SAME isotope with a differently scaled intensity.
         """
-        assert another_signature.isotope == self.isotope, (
-            "Can only add together isotopes of the same name."
-        )
+        assert (
+            another_signature.isotope == self.isotope
+        ), "Can only add together isotopes of the same name."
         # assert ary([unc.nominal_value(line) for line in another_signature.lines])==ary([unc.nominal_value(line) for line in self.lines]), "These two signatures must have exactly the same energies."
         # the energy check is already performed when adding line1+line2
         new_lines = [
@@ -237,7 +236,7 @@ class GammaSpectrum(GammaSignature):
     def __init__(self, *signature_collection):
         self.signatures = []
         for sig in signature_collection:
-            if type(sig) == GammaSignature:
+            if type(sig) == GammaSignature:  # noqa: E721
                 self.signatures.append(sig)
             else:
                 raise TypeError("Only accept GammaSignature objects")
@@ -271,8 +270,7 @@ class GammaSpectrum(GammaSignature):
         Note: This always plots in keV. (This is the only place in the entire program where keV is used instead of eV.)
         This is important to bear in mind when the user use ax.set_xlim to manually set the visualized gamma spectrum window.
         """
-        if ax is None:
-            ax = plt.subplot()
+        ax = ax or plt.subplot()
         line_handles = []
         for sig in self.signatures:
             line_handles.append(
@@ -303,9 +301,9 @@ class GammaSpectrum(GammaSignature):
         elif sort_by == "energy":
             return sorted(output_list)  # sort according to energy
         else:
-            assert sort_by is None or sort_by == "", (
-                "Can only accept 'intensity'/'counts', 'energy', and None as arguments to 'sort_by'."
-            )
+            assert (
+                sort_by is None or sort_by == ""
+            ), "Can only accept 'intensity'/'counts', 'energy', and None as arguments to 'sort_by'."
             return output_list
 
     def sort_signatures_by_intensity(self):
@@ -384,4 +382,3 @@ class MergedGammaSpectrum(GammaSpectrum):
                 self.signatures[matching_indices[0]] += sig
             else:
                 self.signatures.append(sig)
-
