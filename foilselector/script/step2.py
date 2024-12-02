@@ -64,6 +64,7 @@ from foilselector.simulation.spectral_simulation import (
     discoverable,
     simulate_full_spectrum,
     plot_spectrum,
+    get_broadening_matrix,
 )
 from foilselector.simulation.detector import (
     resolution_curve_factory,
@@ -211,28 +212,13 @@ def main(
     gamma_spectrum_parameters: list[float],
     number_of_foils: int = 1,
 ):
+    # Stage 1.0: load data from last stap.
     cwd = Path.cwd()
     gspec_directory = Path(cwd, "gamma_spectra")
-    # stage 1: read outputs of step1.
+
     gs_array = read_gs(".gs.csv")
     w_vector = get_precision_weight_vector(gs_array)
-    # stage 2: break down the foil composition into its consituent isotopes.
-    with open(composition) as j:
-        _composition_used_here = json.load(j)
-    processed_composition = {
-        foil_name: specify_isotopic_composition(foil_comp)
-        for foil_name, foil_comp in _composition_used_here.items()
-    }
-    # save a version of the processed_composition dictionary
 
-    save_atomic_composition_json(processed_composition, cwd=cwd)  # for future reference
-
-    # stage 3: get nuclear data
-    xs_dict, decay_dict = load_relevant_xs_and_decay_info(
-        processed_composition, libraries
-    )
-
-    # fomat
     apriori_flux, apriori_fluence = get_apriori(cwd, irradiation_duration)
     resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load()
     resolution_curve = resolution_curve_factory(resolution_coefficients)
@@ -240,7 +226,28 @@ def main(
     eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
     compton_from_peak = Compton_to_peak_curve_factory(PeakToComptonCoefficients.load())
 
-    # stage 4: for each foil, optimize mass, and then whittle down radiation list.
+    # Stage 1.1: preparation of the gamma-ray spectrum simulation energies, and
+    # the broadening matrix.
+    gamma_simulation_energies_keV = np.arange(*gamma_spectrum_parameters)
+    gamma_simulation_energies = gamma_simulation_energies_keV * keV
+    broadening_m = get_broadening_matrix(resolution_curve, gamma_simulation_energies)
+
+    # stage 2: break down the foil composition into its consituent isotopes.
+    with open(composition) as j:
+        _composition_used_here = json.load(j)
+    processed_composition = {
+        foil_name: specify_isotopic_composition(foil_comp)
+        for foil_name, foil_comp in _composition_used_here.items()
+    }
+    # stage 2.2: save a version of the processed_composition dictionary
+    save_atomic_composition_json(processed_composition, cwd=cwd)  # for future reference
+
+    # stage 3: get nuclear data
+    xs_dict, decay_dict = load_relevant_xs_and_decay_info(
+        processed_composition, libraries
+    )
+
+    # stage 4.1: for each foil, optimize mass, and then whittle down radiation list.
     mass_record = {}
     effective_foil_matrices, effective_foil_peaks = {}, {}
     foil_precision, foil_accuracy = {}, {}
@@ -309,7 +316,6 @@ def main(
             folded_bg,
             compton_from_peak,
             test_energies=np.array([nom(peak.energy) for peak in detectible_peaks]),
-            resolution_curve=resolution_curve,
             include_uncertainties=True,
         )
         net_peak_areas = integrate_peak_area(
@@ -360,12 +366,8 @@ def main(
             {foil_name: foil_accuracy[foil_name]}, Path(cwd, "specificty.json")
         )
 
-        if (
-            not Path(gspec_directory, foil_name + ".pdf").exists()
-            and gamma_spectrum_parameters
-        ):
+        if not Path(gspec_directory, foil_name + ".pdf").exists():
             gspec_directory.mkdir(exist_ok=True)
-            gamma_simulation_energies = np.arange(*gamma_spectrum_parameters)
             # simulating it at such high resolution will blow up the RAM,
             # so we'll have to dump the data as we create them, keeping memory usage low.
             spectrum = simulate_full_spectrum(
@@ -374,18 +376,19 @@ def main(
                 compton_from_peak,
                 resolution_curve,
                 gamma_simulation_energies,
+                broadening_m,
             )
             with open(Path(gspec_directory, foil_name + ".json"), "w") as j:
                 json.dump(
                     {
-                        "energy (keV)": gamma_simulation_energies.tolist(),
+                        "energy (keV)": gamma_simulation_energies_keV.tolist(),
                         "spectrum": (spectrum * keV).tolist(),
                     },
                     j,
                 )
             if spectrum.sum() > 0:  # only bother to create the plot if counts=non-zero.
                 ax = plot_spectrum(
-                    gamma_simulation_energies,
+                    gamma_simulation_energies_keV,
                     spectrum,
                     peak_labels=reaction_info,
                 )

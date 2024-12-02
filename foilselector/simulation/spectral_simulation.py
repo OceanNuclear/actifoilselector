@@ -276,7 +276,7 @@ def fold_background(
     return bgs
 
 
-def make_sharp_compton_continuum_distribution(
+def make_sharp_compton_distribution(
     photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float]
 ) -> np.ndarray[float]:
     r"""
@@ -344,17 +344,16 @@ def make_sharp_compton_continuum_distribution(
         - 2 * Ed * (Eg - 2 * Ed) / (me_ratio * (Eg - Ed) ** 2)
     )
     unnormed_dist = ((Eg - Ed) / Eg) ** 2 * big_bracket
-
-    # Normalization
+    # Normalization factor
     norm_factor = (
         Eg / 4
         - Eg / (4 * (1 + 2 * me_ratio) ** 4)
         - Ecomp**2 / 2 / Eg
         + Ecomp
-        + Ecomp**2 * (Ecomp**2 - 3 * Eg / (1 + 2 * me_ratio)) / (3 * Ecomp**2 * me_ratio)
+        + Ecomp**2 * (Ecomp - 3 * Eg / (1 + 2 * me_ratio)) / (3 * Eg**2 * me_ratio)
     )
 
-    energy_deposited[affected_bins] = norm_factor * unnormed_dist
+    energy_deposited[affected_bins] = unnormed_dist / norm_factor
     return energy_deposited
 
 
@@ -366,14 +365,22 @@ def get_broadening_matrix(
     A quick way to simulate Gaussian broadening due to the resolution limit of the
     detector without using integration, by simply broadening from the curent sampled
     points on to their neighbouring points.
+
+    Parameters
+    ----------
+    test_energies:
+        energies where we want to evaluate the Gaussian broadening matrix's points over,
+        unit: [eV].
     """
-    sigma_widths = fwhm_to_sigma(resolution_curve(test_energies))
-    # Normal distributions lying in the COLUMN direction. Every new column = new normal distribution.
-    weights = np.array([
-        [normal_dist_factory(test_energies, s)(test_energies)] for s in sigma_widths
-    ]).T
-    # Normalize each column
-    return weights / weights.sum(axis=0)
+    n = len(test_energies)
+    weights = np.zeros([n, n])
+    # Normal distributions lying in the COLUMN direction. Every new column = a new normal distribution.
+    for i in range(n):
+        mu, sigma = test_energies[i], fwhm_to_sigma(resolution_curve(test_energies[i]))
+        normal = normal_dist_factory(mu, sigma)(test_energies)
+        # Normalize each column
+        weights[:, i] += normal / normal.sum()
+    return weights
 
 
 def corresponding_background_level(
@@ -383,8 +390,8 @@ def corresponding_background_level(
         [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
     ],
     test_energies: np.ndarray[float],
-    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     *,
+    broadening_matrix: np.ndarray | None = None,
     include_uncertainties: bool = False,
 ) -> list[AffineScalarFunc]:
     """
@@ -414,13 +421,13 @@ def corresponding_background_level(
     bg_heights = np.zeros(
         len(test_energies), dtype=object if include_uncertainties else float
     )
-    broadening_matrix = get_broadening_matrix(resolution_curve, test_energies)
 
     for peak_zeta in peak_list:
         c_counts = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-        comp_dist = broadening_matrix @ make_sharp_compton_continuum_distribution(
-            peak_zeta.energy, test_energies
-        )
+        comp_dist = make_sharp_compton_distribution(peak_zeta.energy, test_energies)
+        if broadening_matrix is not None:
+            comp_dist = broadening_matrix @ comp_dist
+
         bg_heights += comp_dist * (c_counts if include_uncertainties else nom(c_counts))
     for dist, _source in folded_background:
         bg_heights += dist(test_energies)
@@ -474,6 +481,7 @@ def simulate_full_spectrum(
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     sampling_points: np.ndarray[float],
+    broadening_matrix: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Parameters
@@ -482,7 +490,9 @@ def simulate_full_spectrum(
         The curve that takes in the centroid energy [eV] of the peak and outputs the
         FWHM (width) of the peak [eV].
     sampling_points:
-        gamma-ray energies [keV] where we want to know the count density [1/eV].
+        gamma-ray energies [eV] where we want to know the count density [1/eV].
+    broadening_matrix:
+        See get_broadening_matrix. Shape must match sampling_points^2.
     all other parameters:
         See corresponding_background_level
 
@@ -496,20 +506,20 @@ def simulate_full_spectrum(
         peak_list,
         folded_background,
         compton_from_peak_curve,
-        sampling_points * keV,
-        resolution_curve,
+        sampling_points,
+        broadening_matrix=broadening_matrix,
     )
     for peak in peak_list:
         spectrum += normal_dist_factory(
             nom(peak.energy),
             fwhm_to_sigma(resolution_curve(nom(peak.energy))),
             nom(peak.intensity),
-        )(sampling_points * keV)
+        )(sampling_points)
     return spectrum
 
 
 def plot_spectrum(
-    sampling_points: np.ndarray[float],
+    sampling_points_keV: np.ndarray[float],
     spectrum: np.ndarray[float],
     peak_labels: list[DiscreteRadiation],
     *,
@@ -521,7 +531,7 @@ def plot_spectrum(
 
     Parameters
     ----------
-    sampling_points:
+    sampling_points_keV:
         where the gamma-count per-keV is actually sampled. [keV]
     spectrum:
         gamma-count per-eV.
@@ -534,7 +544,7 @@ def plot_spectrum(
     if not ax:
         ax = plt.subplot()
     spectrum_new_scale = spectrum * keV
-    ax.semilogy(sampling_points, spectrum_new_scale)
+    ax.semilogy(sampling_points_keV, spectrum_new_scale)
     # plotting parameters
     y_max = max(spectrum_new_scale)
     log_data_height = np.log(y_max / plot_min)
@@ -542,8 +552,8 @@ def plot_spectrum(
     ax.set_ylim(*sorted([plot_min, plot_max]))
     for peak in peak_labels:
         E = nom(peak.energy)
-        i = np.argmin(abs(sampling_points * keV - E))
-        x = sampling_points[i]
+        i = np.argmin(abs(sampling_points_keV * keV - E))
+        x = sampling_points_keV[i]
         ytip = spectrum_new_scale[i] * np.exp(log_data_height * 0.1)
         yend = spectrum_new_scale[i] * np.exp(log_data_height * 0.2)
         ax.annotate(
