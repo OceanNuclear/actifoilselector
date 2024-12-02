@@ -309,6 +309,7 @@ def main(
             folded_bg,
             compton_from_peak,
             test_energies=np.array([nom(peak.energy) for peak in detectible_peaks]),
+            resolution_curve=resolution_curve,
             include_uncertainties=True,
         )
         net_peak_areas = integrate_peak_area(

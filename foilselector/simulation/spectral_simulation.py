@@ -276,8 +276,8 @@ def fold_background(
     return bgs
 
 
-def make_compton_continuum_distribution(
-    photopeak_energy, test_energies: np.ndarray[float]
+def make_sharp_compton_continuum_distribution(
+    photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float]
 ) -> np.ndarray[float]:
     r"""
     Create a normalized distribution that represents the Compton continuum.
@@ -358,6 +358,24 @@ def make_compton_continuum_distribution(
     return energy_deposited
 
 
+def get_broadening_matrix(
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
+    test_energies: np.ndarray[float],
+) -> np.ndarray[float]:
+    """
+    A quick way to simulate Gaussian broadening due to the resolution limit of the
+    detector without using integration, by simply broadening from the curent sampled
+    points on to their neighbouring points.
+    """
+    sigma_widths = fwhm_to_sigma(resolution_curve(test_energies))
+    # Normal distributions lying in the COLUMN direction. Every new column = new normal distribution.
+    weights = np.array([
+        [normal_dist_factory(test_energies, s)(test_energies)] for s in sigma_widths
+    ]).T
+    # Normalize each column
+    return weights / weights.sum(axis=0)
+
+
 def corresponding_background_level(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
@@ -365,6 +383,7 @@ def corresponding_background_level(
         [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
     ],
     test_energies: np.ndarray[float],
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     *,
     include_uncertainties: bool = False,
 ) -> list[AffineScalarFunc]:
@@ -395,13 +414,14 @@ def corresponding_background_level(
     bg_heights = np.zeros(
         len(test_energies), dtype=object if include_uncertainties else float
     )
+    broadening_matrix = get_broadening_matrix(resolution_curve, test_energies)
+
     for peak_zeta in peak_list:
-        zeta_edge_E = compton_edge(nom(peak_zeta.energy))
-        compton_total = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-        if include_uncertainties:
-            bg_heights[test_energies <= zeta_edge_E] += compton_total / zeta_edge_E
-        else:
-            bg_heights[test_energies <= zeta_edge_E] += nom(compton_total) / zeta_edge_E
+        c_counts = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
+        comp_dist = broadening_matrix @ make_sharp_compton_continuum_distribution(
+            peak_zeta.energy, test_energies
+        )
+        bg_heights += comp_dist * (c_counts if include_uncertainties else nom(c_counts))
     for dist, _source in folded_background:
         bg_heights += dist(test_energies)
 
@@ -473,7 +493,11 @@ def simulate_full_spectrum(
     """
     spectrum = np.zeros_like(sampling_points)
     spectrum += corresponding_background_level(
-        peak_list, folded_background, compton_from_peak_curve, sampling_points * keV
+        peak_list,
+        folded_background,
+        compton_from_peak_curve,
+        sampling_points * keV,
+        resolution_curve,
     )
     for peak in peak_list:
         spectrum += normal_dist_factory(

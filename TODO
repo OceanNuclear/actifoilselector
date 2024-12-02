@@ -14,8 +14,7 @@
 [x]Change the name of `Integrate` to `Intergral`
 [x]Instead of a flat distribution, use a better (Klein-Nishina) simulation of the Compton continuum
 [x]Tab1DExtended: Addition and multiplication
-[]Merge peak should give a list of peaks (depending on how many is detectible) of {min(len)=0, max(len)<len(peak_group)} rather than a single peak.
-[]Apply resolution curve blurring to the Compton Edge.
+[]Merge peak should give a list of peaks (depending on how many is detectible) of {0<=len(output_peaks)<len(peak_group)} rather than a single peak.
 ----code maintainability (specific)
 []Make the foilselector write to a .csv instead of five separate .jsons?
 []Put the following file names all in foldermanagement.py:
@@ -33,8 +32,9 @@
     - foilselector.openmcextension.extended_io.load_endf_directories()
 
 ----Nice-to-have physics features
-[]Incorporate pair-production effects? And multiple Compton scatter effects?
+[x]Apply resolution curve blurring to the Compton Edge.
 []Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
+[]Incorporate pair-production effects? And multiple Compton scatter effects?
 
 ----Other code maintainability/quality (generic)
 []use pathlib.Path instead of accepting strings
