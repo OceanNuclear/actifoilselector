@@ -35,7 +35,7 @@ They are the easiest to implement (matrix exponentiation is harder to implement 
 import numpy as np
 from numpy import array as ary
 import uncertainties.unumpy as unpy
-import uncertainties as unc
+from uncertainties import nominal_value as nom
 import scipy.linalg as spln
 
 from foilselector.generic import SilenceNumpyInvalidError
@@ -300,7 +300,7 @@ def create_lambda_matrix(l_vec, decay_constant_threshold=1e-23):
     """
     Remove the uncertainties part because the scipy linalg matrix exponentiation can't deal with that.
     """
-    lambda_vec = [unc.nominal_value(lamb_i) for lamb_i in l_vec]
+    lambda_vec = [nom(lamb_i) for lamb_i in l_vec]
     return -np.diag(lambda_vec, 0) + np.diag(lambda_vec[:-1], -1)
 
 
@@ -487,4 +487,6 @@ def mat_exp_num_decays(
     answer = (
         np.product(branching_ratios[1:]) * fraction * decay_constants[-1]
     )  # multiplied by its own decay rate will give the number of decays over time period b to c.1
+    if nom(answer) <= 0:
+        answer -= nom(answer)
     return answer

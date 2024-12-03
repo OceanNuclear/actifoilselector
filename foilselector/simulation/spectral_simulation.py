@@ -176,15 +176,16 @@ def merge_peak_group(
 
     for low, upp in zip(lower_bound, upper_bound):
         chosen_peaks = np.logical_and(low <= mean_E_array, mean_E_array < upp)
-        chosen_slice = mask_to_slice(chosen_peaks)
-        this_merged_peak, this_merged_row = merge_peaks_and_responses(
-            peak_buffer[chosen_slice],
-            radiations[chosen_slice],
-            responses[chosen_slice],
-            len_response,
-        )
-        merged_peaks.append(this_merged_peak)
-        merged_response_matrix[this_merged_peak] = this_merged_row
+        if any(chosen_peaks):
+            chosen_slice = mask_to_slice(chosen_peaks)
+            this_merged_peak, this_merged_row = merge_peaks_and_responses(
+                peak_buffer[chosen_slice],
+                radiations[chosen_slice],
+                responses[chosen_slice],
+                len_response,
+            )
+            merged_peaks.append(this_merged_peak)
+            merged_response_matrix[this_merged_peak] = this_merged_row
     return merged_peaks, merged_response_matrix
 
 
