@@ -64,7 +64,6 @@ from foilselector.simulation.spectral_simulation import (
     discoverable,
     simulate_full_spectrum,
     plot_spectrum,
-    get_broadening_matrix,
 )
 from foilselector.simulation.detector import (
     resolution_curve_factory,
