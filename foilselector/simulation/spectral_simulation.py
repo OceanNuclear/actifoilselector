@@ -85,48 +85,34 @@ def merge_peaks(
     # containers
     merged_peaks, merged_response_matrix = [], {}
     buffer, index_buffer = [peak_list[0].copy()], [0]
-    offending_merged_peaks = []
     # standard lengths
     len_response = len(response_matrix_list[0][1])
 
     def clear_buffers():
         """
         Private function to wrap up the content of the buffer and add them to the
-        merged_peaks, merged_response_matrix, and merging_matrix queues.
+        merged_peaks, merged_response_matrix queues.
         """
-        # merge_multiplier_row = np.zeros(len_peak_list, dtype=float)
-        nonlocal \
-            buffer, \
-            index_buffer, \
-            offending_merged_peaks, \
-            merged_peaks, \
-            merged_response_matrix
+        nonlocal buffer, index_buffer
+        nonlocal merged_peaks, merged_response_matrix
         if len(buffer) == 1:
             merged_peaks.append(buffer.pop())
             i = index_buffer.pop()
-            # merge_multiplier_row[i] = 1.0
             radiation, response = response_matrix_list[i]
             merged_response_matrix[radiation.copy()] = response.copy()
         else:
-            merged_peaks.append(merge_peak_group(buffer))
-            this_row_response = np.zeros(len_response, dtype=float)
-            # merge_multiplier_row[index_buffer] = 1.0
-            radiations = [response_matrix_list[i][0] for i in index_buffer]
-            responses = [response_matrix_list[i][1] for i in index_buffer]
+            peak_list, response_dict = merge_peak_group(
+                buffer,
+                [response_matrix_list[i][0] for i in index_buffer],
+                [response_matrix_list[i][1] for i in index_buffer],
+                len_response,
+                resolution_curve,
+            )
+            merged_peaks.extend(peak_list)
+            merged_response_matrix.update(response_dict)
 
-            normalization_factor = nom(merged_peaks[-1].intensity)
-            if normalization_factor:
-                for rad, resp in zip(radiations, responses):
-                    this_row_response += nom(rad.intensity) / normalization_factor * resp
-            merged_response_matrix[merged_peaks[-1]] = this_row_response
-            if peaks_are_distinct(
-                buffer[0],
-                buffer[-1],
-                fwhm_to_sigma(resolution_curve(nom(buffer[-1].energy))),
-            ):
-                offending_merged_peaks.append(merged_peaks[-1])
-            buffer, index_buffer = [], []
-        # merging_matrix.append(merge_multiplier_row)
+        buffer, index_buffer = [], []
+        return
 
     # iterate through the whole list
     for j, peak in enumerate(peak_list[1:]):
@@ -136,14 +122,147 @@ def merge_peaks(
             clear_buffers()
         buffer.append(peak.copy())
         index_buffer.append(j + 1)
-    clear_buffers()
-    # merging_matrix = np.array(merging_matrix)
-    if debug_mode:
-        return merged_peaks, merged_response_matrix, offending_merged_peaks
+    clear_buffers()  # final buffer clearing
     return merged_peaks, merged_response_matrix
 
 
-def fwhm_to_sigma(fwhm):
+def merge_peak_group(
+    peak_buffer: np.ndarray[DiscreteRadiation],
+    radiations: np.ndarray[DiscreteRadiation],
+    responses: np.ndarray[np.ndarray[float]],
+    len_response: int,
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
+) -> tuple[list[DiscreteRadiation], dict[DiscreteRadiation, np.ndarray[float]]]:
+    """
+    Merge a list of (possibly interfering) peaks into a list of mutually separaable
+    peaks, which is shorter in length by at least one.
+
+    Parameters
+    ----------
+    peak_buffer:
+        list of peaks sorted by energies (ascending).
+    radiations:
+        list of peaks sorted by energies (ascending); same as peak_buffer, but
+        may differ in intensity.
+    responses:
+        response matrix, each row matching `radiations`.
+
+    Returns
+    -------
+    merged_peaks:
+        A list of radiations, shorter than peak_buffer, with minimum length = 1.
+    merged_response_matrix:
+        A dictionary (each key = peak that the response row is suppose to represeent).
+        Matching the length of merged_peaks.
+    """
+    merged_peaks, merged_response_matrix = [], {}
+
+    # check meticulously for any roots in the gradient plot.
+    gradient = gradient_factory(peak_buffer, resolution_curve)
+    checked_energies = np.linspace(
+        nom(peak_buffer[0].energy), nom(peak_buffer[-1].energy)
+    )
+    gradient_samples = gradient(checked_energies)
+    grad_signs = np.sign(gradient_samples)
+    # The two conditions required to trigger a "new peak"
+    derivative_crosses_zero = np.diff(grad_signs) > 0
+    previously_negative = grad_signs[:-1] == -1
+
+    # separate into 3 list of lists, each nested list allows peak_list --merge--> peak.
+    cuts = np.where(np.logical_and(derivative_crosses_zero, previously_negative))[0]
+    lower_bound = np.hstack([nom(peak_buffer[0].energy) - 1, checked_energies[cuts]])
+    upper_bound = np.hstack([checked_energies[cuts], nom(peak_buffer[-1].energy) + 1])
+    mean_E_array = np.array([nom(peak.energy) for peak in peak_buffer])
+
+    for low, upp in zip(lower_bound, upper_bound):
+        chosen_peaks = np.logical_and(low <= mean_E_array, mean_E_array < upp)
+        chosen_slice = mask_to_slice(chosen_peaks)
+        this_merged_peak, this_merged_row = merge_peaks_and_responses(
+            peak_buffer[chosen_slice],
+            radiations[chosen_slice],
+            responses[chosen_slice],
+            len_response,
+        )
+        merged_peaks.append(this_merged_peak)
+        merged_response_matrix[this_merged_peak] = this_merged_row
+    return merged_peaks, merged_response_matrix
+
+
+def mask_to_slice(mask: np.ndarray[bool]) -> slice:
+    """
+    Turn a mask consisting of a SINGLE, contiguous block of Trues surrounded by Falses,
+    into into a slice object.
+    """
+    boolean_as_int = np.diff(np.array(np.hstack([False, mask, False]), dtype=int))
+    start_index = np.where(boolean_as_int == +1)[0][0]
+    end_index = np.where(boolean_as_int == -1)[0][0]
+    return slice(start_index, end_index)
+
+
+def merge_peaks_and_responses(
+    peak_list: list[DiscreteRadiation],
+    radiations: list[DiscreteRadiation],
+    responses: list[np.ndarray[float]],
+    len_response: int,
+) -> tuple[DiscreteRadiation, np.ndarray[float]]:
+    """
+    Merge a big group of peaks as a single peak.
+    This differ from combine_as_single_peak by also merging the response.
+
+    Parameters
+    ----------
+    peak_list:
+        list
+    """
+    this_peak = combine_as_single_peak(peak_list)
+    this_row_response = np.zeros(len_response, dtype=float)
+    normalization_factor = nom(this_peak.intensity)
+    if normalization_factor:
+        for rad, resp in zip(radiations, responses):
+            this_row_response += nom(rad.intensity) / normalization_factor * resp
+    # else: this_row_response = np.zeros(len_response)
+    return this_peak, this_row_response
+
+
+def gradient_factory(
+    peak_list: list[DiscreteRadiation],
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
+) -> Callable[[float | np.ndarray], float | np.ndarray]:
+    """
+    A function factory that returns a function that calculates the gradient.
+    """
+    curve_container = []
+    for peak in peak_list:
+        curve_container.append(
+            gradient_contribution(
+                nom(peak.energy),
+                fwhm_to_sigma(resolution_curve(nom(peak.energy))),
+                nom(peak.intensity),
+            )
+        )
+
+    def total_gradient_calculator(x: float | np.ndarray) -> float | np.ndarray:
+        """Function that takes in energy and output the gradient at that energy due to
+        contributions from every single peak listed."""
+        return np.sum([curve(x) for curve in curve_container], axis=0)
+
+    return total_gradient_calculator
+
+
+def gradient_contribution(mu: float, sigma: float, amplitude: float):
+    """
+    Function factory that calculates the contribution to gradient of a single peak.
+    """
+    gaussian = normal_dist_factory(mu, sigma)
+
+    def gradient_calculator(x):
+        """Functoin that outputs the gradient contribution from a single peak."""
+        return amplitude * (mu - x) / sigma * gaussian(x)
+
+    return gradient_calculator
+
+
+def fwhm_to_sigma(fwhm: float) -> float:
     """
     Given FWHM of a peak, get the sigma (standard deviation) of the same peak, assuming
     it's a gaussian peak.
@@ -151,10 +270,20 @@ def fwhm_to_sigma(fwhm):
     return fwhm / FWHM_SIGMA
 
 
-def merge_peak_group(peak_group: list[DiscreteRadiation]) -> DiscreteRadiation:
+def combine_as_single_peak(peak_group: list[DiscreteRadiation]) -> DiscreteRadiation:
     """
     Calculate the (weighted) average energy, and the total number of counts, of the new
     DiscreteRadiation line created by merging this group of peaks into a single line.
+
+    Parameters
+    ----------
+    peak_group:
+        list of peaks to be merged as a single peak.
+
+    Returns
+    -------
+    :
+        merged single peak.
     """
     # new interval must span the entire group's old interval.
     total_counts = sum(nom(p.intensity) for p in peak_group)
@@ -358,7 +487,8 @@ def make_sharp_compton_distribution(
 
 
 def make_compton_distribution(
-    photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float],
+    photopeak_energy: AffineScalarFunc,
+    test_energies: np.ndarray[float],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
 ) -> np.ndarray[float]:
     """
@@ -378,27 +508,34 @@ def make_compton_distribution(
     Eg = nom(photopeak_energy)
     Ecomp = compton_edge(Eg)
     sigma = fwhm_to_sigma(resolution_curve(Ecomp))
-    sigma_at_lower_bound = fwhm_to_sigma(resolution_curve(Ecomp-6*sigma))
+    sigma_at_lower_bound = fwhm_to_sigma(resolution_curve(Ecomp - 6 * sigma))
 
     if not np.isclose(sigma_at_lower_bound, sigma, rtol=0.4, atol=0):
-        warnings.warn("The kernel width changes too much over the smearing area!"
-            "Simulated gamma-spectrum may yield an inaccurate Compton continuum.")
+        warnings.warn(
+            "The kernel width changes too much over the smearing area!"
+            "Simulated gamma-spectrum may yield an inaccurate Compton continuum."
+        )
     smearing_range = np.logical_and(
-        test_energies>=(Ecomp-6*sigma),
-        test_energies<=(Ecomp+10*sigma)
+        test_energies >= (Ecomp - 6 * sigma), test_energies <= (Ecomp + 10 * sigma)
     )
-    smearing_scaler = get_smeared_multiplier((test_energies[smearing_range] - Ecomp)/sigma)
-    rhs_of_smearing_range = np.logical_and(test_energies>Ecomp, smearing_range)
-    compton_dist[rhs_of_smearing_range] = make_sharp_compton_distribution(photopeak_energy, np.array([Ecomp]))[0]
+    smearing_scaler = get_smeared_multiplier(
+        (test_energies[smearing_range] - Ecomp) / sigma
+    )
+    rhs_of_smearing_range = np.logical_and(test_energies > Ecomp, smearing_range)
+    compton_dist[rhs_of_smearing_range] = make_sharp_compton_distribution(
+        photopeak_energy, np.array([Ecomp])
+    )[0]
     compton_dist[smearing_range] = smearing_scaler * compton_dist[smearing_range]
     return compton_dist
+
 
 def get_smeared_multiplier(displacement_in_terms_of_sigma):
     """
     Convolving a step function that is +1 at x<0, 0 at x>0, with a normal distribution
     (with unit area) of standard deviation = sigma.
     """
-    return scipy.special.erf(-displacement_in_terms_of_sigma/np.sqrt(2))/2 + 0.5
+    return scipy.special.erf(-displacement_in_terms_of_sigma / np.sqrt(2)) / 2 + 0.5
+
 
 def get_broadening_matrix(
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
@@ -468,7 +605,9 @@ def corresponding_background_level(
 
     for peak_zeta in peak_list:
         c_counts = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-        comp_dist = make_compton_distribution(peak_zeta.energy, test_energies, resolution_curve)
+        comp_dist = make_compton_distribution(
+            peak_zeta.energy, test_energies, resolution_curve
+        )
 
         bg_heights += comp_dist * (c_counts if include_uncertainties else nom(c_counts))
     for dist, _source in folded_background:
