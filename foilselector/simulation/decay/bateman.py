@@ -483,10 +483,8 @@ def mat_exp_num_decays(
     )  # result of the (population * dt) integral
     # total number of decays = branching_ratios * the integral * decay constant of that isotope .
     fraction = final_fractions[-1]
-    fraction = np.nan_to_num(fraction)
+    fraction = np.clip(np.nan_to_num(fraction), 0, np.inf)
     answer = (
         np.product(branching_ratios[1:]) * fraction * decay_constants[-1]
     )  # multiplied by its own decay rate will give the number of decays over time period b to c.1
-    if nom(answer) <= 0:
-        answer -= nom(answer)
     return answer
