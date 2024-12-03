@@ -230,7 +230,6 @@ def main(
     # the broadening matrix.
     gamma_simulation_energies_keV = np.arange(*gamma_spectrum_parameters)
     gamma_simulation_energies = gamma_simulation_energies_keV * keV
-    broadening_m = get_broadening_matrix(resolution_curve, gamma_simulation_energies)
 
     # stage 2: break down the foil composition into its consituent isotopes.
     with open(composition) as j:
@@ -315,6 +314,7 @@ def main(
             full_peak_list,
             folded_bg,
             compton_from_peak,
+            resolution_curve,
             test_energies=np.array([nom(peak.energy) for peak in detectible_peaks]),
             include_uncertainties=True,
         )
@@ -376,7 +376,6 @@ def main(
                 compton_from_peak,
                 resolution_curve,
                 gamma_simulation_energies,
-                broadening_m,
             )
             with open(Path(gspec_directory, foil_name + ".json"), "w") as j:
                 json.dump(

@@ -2,6 +2,8 @@
 
 from collections import defaultdict
 from collections.abc import Callable
+import warnings
+
 import scipy
 import numpy as np
 from uncertainties import nominal_value as nom
@@ -57,8 +59,6 @@ def merge_peaks(
     peak_list: list[DiscreteRadiation],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     full_response_matrix: dict[DiscreteRadiation, np.ndarray],
-    *,
-    debug_mode: bool = False,
 ) -> tuple[list[DiscreteRadiation], dict[DiscreteRadiation, np.ndarray]]:
     """
     Merge peaks that are close together.
@@ -357,6 +357,49 @@ def make_sharp_compton_distribution(
     return energy_deposited
 
 
+def make_compton_distribution(
+    photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float],
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
+) -> np.ndarray[float]:
+    """
+    Create a normalized distribution that would properly simulate the Compton continuum,
+    as it includes the blurring of the Compton edge.
+
+    Parameters
+    ----------
+    photopeak_energy:
+        the energy of the gamma ray that's causing this Compton continuum.
+    test_energies:
+        The array of energies for which we have to compute the Compton continuum for.
+    resolution_curve:
+        Function that takes resolution curve as input and outputs -> FWHM at that energy.
+    """
+    compton_dist = make_sharp_compton_distribution(photopeak_energy, test_energies)
+    Eg = nom(photopeak_energy)
+    Ecomp = compton_edge(Eg)
+    sigma = fwhm_to_sigma(resolution_curve(Ecomp))
+    sigma_at_lower_bound = fwhm_to_sigma(resolution_curve(Ecomp-6*sigma))
+
+    if not np.isclose(sigma_at_lower_bound, sigma, rtol=0.4, atol=0):
+        warnings.warn("The kernel width changes too much over the smearing area!"
+            "Simulated gamma-spectrum may yield an inaccurate Compton continuum.")
+    smearing_range = np.logical_and(
+        test_energies>=(Ecomp-6*sigma),
+        test_energies<=(Ecomp+10*sigma)
+    )
+    smearing_scaler = get_smeared_multiplier((test_energies[smearing_range] - Ecomp)/sigma)
+    rhs_of_smearing_range = np.logical_and(test_energies>Ecomp, smearing_range)
+    compton_dist[rhs_of_smearing_range] = make_sharp_compton_distribution(photopeak_energy, np.array([Ecomp]))[0]
+    compton_dist[smearing_range] = smearing_scaler * compton_dist[smearing_range]
+    return compton_dist
+
+def get_smeared_multiplier(displacement_in_terms_of_sigma):
+    """
+    Convolving a step function that is +1 at x<0, 0 at x>0, with a normal distribution
+    (with unit area) of standard deviation = sigma.
+    """
+    return scipy.special.erf(-displacement_in_terms_of_sigma/np.sqrt(2))/2 + 0.5
+
 def get_broadening_matrix(
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     test_energies: np.ndarray[float],
@@ -389,9 +432,10 @@ def corresponding_background_level(
     compton_from_peak_curve: Callable[
         [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
     ],
+    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     test_energies: np.ndarray[float],
     *,
-    broadening_matrix: np.ndarray | None = None,
+    # broadening_matrix: np.ndarray | None = None,
     include_uncertainties: bool = False,
 ) -> list[AffineScalarFunc]:
     """
@@ -424,9 +468,7 @@ def corresponding_background_level(
 
     for peak_zeta in peak_list:
         c_counts = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
-        comp_dist = make_sharp_compton_distribution(peak_zeta.energy, test_energies)
-        if broadening_matrix is not None:
-            comp_dist = broadening_matrix @ comp_dist
+        comp_dist = make_compton_distribution(peak_zeta.energy, test_energies, resolution_curve)
 
         bg_heights += comp_dist * (c_counts if include_uncertainties else nom(c_counts))
     for dist, _source in folded_background:
@@ -481,7 +523,7 @@ def simulate_full_spectrum(
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     sampling_points: np.ndarray[float],
-    broadening_matrix: np.ndarray | None = None,
+    # broadening_matrix: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Parameters
@@ -491,8 +533,8 @@ def simulate_full_spectrum(
         FWHM (width) of the peak [eV].
     sampling_points:
         gamma-ray energies [eV] where we want to know the count density [1/eV].
-    broadening_matrix:
-        See get_broadening_matrix. Shape must match sampling_points^2.
+    # broadening_matrix:
+    #     See get_broadening_matrix. Shape must match sampling_points^2.
     all other parameters:
         See corresponding_background_level
 
@@ -506,8 +548,9 @@ def simulate_full_spectrum(
         peak_list,
         folded_background,
         compton_from_peak_curve,
+        resolution_curve,
         sampling_points,
-        broadening_matrix=broadening_matrix,
+        # broadening_matrix=broadening_matrix,
     )
     for peak in peak_list:
         spectrum += normal_dist_factory(
@@ -631,7 +674,8 @@ def add_Poisson_error(count_rate: float | AffineScalarFunc) -> AffineScalarFunc:
     Assume Poisson distribution, count_rate is the mean number of events counted,
     therefore a factor of np.sqrt(count_rate) will be added onto the error of the output.
     """
-    return count_rate + Variable(0.0, np.sqrt(nom(count_rate)))
+    counts = nom(count_rate)
+    return count_rate + Variable(0.0, np.sqrt(np.clip(counts, 0, np.inf)))
 
 
 def discoverable(count: AffineScalarFunc, *, num_sigmas=3) -> bool:
