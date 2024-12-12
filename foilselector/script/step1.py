@@ -47,20 +47,28 @@ from foilselector.fluxconversion import (
     histogramic,
 )
 from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
-from foilselector.foldermanagement import ResolutionMaxCountRate, PeakToComptonCoefficients
+from foilselector.foldermanagement import (
+    ResolutionMaxCountRate,
+    PeakToComptonCoefficients,
+)
 from foilselector.generic import minmax, SilenceNumpyDivisionError
 from foilselector.constants import MeV, keV
 from foilselector.openmcextension import Integral, detabulate
 from foilselector.simulation.efficiency import (
-    list_dir_eff_files, EfficiencyCurve, APPROVED_EFFICIENCY_FILE_EXTENSIONS, get_default_efficiency_curve_path
+    list_dir_eff_files,
+    EfficiencyCurve,
+    APPROVED_EFFICIENCY_FILE_EXTENSIONS,
+    get_default_efficiency_curve_path,
 )
-from foilselector.simulation.detector import (
-    Compton_to_peak_curve_factory,
+from foilselector.simulation.resolution import (
     resolution_curve_factory,
     get_default_resolution_coefficients,
     fit_fwhms,
-    fit_peak_to_Compton,
+)
+from foilselector.simulation.compton import (
     get_default_peak_to_Compton_coefficients,
+    Compton_to_peak_curve_factory,
+    fit_peak_to_Compton,
 )
 
 
@@ -488,7 +496,9 @@ def stage6_load_and_save_gamma_resolution():
                         "How many degrees of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-3])",
                         "0123",
                     )
-                    coefficients = fit_fwhms(E_keV * keV, fwhm_keV * keV, int(degree_of_fit))
+                    coefficients = fit_fwhms(
+                        E_keV * keV, fwhm_keV * keV, int(degree_of_fit)
+                    )
                     break
                 except Exception as e:
                     print(e, ", trying again...")
@@ -497,11 +507,19 @@ def stage6_load_and_save_gamma_resolution():
 
     while True:
         try:
-            max_count_rate = float(input("What is the maximum count rate (pulse/s) that the gamma-ray detector can be operated at without degrading this resolution?"))
+            max_count_rate = float(
+                input(
+                    "What is the maximum count rate (pulse/s) that the gamma-ray detector can be operated at without degrading this resolution?"
+                )
+            )
             break
         except ValueError as e:
-            print(e, ". Please enter the numeric value of the max. count rate in pulse/s.")
-    resolution_max_count_rate = ResolutionMaxCountRate(coefficients, max_count_rate).save()
+            print(
+                e, ". Please enter the numeric value of the max. count rate in pulse/s."
+            )
+    resolution_max_count_rate = ResolutionMaxCountRate(
+        coefficients, max_count_rate
+    ).save()
     return resolution_max_count_rate
 
 
@@ -556,7 +574,9 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio():
                         "How many degree of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-2])",
                         "012",
                     )
-                    coefficients = fit_peak_to_Compton(E_keV * keV, pc, int(degree_of_fit))
+                    coefficients = fit_peak_to_Compton(
+                        E_keV * keV, pc, int(degree_of_fit)
+                    )
                     break
                 except Exception as e:
                     print(e, ", trying again...")
@@ -580,13 +600,28 @@ def stage8_load_and_save_gamma_efficiency():
         print("...")
 
         efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
-        E, eff = efficiency_curve.E/keV, efficiency_curve.eff
+        E, eff = efficiency_curve.E / keV, efficiency_curve.eff
         if efficiency_curve.unc is not None:
-            plt.errorbar(E, eff, yerr=efficiency_curve.unc, linestyle="", capsize=2.5, marker="x", label="efficiency data-points")
+            plt.errorbar(
+                E,
+                eff,
+                yerr=efficiency_curve.unc,
+                linestyle="",
+                capsize=2.5,
+                marker="x",
+                label="efficiency data-points",
+            )
         else:
             plt.scatter(E, eff, label="efficiency data-points")
-        x = np.geomspace(np.min(E), max([np.max(E), 2000]), 300) # from the lowest E point to 2000 keV.
-        plt.semilogy(x, efficiency_curve(x*keV), color="C1", label="efficiency curve fitted from this data")
+        x = np.geomspace(
+            np.min(E), max([np.max(E), 2000]), 300
+        )  # from the lowest E point to 2000 keV.
+        plt.semilogy(
+            x,
+            efficiency_curve(x * keV),
+            color="C1",
+            label="efficiency curve fitted from this data",
+        )
         plt.legend()
         plt.xlabel(r"$E_\gamma$ (keV)")
         plt.ylabel(r"efficiency $\epsilon$")
@@ -600,7 +635,7 @@ def stage8_load_and_save_gamma_efficiency():
             chosen_eff_file = input(
                 f"Please choose file from the list above (file must end in {endings});\nOr enter nothing to use the example efficiency file stored at {default_efficiency_file}:"
             )
-            if chosen_eff_file=="":
+            if chosen_eff_file == "":
                 chosen_eff_file = default_efficiency_file
             eff_curve = one_loop(chosen_eff_file)
             if ask_yn_question("Is this curve satisfactory?"):
@@ -609,17 +644,20 @@ def stage8_load_and_save_gamma_efficiency():
                 )
                 break
             else:
-                print("Add/change datapoints/ use a different data file, and try again...")
+                print(
+                    "Add/change datapoints/ use a different data file, and try again..."
+                )
         except FileNotFoundError as e:
             print(
                 e,
                 f", please confirm that file name is correct and exists in {cwd}. "
-                "Trying again..."
+                "Trying again...",
             )
         except Exception as e:
             print(e, ", Perhaps not enough data points were given? Trying again...")
-        
+
     return eff_curve
+
 
 def main():
     cwd = Path.cwd()
@@ -646,9 +684,7 @@ In the current directory {}, the following .csv files are found:""".format(cwd)
     stage2_plot_apriori(E_values, apriori, continuous_apriori, apriori_gs)
 
     # stage 3
-    E_values, apriori, continuous_apriori = stage3_modify_apriori(
-        continuous_apriori
-    )
+    E_values, apriori, continuous_apriori = stage3_modify_apriori(continuous_apriori)
 
     # stage 4
     error_present = stage4_add_uncertainty(

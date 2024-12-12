@@ -15,9 +15,6 @@ __all__ = [
     "get_default_resolution_coefficients",
     "fit_fwhms",
     "resolution_curve_factory",
-    "get_default_peak_to_Compton_coefficients",
-    "fit_peak_to_Compton",
-    "Compton_to_peak_curve_factory",
 ]
 
 
@@ -79,59 +76,3 @@ def resolution_curve_factory(
         return np.clip(raw_curve(E), min_fwhm, np.inf)
 
     return resolution_curve
-
-
-def get_default_peak_to_Compton_coefficients():
-    """
-    Placeholder value for the peak-to-Comption ratio.
-    This specific number is obtained from summarizing
-    https://doi.org/10.1016/j.nima.2023.168826 (P/C = 62:1) and
-    https://doi.org/10.1016/j.nima.2018.08.048, (P/C = 60.8:1).
-    """
-    return np.array([61.4])  # assume constant.
-
-
-def fit_peak_to_Compton(
-    E: np.ndarray[float], pc_ratio: np.ndarray[float], degree_of_fit: int = 1
-) -> np.ndarray[float]:
-    """
-    Parameters
-    ----------
-    E:
-        mean energy of the peaks in eV
-    pc_ratio:
-        Peak-to-Comptoin ratio of the peaks. [dimensionless]
-
-    Returns
-    -------
-    coefficients:
-        a list of coefficients in ascending degrees.
-    """
-    return np.polyfit(E, pc_ratio, degree_of_fit)[::-1]
-
-
-def Compton_to_peak_curve_factory(
-    coefficients: Iterable[float], min_peak_to_comp_ratio=1.0
-) -> Callable[[float | np.ndarray], float | np.ndarray]:
-    """
-    Parameters
-    ----------
-    coefficients:
-        An iterable of coefficients in ascending degrees.
-    min_peak_to_comp_ratio:
-        The peak-to-Comptoin ratio is not allowed to drop below this number.
-        This limit is implemented to prevent infinite Compton continua to be created at
-        high energies due to poorly fitted peak-to-Compton curves.
-
-    Returns
-    -------
-    Compton_to_peak_curve:
-        A function that returns the Compton-to-peak ratio corresponding to the inputted
-        gamma-ray photopeak energy/energies (eV).
-    """
-    raw_curve = np.poly1d(coefficients[::-1])
-
-    def Compton_to_peak_curve(E: float | np.ndarray) -> float | np.ndarray:
-        return 1 / np.clip(raw_curve(E), min_peak_to_comp_ratio, np.infty)
-
-    return Compton_to_peak_curve

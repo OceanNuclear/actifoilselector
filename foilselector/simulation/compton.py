@@ -1,0 +1,186 @@
+"""
+Module to simulate Compton continua.
+This include functions to calculate the shape of the compton continuum, as well as the
+function to calculate the compton-to-peak ratio.
+"""
+
+from collections.abc import Callable, Iterable
+import numpy as np
+from uncertainties import nominal_value as nom
+from uncertainties.core import AffineScalarFunc
+from numpy import log as ln
+
+from foilselector.constants import me_eV
+
+
+class ComptonToPeakRatioCurve:
+    """
+    Also known as the Compton-from-Peak curve, because it is a curve with the following
+    input and output:
+    curve(input: # counts in peaks) -> ouput: # counts in the compton continuum.
+
+    """
+
+    def __init__(self, x, y):
+        return
+
+    def __call__(self, required_E_in_eV):
+        return np.exp(self._fitted_func_in_loglog_space(ln(nom(required_E_in_eV))))
+
+
+def get_default_Compton_to_peak_curve():
+    return np.array([61.4])  # assume constant.
+
+
+# Obsolete/ needs updating
+def fit_peak_to_Compton(
+    E: np.ndarray[float], pc_ratio: np.ndarray[float], degree_of_fit: int = 1
+) -> np.ndarray[float]:
+    """
+    Parameters
+    ----------
+    E:
+        mean energy of the peaks in eV
+    pc_ratio:
+        Peak-to-Comptoin ratio of the peaks. [dimensionless]
+
+    Returns
+    -------
+    coefficients:
+        a list of coefficients in ascending degrees.
+    """
+    return np.polyfit(E, pc_ratio, degree_of_fit)[::-1]
+
+
+# Obsolete/ needs updating
+def Compton_to_peak_curve_factory(
+    coefficients: Iterable[float], min_peak_to_comp_ratio=1.0
+) -> Callable[[float | np.ndarray], float | np.ndarray]:
+    """
+    Parameters
+    ----------
+    coefficients:
+        An iterable of coefficients in ascending degrees.
+    min_peak_to_comp_ratio:
+        The peak-to-Comptoin ratio is not allowed to drop below this number.
+        This limit is implemented to prevent infinite Compton continua to be created at
+        high energies due to poorly fitted peak-to-Compton curves.
+
+    Returns
+    -------
+    Compton_to_peak_curve:
+        A function that returns the Compton-to-peak ratio corresponding to the inputted
+        gamma-ray photopeak energy/energies (eV).
+    """
+    raw_curve = np.poly1d(coefficients[::-1])
+
+    def Compton_to_peak_curve(E: float | np.ndarray) -> float | np.ndarray:
+        return 1 / np.clip(raw_curve(E), min_peak_to_comp_ratio, np.infty)
+
+    return Compton_to_peak_curve
+
+
+def compton_edge(peak_energy: float) -> float:
+    """
+    Calculate the Compton edge energy corresponding to a photopeak, where a the photon recoils 180° and loses as much
+    energy to the electron as possible.
+
+    Parameters
+    ----------
+    peak_energy:
+        energy of the photopeak, in eV.
+
+    Returns
+    -------
+    Compton_edge_energy:
+        energy of the compton edge corresponding to the thing.
+    """
+    factor = 1.0 + 2 * peak_energy / me_eV
+    return peak_energy * (1 - 1 / factor)
+
+
+def make_sharp_compton_distribution(
+    photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float]
+) -> np.ndarray[float]:
+    r"""
+    Create a normalized distribution that represents the Compton continuum.
+
+    Parameters
+    ----------
+    photopeak_energy:
+        the energy of the gamma ray that's causing this Compton continuum.
+    test_energies:
+        The array of energies for which we have to compute the Compton continuum for.
+
+    Formulae
+    --------
+    The Compton distribution is given as below:
+
+    .. math::
+
+        C(E_{dep}) = \left(\frac{E_{\gamma}-E_{dep}}{E_{\gamma}}\right)^2 \left[
+        \frac{E_{\gamma}-E_{dep}}{E_{\gamma}} + \frac{E_{\gamma}}{E_{\gamma}-E_{dep}}
+        - \frac{2 E_{dep} (E_{\gamma} -2 E_{dep})}{\epsilon (E_{\gamma}-E_{dep})^2}
+        \right]
+
+    where the distribution is valid between $0\leq E_{dep}\leq E_{Comp}$, and
+
+    .. math::
+
+        E_{Comp} = E_{\gamma} - \frac{E_{\gamma}}{1+2\epsilon}
+
+        \epsilon = \frac{E_{\gamma}}{m_e c^2} = \frac{E_{\gamma}}{511 keV}.
+
+    This is obtained by rewriting the Klein-Nishina formula for the
+    differential cross-section (See Wikipedia:
+    https://en.wikipedia.org/wiki/Klein%E2%80%93Nishina_formula) by parametrising theta
+    in terms of E_dep = E_gamma - E_gamma', i.e. energy deposited by photon through
+    Compton scattering.
+    For an interactive demo of this distribution (w.r.t. changing photopeak energy)
+    please see https://www.desmos.com/calculator/8zksn1wtya
+
+    The integral of this area under the curve is given by:
+
+    .. math::
+
+        N = \frac{E_{\gamma}}{4} - \frac{E_{\gamma}}{4(1+2\epsilon)^4}
+        - \frac{E_{Comp}^2}{2E_{\gamma}} + E_{Comp} + \frac{E_{Comp}^2(E_{Comp}
+        - 3\frac{E_{\gamma}}{1+2\epsilon})}{3E_{\gamma}^2\epsilon}
+
+
+    such that the normalized Compton distribution is given by $\frac{C(E_{dep})}{N}$.
+
+    Usage
+    -----
+    This distribution shall be rescaled to the appropriate height to become the Compton
+    continuum, by assuming that all counts in the Compton continuum are formed by single-
+    Compton scattering events, i.e. the scattered Compton photon immediately exit the
+    gamma-ray detector and never interacts with it again.
+    """
+    energy_deposited = np.zeros(len(test_energies))
+    Eg = nom(photopeak_energy)
+    if np.isclose(Eg, 0, atol=1, rtol=0):  # anything between 0 - 1 eV -> no Compton.
+        return energy_deposited
+    Ecomp = compton_edge(Eg)
+    affected_bins = test_energies <= Ecomp
+    Ed = test_energies[affected_bins]  # alias for energy deposited by photon.
+    me_ratio = Eg / me_eV  # ratio to electron mass
+
+    # calculating the differential cross-section (only the part that varies w.r.t. E_dep)
+    big_bracket = (
+        (Eg - Ed) / Eg
+        + Eg / (Eg - Ed)
+        - 2 * Ed * (Eg - 2 * Ed) / (me_ratio * (Eg - Ed) ** 2)
+    )
+    unnormed_dist = ((Eg - Ed) / Eg) ** 2 * big_bracket
+    # Normalization factor
+    norm_factor = (
+        Eg / 4
+        - Eg / (4 * (1 + 2 * me_ratio) ** 4)
+        - Ecomp**2 / 2 / Eg
+        + Ecomp
+        + Ecomp**2 * (Ecomp - 3 * Eg / (1 + 2 * me_ratio)) / (3 * Eg**2 * me_ratio)
+    )
+
+    energy_deposited[affected_bins] = unnormed_dist / norm_factor
+    return energy_deposited

@@ -65,10 +65,7 @@ from foilselector.simulation.spectral_simulation import (
     simulate_full_spectrum,
     plot_spectrum,
 )
-from foilselector.simulation.detector import (
-    resolution_curve_factory,
-    Compton_to_peak_curve_factory,
-)
+from foilselector.simulation.resolution import resolution_curve_factory
 from foilselector.simulation.efficiency import EfficiencyCurve
 from foilselector.simulation.decay.bateman import mat_exp_num_decays
 from foilselector.simulation.decay import linearize_decay_chain, build_decay_chain_tree

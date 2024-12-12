@@ -7,13 +7,14 @@ import warnings
 import scipy
 import numpy as np
 from uncertainties import nominal_value as nom
-from foilselector.constants import me_eV, keV, FWHM_SIGMA
+from foilselector.constants import keV, FWHM_SIGMA
 from foilselector.openmcextension.library_reader import (
     DiscreteRadiation,
     ContinuousRadiationDistribution,
 )
 from uncertainties.core import Variable, AffineScalarFunc
 import matplotlib.pyplot as plt
+from foilselector.simulation.compton import compton_edge, make_sharp_compton_distribution
 
 
 def get_response_matrix_and_peaks_without_uncertainty(
@@ -406,87 +407,6 @@ def fold_background(
     return bgs
 
 
-def make_sharp_compton_distribution(
-    photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float]
-) -> np.ndarray[float]:
-    r"""
-    Create a normalized distribution that represents the Compton continuum.
-
-    Parameters
-    ----------
-    photopeak_energy:
-        the energy of the gamma ray that's causing this Compton continuum.
-    test_energies:
-        The array of energies for which we have to compute the Compton continuum for.
-
-    Formulae
-    --------
-    The Compton distribution is given as below:
-
-    .. math::
-        \left(\frac{E_{\gamma}-E_{dep}}{E_{\gamma}}\right)^2 \left[
-        \frac{E_{\gamma}-E_{dep}}{E_{\gamma}} + \frac{E_{\gamma}}{E_{\gamma}-E_{dep}}
-        - \frac{2 E_{dep} (E_{\gamma} -2 E_{dep})}{\epsilon (E_{\gamma}-E_{dep})^2}
-        \right]
-
-    This is obtained by rewriting the Klein-Nishina formula for the
-    differential cross-section (See Wikipedia:
-    https://en.wikipedia.org/wiki/Klein%E2%80%93Nishina_formula) by parametrising theta
-    in terms of E_dep = E_gamma - E_gamma', i.e. energy deposited by photon through
-    Compton scattering.
-    For an interactive demo of this distribution (w.r.t. changing photopeak energy)
-    please see https://www.desmos.com/calculator/8zksn1wtya
-
-    The integral of this area under the curve is given by:
-
-    .. math::
-
-        \frac{E_{\gamma}}{4} - \frac{E_{\gamma}}{4(1+2\epsilon)^4}
-        - \frac{E_{Comp}^2}{2E_{\gamma}} + E_{Comp} + \frac{E_{Comp}^2(E_{Comp}
-        - 3\frac{E_{\gamma}}{1+2\epsilon})}{3E_{\gamma}^2\epsilon}
-
-    where
-
-    .. math::
-
-        \epsilon = \frac{E_{\gamma}}{m_e c^2} = \frac{E_{\gamma}}{511 keV}.
-
-    Usage
-    -----
-    This distribution shall be rescaled to the appropriate height to become the Compton
-    continuum, by assuming that all counts in the Compton continuum are formed by single-
-    Compton scattering events, i.e. the scattered Compton photon immediately exit the
-    gamma-ray detector and never interacts with it again.
-    """
-    energy_deposited = np.zeros(len(test_energies))
-    Eg = nom(photopeak_energy)
-    if np.isclose(Eg, 0, atol=1, rtol=0):  # anything between 0 - 1 eV -> no Compton.
-        return energy_deposited
-    Ecomp = compton_edge(Eg)
-    affected_bins = test_energies <= Ecomp
-    Ed = test_energies[affected_bins]  # alias for energy deposited by photon.
-    me_ratio = Eg / me_eV  # ratio to electron mass
-
-    # calculating the differential cross-section (only the part that varies w.r.t. E_dep)
-    big_bracket = (
-        (Eg - Ed) / Eg
-        + Eg / (Eg - Ed)
-        - 2 * Ed * (Eg - 2 * Ed) / (me_ratio * (Eg - Ed) ** 2)
-    )
-    unnormed_dist = ((Eg - Ed) / Eg) ** 2 * big_bracket
-    # Normalization factor
-    norm_factor = (
-        Eg / 4
-        - Eg / (4 * (1 + 2 * me_ratio) ** 4)
-        - Ecomp**2 / 2 / Eg
-        + Ecomp
-        + Ecomp**2 * (Ecomp - 3 * Eg / (1 + 2 * me_ratio)) / (3 * Eg**2 * me_ratio)
-    )
-
-    energy_deposited[affected_bins] = unnormed_dist / norm_factor
-    return energy_deposited
-
-
 def make_compton_distribution(
     photopeak_energy: AffineScalarFunc,
     test_energies: np.ndarray[float],
@@ -567,7 +487,7 @@ def get_broadening_matrix(
 def corresponding_background_level(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
-    compton_from_peak_curve: Callable[
+    compton_peak_ratio_curve: Callable[
         [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
@@ -586,9 +506,9 @@ def corresponding_background_level(
         list of peaks, including their energy [eV] and intensity (counts).
     background:
         list of continuous peaks, including their energy and intensity.
-    compton_from_peak_curve:
+    compton_peak_ratio_curve:
         Curve showing the Compton-to-peak ratio. See
-        foilselector.simulation.detector.Compton_to_peak_curve_factory.
+        :class:`foilselector.simulation.compton.ComptonToPeakRatioCurve`.
     test_energies
         Places on the gamma-ray energy axis where we want to calculate the background
         heights at. (unit: eV)
@@ -605,7 +525,7 @@ def corresponding_background_level(
     )
 
     for peak_zeta in peak_list:
-        c_counts = compton_from_peak_curve(peak_zeta.energy) * peak_zeta.intensity
+        c_counts = compton_peak_ratio_curve(peak_zeta.energy) * peak_zeta.intensity
         comp_dist = make_compton_distribution(
             peak_zeta.energy, test_energies, resolution_curve
         )
@@ -615,25 +535,6 @@ def corresponding_background_level(
         bg_heights += dist(test_energies)
 
     return bg_heights
-
-
-def compton_edge(peak_energy: float) -> float:
-    """
-    Calculate the Compton edge energy corresponding to a photopeak, where a the photon recoils 180° and loses as much
-    energy to the electron as possible.
-
-    Parameters
-    ----------
-    peak_energy:
-        energy of the photopeak, in eV.
-
-    Returns
-    -------
-    Compton_edge_energy:
-        energy of the compton edge corresponding to the thing.
-    """
-    factor = 1.0 + 2 * peak_energy / me_eV
-    return peak_energy * (1 - 1 / factor)
 
 
 def integrate_bg_area(
@@ -658,7 +559,7 @@ def contained_by_interval(standard_score: float) -> float:
 def simulate_full_spectrum(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
-    compton_from_peak_curve: Callable[
+    compton_peak_ratio_curve: Callable[
         [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
@@ -687,7 +588,7 @@ def simulate_full_spectrum(
     spectrum += corresponding_background_level(
         peak_list,
         folded_background,
-        compton_from_peak_curve,
+        compton_peak_ratio_curve,
         resolution_curve,
         sampling_points,
         # broadening_matrix=broadening_matrix,
