@@ -6,7 +6,7 @@
 [x]Change the name of `Integrate` to `Intergral`
 [x]Instead of a flat distribution, use a better (Klein-Nishina) simulation of the Compton continuum
 [x]Tab1DExtended: Addition and multiplication
-[]compton.py
+[x]compton.py
     []Fix the callable compton_to_peak curves everywhere else
 []Deal with double-counting of some reactions,
     - example: see [i for i in xs_dict.keys() if i.startswith("Pd106")]:
@@ -35,6 +35,11 @@
     - using vulture
     - foilselector.openmcextension.extended_io.load_endf_directories()
 []spectral_simulation.py is growing out of control. Split into multiply modules?
+[]os.path -> pathlib.Path
+[]unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
+    - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
+    - efficiency (default stored as .csv file) -> stored data as various file endings -> re-load from data
+    - peak-to-Compton (default stored as .csv file) -> coefficients stored in .txt file -> re-load from coefs
 
 ----Nice-to-have physics features
 [x]Apply resolution curve blurring to the Compton Edge.
