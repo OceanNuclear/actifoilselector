@@ -41,21 +41,22 @@ EffCurve = namedtuple("EffCurve", ["E", "eff", "unc"])
 
 
 APPROVED_EFFICIENCY_FILE_EXTENSIONS = {
-    ".o"   : "MCNP simulation output",
-    ".ecc" : "GENIE/ISOCS simulation output",
-    ".csv" : "Generic comma-separated file, energy in MeV in first column, efficiency in second column, uncertainty potentially in third column.",
-    ".dat" : "Plain text file, same as .csv, but space delimited instead",
+    ".o": "MCNP simulation output",
+    ".ecc": "GENIE/ISOCS simulation output",
+    ".csv": "Generic comma-separated file, energy in MeV in first column, efficiency in second column, uncertainty potentially in third column.",
+    ".dat": "Plain text file, same as .csv, but space delimited instead",
 }
+
 
 def list_dir_eff_files(directory):
     """
     Pretty print the list of all efficiency files in a specified directory.
     """
     fnames = (
-        glob(os.path.join(directory, "*.o")) +
-        glob(os.path.join(directory, "*.ecc")) +
-        glob(os.path.join(directory, "*.dat")) +
-        glob(os.path.join(directory, "*.csv"))
+        glob(os.path.join(directory, "*.o"))
+        + glob(os.path.join(directory, "*.ecc"))
+        + glob(os.path.join(directory, "*.dat"))
+        + glob(os.path.join(directory, "*.csv"))
     )
     print("########################")
     print("------------------------")
@@ -73,20 +74,20 @@ def read_mcnp_output(fname):
     ulim_lines = data[2::4]
     total_lines = data[3::4]
     El, Eu = (
-        [float(l.split()[0]) for l in llim_lines],
-        [float(l.split()[0]) for l in ulim_lines],
+        [float(line.split()[0]) for line in llim_lines],
+        [float(line.split()[0]) for line in ulim_lines],
     )
     low_col1, low_col2 = (
-        [float(l.split()[1]) for l in llim_lines],
-        [float(l.split()[2]) for l in llim_lines],
+        [float(line.split()[1]) for line in llim_lines],
+        [float(line.split()[2]) for line in llim_lines],
     )
     upp_col1, upp_col2 = (
-        [float(l.split()[1]) for l in ulim_lines],
-        [float(l.split()[2]) for l in ulim_lines],
+        [float(line.split()[1]) for line in ulim_lines],
+        [float(line.split()[2]) for line in ulim_lines],
     )
     tot_col1, tot_col2 = (
-        [float(l.split()[1]) for l in total_lines],
-        [float(l.split()[2]) for l in total_lines],
+        [float(line.split()[1]) for line in total_lines],
+        [float(line.split()[2]) for line in total_lines],
     )
     return MCNPOut(
         ary(El) * MeV,
@@ -125,7 +126,9 @@ def read_csv(fname):
     elif "keV" in df.columns[0]:
         df[df.columns[0]] = df[df.columns[0]] * keV
     else:
-        raise ValueError(f"Please include the energy unit (keV/MeV) in the title of the first column of {fname}")
+        raise ValueError(
+            f"Please include the energy unit (keV/MeV) in the title of the first column of {fname}"
+        )
     return df
 
 
@@ -158,7 +161,9 @@ def efficiency_curve_factory(fname):
 
 
 class EfficiencyCurve:
-    def __init__(self, eff_curve_object, extrapolation_inference_threshold_keV: float=800):
+    def __init__(
+        self, eff_curve_object, extrapolation_inference_threshold_keV: float = 800
+    ):
         self.E = ary(eff_curve_object.E)
         self.eff = ary(eff_curve_object.eff)
         self.unc = (
@@ -236,21 +241,23 @@ class EfficiencyCurve:
         energy_keV = np.geomspace(smoothline_lower, smoothline_upper, 300)
         energy_eV = energy_keV * keV
         smooth_eff = self.__call__(energy_eV)
-        ax.plot(energy_eV / k, smooth_eff)
-        ax.scatter(self.E / k, self.eff)
+        ax.plot(energy_eV / keV, smooth_eff)
+        ax.scatter(self.E / keV, self.eff)
         ax.set_xlabel("E (keV)")
         ax.set_ylabel("Efficiency (fraction)")
         ax.set_xscale("log"), ax.set_yscale("log")
         plt.show()
 
+
 def get_default_efficiency_curve_path():
     """Get the from the python installation package."""
-    return os.path.abspath( # get the absolute path version of this
+    return os.path.abspath(  # get the absolute path version of this
         os.path.join(
             # relative path, relative to
-            os.path.dirname(__file__), # THIS particular file, efficiency.py right here.
+            os.path.dirname(__file__),  # THIS particular file, efficiency.py right here.
             "..",
             "physicalparameters",
-            "photopeak_efficiency",
-            "Absolute_photopeak_efficiencyMeV.csv")
+            "efficiency",
+            "Absolute_photopeak_efficiencyMeV.csv",
+        )
     )

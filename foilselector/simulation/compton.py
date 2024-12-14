@@ -4,13 +4,15 @@ This include functions to calculate the shape of the compton continuum, as well 
 function to calculate the compton-to-peak ratio.
 """
 
-from collections.abc import Callable, Iterable
+from pathlib import Path
+import os
+
 import numpy as np
+import pandas as pd
 from uncertainties import nominal_value as nom
 from uncertainties.core import AffineScalarFunc
-from numpy import log as ln
 
-from foilselector.constants import me_eV
+from foilselector.constants import me_eV, MeV, keV
 
 
 class ComptonToPeakRatioCurve:
@@ -18,66 +20,65 @@ class ComptonToPeakRatioCurve:
     Also known as the Compton-from-Peak curve, because it is a curve with the following
     input and output:
     curve(input: # counts in peaks) -> ouput: # counts in the compton continuum.
-
     """
 
-    def __init__(self, x, y):
-        return
+    @classmethod
+    def fit_data(
+        cls,
+        energy: np.ndarray[float],
+        compton_to_peak_ratio: np.ndarray[float],
+        degree_of_fit: int = 6,
+    ):
+        """Create a fit using the data given."""
+        loglog_coefficients = np.polyfit(
+            np.log(energy), np.log(compton_to_peak_ratio), degree_of_fit
+        )
+        self = cls(loglog_coefficients)
+        self.E = energy
+        self.compton_to_peak_ratio = compton_to_peak_ratio
+        self.degree_of_fit = degree_of_fit
+        return self
 
-    def __call__(self, required_E_in_eV):
-        return np.exp(self._fitted_func_in_loglog_space(ln(nom(required_E_in_eV))))
+    def __init__(self, coefficients: np.ndarray[float]):
+        self.coefficients = coefficients
+        self._fitted_func_in_loglog_space = np.poly1d(coefficients)
+
+    def __call__(self, required_E_in_eV: float | np.ndarray[float]):
+        return np.exp(self._fitted_func_in_loglog_space(np.log(nom(required_E_in_eV))))
+
+    @classmethod
+    def from_file(cls, filename: Path, degree_of_fit: int = 6):
+        """Create a compton-to-peak-ratio curve object from a .csv file."""
+        ratio_csv = pd.read_csv(filename, comment="#")
+        energy_name = ratio_csv.columns[0]
+        if "MeV" in energy_name:
+            energy = ratio_csv[energy_name] * MeV
+        elif "keV" in energy_name:
+            energy = ratio_csv[energy_name] * keV
+        elif "eV" in energy_name:
+            energy = ratio_csv[energy_name]
+        else:
+            raise ValueError(
+                f"UnitError: column 0 of {filename} (gamma-energy column)"
+                "has ambiguous unit!"
+            )
+
+        ratio = ratio_csv[ratio_csv.columns[1]]
+        return cls.fit_data(np.array(energy), np.array(ratio), degree_of_fit)
 
 
-def get_default_Compton_to_peak_curve():
-    return np.array([61.4])  # assume constant.
-
-
-# Obsolete/ needs updating
-def fit_peak_to_Compton(
-    E: np.ndarray[float], pc_ratio: np.ndarray[float], degree_of_fit: int = 1
-) -> np.ndarray[float]:
-    """
-    Parameters
-    ----------
-    E:
-        mean energy of the peaks in eV
-    pc_ratio:
-        Peak-to-Comptoin ratio of the peaks. [dimensionless]
-
-    Returns
-    -------
-    coefficients:
-        a list of coefficients in ascending degrees.
-    """
-    return np.polyfit(E, pc_ratio, degree_of_fit)[::-1]
-
-
-# Obsolete/ needs updating
-def Compton_to_peak_curve_factory(
-    coefficients: Iterable[float], min_peak_to_comp_ratio=1.0
-) -> Callable[[float | np.ndarray], float | np.ndarray]:
-    """
-    Parameters
-    ----------
-    coefficients:
-        An iterable of coefficients in ascending degrees.
-    min_peak_to_comp_ratio:
-        The peak-to-Comptoin ratio is not allowed to drop below this number.
-        This limit is implemented to prevent infinite Compton continua to be created at
-        high energies due to poorly fitted peak-to-Compton curves.
-
-    Returns
-    -------
-    Compton_to_peak_curve:
-        A function that returns the Compton-to-peak ratio corresponding to the inputted
-        gamma-ray photopeak energy/energies (eV).
-    """
-    raw_curve = np.poly1d(coefficients[::-1])
-
-    def Compton_to_peak_curve(E: float | np.ndarray) -> float | np.ndarray:
-        return 1 / np.clip(raw_curve(E), min_peak_to_comp_ratio, np.infty)
-
-    return Compton_to_peak_curve
+def get_default_peak_to_Compton_file() -> Path:
+    """Get the file path of the peak-to-Compton-ratio file."""
+    return os.path.abspath(  # get the absolute path version of this
+        os.path.join(
+            # relative path, relative to
+            os.path.dirname(__file__),  # THIS particular file, compton.py right here.
+            "..",
+            "physicalparameters",
+            "efficiency",
+            "Compton_to_peak_ratio.csv",
+        )
+    )
 
 
 def compton_edge(peak_energy: float) -> float:
