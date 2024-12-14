@@ -229,6 +229,27 @@ def append_to_json(obj: dict, json_path: Path) -> None:
     return
 
 
+def append_to_csv(row_name: str, data: dict, *, csv_path: Path = Path("each_foil.csv")):
+    """
+    Append to a .csv file, where the user is supposed to have already known the column
+    names.
+    Create the .csv file if it doesn't already exist.
+
+    Parameters
+    ----------
+    row_name:
+        the title of that row
+    data:
+        A dictionary (ordered by default since python 3.7), whose keys should match the
+        column names of the csv file, in the correct order.
+    """
+    if not Path(csv_path).exists():
+        with open(csv_path, "w") as csv:
+            csv.write("foil_name," + ",".join([str(i) for i in data.keys()]) + "\n")
+    with open(csv_path, "a") as csv:
+        csv.write(row_name + "," + ",".join([str(i) for i in data.values()]) + "\n")
+
+
 def create_template_json(json_path: Path) -> None:
     with open(json_path, "w") as j:
         j.write("{\n}")

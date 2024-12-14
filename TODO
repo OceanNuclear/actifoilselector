@@ -20,7 +20,7 @@
 [x]Merge peak should give a list of peaks (depending on how many is detectible) of {0<=len(output_peaks)<len(peak_group)} rather than a single peak.
 [x]Peak-to-total ratio: give a better estimate (See reference/)
 ----code maintainability (specific)
-[]Make the foilselector write to a .csv instead of five separate .jsons?
+[x]Make the foilselector write to a .csv instead of five separate .jsons?
 []Put the following file names all in foldermanagement.py:
     [].atomic_composition.json
     [].gs.csv

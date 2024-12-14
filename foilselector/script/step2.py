@@ -34,6 +34,7 @@ from foilselector.reactionnaming import (
 )
 from foilselector.generic import sorted_dict
 from foilselector.foldermanagement import (
+    append_to_csv,
     append_to_json,
     get_apriori,
     read_gs,
@@ -287,9 +288,6 @@ def main(
             "number of atoms": foil_num_atoms,
             "mass (g)": mass_from_num_atoms(foil_num_atoms, foil_comp),
         }
-        append_to_json(
-            {foil_name: mass_record[foil_name]}, Path(cwd, ".mass_records.json")
-        )
         # stage 4.2: calculate all gamma-peaks (and the response matrix for that).
         full_peak_list = simulate_peaks_with_uncertainties(
             final_response_matrix, apriori_fluence
@@ -349,14 +347,18 @@ def main(
             ary([peak.intensity for peak in reaction_info]),
             w_vector,
         )
-        append_to_json(
-            {foil_name: foil_precision[foil_name]}, Path(cwd, "sensitivity.json")
-        )
         foil_accuracy[foil_name] = get_accuracy(
             effective_matrix, [peak.intensity for peak in reaction_info]
         )
-        append_to_json(
-            {foil_name: foil_accuracy[foil_name]}, Path(cwd, "specificty.json")
+        append_to_csv(
+            foil_name,
+            {
+                "recommended number of atoms": mass_record[foil_name]["number of atoms"],
+                "recommended mass (mg)": mass_record[foil_name]["mass (g)"] * 1000,
+                "sensitivity (cm^2 eV^3)": foil_precision[foil_name],
+                "specificity": foil_accuracy[foil_name] / len(gs_array),
+                "number of detectable peaks": len(reaction_info),
+            },
         )
 
         if not Path(gspec_directory, foil_name + ".pdf").exists():
