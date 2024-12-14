@@ -342,10 +342,6 @@ def main(
             serialize_radiation_dict({foil_name: effective_matrix}),
             Path(cwd, ".effective_response_matrices.json"),
         )
-        append_to_json(
-            {foil_name: serialize_radiation_list(reaction_info)},
-            Path(cwd, ".effective_peaks.json"),
-        )
         # [deserialize_radiation_dict(rad) for rad in json.load(j)]
         foil_precision[foil_name] = get_precision(
             effective_matrix,
@@ -378,6 +374,7 @@ def main(
                     {
                         "energy (keV)": gamma_simulation_energies_keV.tolist(),
                         "spectrum": (spectrum * keV).tolist(),
+                        "radiation": serialize_radiation_list(reaction_info),
                     },
                     j,
                 )
