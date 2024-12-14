@@ -7,7 +7,7 @@
 [x]Instead of a flat distribution, use a better (Klein-Nishina) simulation of the Compton continuum
 [x]Tab1DExtended: Addition and multiplication
 [x]compton.py
-    []Fix the callable compton_to_peak curves everywhere else
+    [x]Fix the callable compton_to_peak curves everywhere else
 []Deal with double-counting of some reactions,
     - example: see [i for i in xs_dict.keys() if i.startswith("Pd106")]:
     - "Pd106-Rh105-MT=28"
@@ -18,7 +18,7 @@
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
 []Write the optimization part of the step2 script
 [x]Merge peak should give a list of peaks (depending on how many is detectible) of {0<=len(output_peaks)<len(peak_group)} rather than a single peak.
-[]Peak-to-total ratio: give a better estimate (See reference/)
+[x]Peak-to-total ratio: give a better estimate (See reference/)
 ----code maintainability (specific)
 []Make the foilselector write to a .csv instead of five separate .jsons?
 []Put the following file names all in foldermanagement.py:
@@ -34,7 +34,7 @@
 []Kick out unused (deprecated) functions
     - using vulture
     - foilselector.openmcextension.extended_io.load_endf_directories()
-[]spectral_simulation.py is growing out of control. Split into multiply modules?
+[x]spectral_simulation.py is growing out of control. Split into multiple modules?
 []os.path -> pathlib.Path
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
     - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
@@ -50,8 +50,7 @@
 []Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
 []Incorporate pair-production effects? And multiple Compton scatter effects?
 
-----Other code maintainability/quality (generic)
-[]use pathlib.Path instead of accepting strings
+----General code maintainability/quality (generic)
 []Ruff seems to be disabled for some small things (capitalization, documentation, etc.) - find out where!
 []Tests/Unittest
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
