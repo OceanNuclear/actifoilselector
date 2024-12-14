@@ -144,18 +144,18 @@ class PeakToComptonCoefficients:
 
     def save(self, directory="."):
         """Store data as plain text file."""
-        with open(join(directory, ".gamma-peak-to-Compton-coefs.txt"), "w") as f:
+        with open(join(directory, ".gamma-Compton-to-peak-coefs.txt"), "w") as f:
             for i, coef in enumerate(self.peak_to_Compton_coefficients):
-                f.write(f"x_{i}={coef}\n")
+                f.write(f"logx_{i}={coef}\n")
 
     @staticmethod
     def load(directory="."):
-        """Load data back from the '.gamma-peak-to-Compton-coefs.txt' file"""
-        with open(join(directory, ".gamma-peak-to-Compton-coefs.txt")) as f:
+        """Load data back from the '.gamma-Compton-to-peak-coefs.txt' file"""
+        with open(join(directory, ".gamma-Compton-to-peak-coefs.txt")) as f:
             text = f.readlines()
         peak_to_Compton_coefficients = []
         while text:
-            if text[0].startswith("x"):
+            if text[0].startswith("logx"):
                 peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
             else:
                 break
