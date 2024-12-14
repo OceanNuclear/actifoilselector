@@ -608,10 +608,10 @@ def plot_spectrum(
     peak_labels: list[DiscreteRadiation],
     *,
     plot_min: float = 0.05,
-    ax=None,
+    ax: plt.Axes | None = None,
 ) -> plt.Axes:
     """
-    Plot the entire gamma-ray spectrum, in unit [1/keV].
+    Plot the entire gamma-ray spectrum, in unit [1/keV], with a log y-axis.
 
     Parameters
     ----------
@@ -619,14 +619,20 @@ def plot_spectrum(
         where the gamma-count per-keV is actually sampled. [keV]
     spectrum:
         gamma-count per-eV.
+    peak_labels:
+        list of DiscreteRadiation documenting the location and size of each peak,
+        including their uncertainties and origin.
+    ax:
+        The axis on which the gamma-ray spectrum is getting plotted.
+    plot_min:
+        The lower bound of the y-axis if plotting in log-scale.
 
     Returns
     -------
     ax:
         plt.Axes object on which the spectrum is plotted.
     """
-    if not ax:
-        ax = plt.subplot()
+    ax = ax or plt.subplot()
     spectrum_new_scale = spectrum * keV
     ax.semilogy(sampling_points_keV, spectrum_new_scale)
     # plotting parameters
@@ -650,6 +656,62 @@ def plot_spectrum(
         )
     ax.set_ylabel("counts /keV")
     ax.set_xlabel(r"$E_\gamma$ (keV)")
+    return ax
+
+
+def plot_in_sqrt_scale(
+    sampling_points_keV: np.ndarray,
+    spectrum: np.ndarray,
+    peak_labels: list[DiscreteRadiation],
+    *,
+    ax: plt.Axes | None = None,
+):
+    """
+    Plot the entire gamma-ray spectrum, in unit [1/keV], with a sqrt(counts) y-axis.
+
+    Parameters
+    ----------
+    sampling_points_keV:
+        where the gamma-count per-keV is actually sampled. [keV]
+    spectrum:
+        gamma-count per-eV.
+    peak_labels:
+        list of DiscreteRadiation documenting the location and size of each peak,
+        including their uncertainties and origin.
+    ax:
+        The axis on which the gamma-ray spectrum is getting plotted.
+
+    Returns
+    -------
+    ax:
+        plt.Axes object on which the spectrum is plotted.
+    """
+    ax = ax or plt.subplot()
+    ax.plot(sampling_points_keV, spectrum)
+    ax.set_yscale(
+        "function",
+        functions=[
+            lambda x: np.sign(x) * np.sqrt(np.abs(x)),
+            lambda x: np.sign(x) * np.square(np.abs(x)),
+        ],
+    )
+    ax.set_ylabel("counts /keV")
+    ax.set_xlabel("gamma energy (keV)")
+    y_max_sqrt = np.sqrt(spectrum.max())
+    for peak in peak_labels:
+        E = nom(peak.energy)
+        i = np.argmin(abs(sampling_points_keV * keV - E))
+        x = sampling_points_keV[i]
+        ytip = (np.sqrt(spectrum[i]) + y_max_sqrt * 0.00) ** 2
+        yend = (np.sqrt(spectrum[i]) + y_max_sqrt * 0.10) ** 2
+        ax.annotate(
+            peak.plot_label_format(),
+            xy=(x, ytip),
+            xytext=(x, yend),
+            arrowprops=dict(arrowstyle="->"),
+            ha="center",
+            va="bottom",
+        )
     return ax
 
 
