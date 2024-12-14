@@ -67,6 +67,7 @@ from foilselector.simulation.spectral_simulation import (
 )
 from foilselector.simulation.resolution import resolution_curve_factory
 from foilselector.simulation.efficiency import EfficiencyCurve
+from foilselector.simulation.compton import ComptonToPeakRatioCurve
 from foilselector.simulation.decay.bateman import mat_exp_num_decays
 from foilselector.simulation.decay import linearize_decay_chain, build_decay_chain_tree
 from foilselector.optimizer.choose_mass import (
@@ -220,7 +221,7 @@ def main(
     resolution_curve = resolution_curve_factory(resolution_coefficients)
     max_counts_per_foil = max_num_counts(max_count_rate, measurement_duration)
     eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
-    compton_from_peak = Compton_to_peak_curve_factory(PeakToComptonCoefficients.load())
+    compton_from_peak = ComptonToPeakRatioCurve(PeakToComptonCoefficients.load())
 
     # Stage 1.1: preparation of the gamma-ray spectrum simulation energies, and
     # the broadening matrix.

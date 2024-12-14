@@ -16,9 +16,9 @@ Files saved
     The list of Gamma-ray detector resolution coefficients, stored in ascending degrees,
     newline-delimited, such that we can express the resolution as
     R(E) = √(x_0 + x_1 * E + x_2 * E^2 + ...)
-.gamma-peak-to-Compton-coefs.txt
-    The list of Gamma-ray detector peak-to-Compton ratio coefficients, stored in
-    ascending degrees, newline-delimited, such that we can express the peak-to-Compton
+.gamma-Compton-to-peak-coefs.txt
+    The list of Gamma-ray detector Compton-to-peak ratio coefficients, stored in
+    ascending degrees, newline-delimited, such that we can express the Compton-to-peak
     ratio as P/C(E) = x_0 + x_1 * E + x_2 * E^2 + ...
 .efficiency{.o,.ecc,.csv,.dat}
     A copy of the gamma-ray detector efficiency calibration file, where the file suffix
@@ -58,7 +58,7 @@ from foilselector.simulation.efficiency import (
     list_dir_eff_files,
     EfficiencyCurve,
     APPROVED_EFFICIENCY_FILE_EXTENSIONS,
-    get_default_efficiency_curve_path,
+    get_default_efficiency_curve_file,
 )
 from foilselector.simulation.resolution import (
     resolution_curve_factory,
@@ -66,9 +66,8 @@ from foilselector.simulation.resolution import (
     fit_fwhms,
 )
 from foilselector.simulation.compton import (
-    get_default_peak_to_Compton_coefficients,
-    Compton_to_peak_curve_factory,
-    fit_peak_to_Compton,
+    get_default_peak_to_Compton_file,
+    ComptonToPeakRatioCurve,
 )
 
 
@@ -473,25 +472,28 @@ def stage6_load_and_save_gamma_resolution():
             "Do you have the coefficients in the resolution curve R(E) = √(x_0 + x_1*E + x_2*E^2 + ...) (where E and R(E) have unit eV)? (y/n)"
         ):
             while True:
-                coef_str = input(
-                    "Please enter the list of coefficients, separated by comma, in increasing degree of the coefficients: "
-                )
                 try:
+                    coef_str = input(
+                        "Please enter the list of coefficients, separated by comma, in increasing degree of the coefficients: "
+                    )
                     coefficients = ary([float(c) for c in coef_str.split(",")])
                     break
                 except ValueError as e:
                     print(e, ", trying again...")
         else:
-            E_keV, full_path = get_column_interactive(
-                cwd,
-                "Mean energy of the peaks (in keV)",
-                output_full_file_path=True,
-            )
-            fwhm_keV = get_column_interactive(
-                cwd, "FWHM energy of the peaks (in keV)", file_path_given=full_path
-            )
+            print("Fitting to FWHM data:")
             while True:
                 try:
+                    E_keV, full_path = get_column_interactive(
+                        cwd,
+                        "Mean energy of the peaks (in keV)",
+                        output_full_file_path=True,
+                    )
+                    fwhm_keV = get_column_interactive(
+                        cwd,
+                        "FWHM energy of the peaks (in keV)",
+                        file_path_given=full_path,
+                    )
                     degree_of_fit = ask_question(
                         "How many degrees of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-3])",
                         "0123",
@@ -517,15 +519,12 @@ def stage6_load_and_save_gamma_resolution():
             print(
                 e, ". Please enter the numeric value of the max. count rate in pulse/s."
             )
-    resolution_max_count_rate = ResolutionMaxCountRate(
-        coefficients, max_count_rate
-    ).save()
-    return resolution_max_count_rate
+    return ResolutionMaxCountRate(coefficients, max_count_rate).save()
 
 
-def stage7_load_and_save_gamma_peak_to_Compton_ratio():
+def stage8_load_and_save_gamma_peak_to_Compton_ratio():
     """
-    Write to file the gamma-ray detector's peak-to-Compton ratio.
+    Write to file the gamma-ray detector's Compton-to-peak ratio.
 
     Returns
     -------
@@ -533,62 +532,64 @@ def stage7_load_and_save_gamma_peak_to_Compton_ratio():
         coefficients that can be used to reconstruct the Compton-to-peak curve.
     """
     cwd = Path.cwd()
-    section_title("7. Save gamma-ray detector photopeak-to-Compton ratio")
-    default_CS_func = Compton_to_peak_curve_factory(
-        get_default_peak_to_Compton_coefficients()
+    section_title("8. Save gamma-ray detector Compton-to-photopeak ratio")
+    default_CS_func = ComptonToPeakRatioCurve.from_file(
+        get_default_peak_to_Compton_file()
     )
     cs_ratio_examples = ";\n".join(
-        f"P/C = {1 / default_CS_func(peak * keV)} keV at E={peak} keV"
+        f"Compton : peak ratio = {default_CS_func(peak * keV)} keV at E={peak} keV"
         for peak in [511, 662, 1173, 1332]
     )
-    print(f"Default peak-to-Compton ratio is\n{cs_ratio_examples}.")
+    print(f"Default Compton-to-peak ratio is\n{cs_ratio_examples}.")
     if ask_yn_question(
-        "Would you like to provide your own peak-to-Compton curve instead of using the default photopeak-to-Compton ratios? (no = use default)"
+        "Would you like to provide your own Compton-to-peak curve instead of using the default Compton-to-photopeak ratios? (no = use default)"
     ):
         if ask_yn_question(
-            "Do you have the coefficients for the peak-to-Compton ratios PC(E) = x_0 + x_1*E + x_2*E^2 + ... (where E has unit eV)? (y/n)"
+            "Do you have the coefficients for the Compton-to-peak ratios log(Compton-to-Peak(E)) = x_0 + x_1*log(E) + x_2*log(E)^2 + ... (where E has unit eV)? (y/n)"
         ):
             while True:
-                coef_str = input(
-                    "Please enter the list of coefficients, separated by comma, in increasing degree of the coefficients: "
-                )
                 try:
+                    coef_str = input(
+                        "Please enter the list of coefficients, separated by comma, in increasing degree of the coefficients: "
+                    )
                     coefficients = ary([float(c) for c in coef_str.split(",")])
+                    curve = ComptonToPeakRatioCurve(coefficients)
                     break
                 except ValueError as e:
                     print(e, ", trying again...")
         else:
-            E_keV, full_path = get_column_interactive(
-                cwd,
-                "Mean energy of the peaks (in keV)",
-                output_full_file_path=True,
-            )
-            pc = get_column_interactive(
-                cwd,
-                "Peak-to-Compton ratio of the peaks (dimensionless)",
-                file_path_given=full_path,
-            )
+            print("Fitting to Compton-to-peak ratio data:")
             while True:
                 try:
-                    degree_of_fit = ask_question(
-                        "How many degree of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-2])",
-                        "012",
+                    E_keV, full_path = get_column_interactive(
+                        cwd,
+                        "Mean energy of each photopeak (in keV)",
+                        output_full_file_path=True,
                     )
-                    coefficients = fit_peak_to_Compton(
+                    pc = get_column_interactive(
+                        cwd,
+                        "Peak-to-Compton ratio of each photopeak (dimensionless)",
+                        file_path_given=full_path,
+                    )
+                    degree_of_fit = ask_question(
+                        "How many degree of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-11])",
+                        list(range(12)),
+                    )
+                    curve = ComptonToPeakRatioCurve.fit_data(
                         E_keV * keV, pc, int(degree_of_fit)
                     )
                     break
                 except Exception as e:
                     print(e, ", trying again...")
     else:
-        coefficients = get_default_peak_to_Compton_coefficients()
-    coefficients = PeakToComptonCoefficients(coefficients).save()
-    return coefficients
+        curve = default_CS_func
+    return PeakToComptonCoefficients(curve.coefficients).save()
 
 
-def stage8_load_and_save_gamma_efficiency():
+def stage7_load_and_save_gamma_efficiency():
     """Write to file the gamma-ray detector's absolute efficiency curve."""
     cwd = Path.cwd()
+    section_title("7. Save photopeak efficiency file")
     endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS.keys())
 
     def one_loop(eff_file_path):
@@ -631,7 +632,7 @@ def stage8_load_and_save_gamma_efficiency():
 
     while True:
         try:
-            default_efficiency_file = get_default_efficiency_curve_path()
+            default_efficiency_file = get_default_efficiency_curve_file()
             chosen_eff_file = input(
                 f"Please choose file from the list above (file must end in {endings});\nOr enter nothing to use the example efficiency file stored at {default_efficiency_file}:"
             )
@@ -699,8 +700,8 @@ In the current directory {}, the following .csv files are found:""".format(cwd)
     resolution_max_count_rate = stage6_load_and_save_gamma_resolution()
 
     # stage 7
-    peak_to_Compton_coefficients = stage7_load_and_save_gamma_peak_to_Compton_ratio()
+    list_dir_eff_files(cwd)
+    stage7_load_and_save_gamma_efficiency()
 
     # stage 8
-    list_dir_eff_files(cwd)
-    stage8_load_and_save_gamma_efficiency()
+    stage8_load_and_save_gamma_peak_to_Compton_ratio()
