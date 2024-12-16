@@ -93,9 +93,9 @@ class CombinationNode(object):
             adder = np.roll(
                 remover, (-1) ** (1 - right)
             )  # roll to the right if right==True, to the left if right==False.
-            assert (not adder[-1 + right]) and adder.sum() == 1, (
-                "Expected to move only one occupancy bit, withOUT wrapping around."
-            )
+            assert (
+                (not adder[-1 + right]) and adder.sum() == 1
+            ), "Expected to move only one occupancy bit, withOUT wrapping around."
             new_occupancy[adder] = True
             # this part would've been made more expandable (i.e. don't need to specify future arguments such as sorted_list) if we use the inspect module.
             # however, I suspect list(inspect.signature(self.__init__).parameters)[1:] would massively slow things down.

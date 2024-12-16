@@ -3,7 +3,9 @@ from foilselector.openmcextension.constants import (
     NATURAL_ABUNDANCE,
     atomic_mass,
 )
-from foilselector.physicalparameters.filepaths import PHYSICAL_PROP_FILE as default_physical_prop_flie
+from foilselector.physicalparameters.filepaths import (
+    PHYSICAL_PROP_FILE as default_physical_prop_flie,
+)
 import numpy as np
 import pandas as pd
 

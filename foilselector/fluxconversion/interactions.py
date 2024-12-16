@@ -76,9 +76,9 @@ def get_column_interactive(
     directory: Path,
     datatypename: str,
     *,
-    first_time_use: bool=False,
-    output_full_file_path: bool=False,
-    file_path_given: Path=None,
+    first_time_use: bool = False,
+    output_full_file_path: bool = False,
+    file_path_given: Path = None,
 ):
     """
     Ask the user for the column in a csv file within the specified {directory}, containing the {datatypename}.

@@ -171,8 +171,8 @@ def Bateman_convolved_generator(
         """.format(a)
         vector_uncollapsed = ary(
             [
-                +unpy.exp(-ary([l * np.clip(t - a, 0, None) for l in decay_constants])),
-                -unpy.exp(-ary([l * np.clip(t, 0, None) for l in decay_constants])),
+                +unpy.exp(-ary([l * np.clip(t - a, 0, None) for l in decay_constants])),  # noqa: E741
+                -unpy.exp(-ary([l * np.clip(t, 0, None) for l in decay_constants])),  # noqa: E741
             ],
             dtype=object,
         )
@@ -253,7 +253,7 @@ def Bateman_num_decays_factorized(
     except OverflowError:
         # remove the element that causes such an error from the chain, and recompute
         decay_constants_copy = decay_constants.copy()
-        for ind, l in list(enumerate(decay_constants))[::-1]:
+        for ind, l in list(enumerate(decay_constants))[::-1]:  # noqa: E741
             try:
                 ary([
                     1

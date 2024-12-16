@@ -45,18 +45,15 @@ i.e. We assume that the scenarios in e.g.4 does not occur frequently enough to a
 
 import json
 import os
-from glob import glob
 from tqdm import tqdm
 import pandas as pd
 from numpy import array as ary
 from foilselector.foldermanagement import *
 from foilselector.constants import BARN
 from foilselector.simulation.decay import summed_cnt_and_rates
-from foilselector.simulation.efficiency import EfficiencyCurve
 
 # from foilselector.optimizer import max_num_atoms_from_count_rate_limit
 from uncertainties import nominal_value as nom
-
 
 
 def main(
@@ -69,15 +66,15 @@ def main(
         ".sigma_df.csv",
         ".self-shielding.json",
     ]  # ".decay_radiation.json" isn't needed
-    assert all(os.path.exists(file) for file in expected_files), (
-        f"step1 must've been ran first at the current directory to generate the following list of files:\n{' '.join(expected_files)}"
-    )
+    assert all(
+        os.path.exists(file) for file in expected_files
+    ), f"step1 must've been ran first at the current directory to generate the following list of files:\n{' '.join(expected_files)}"
     POST_IRRADIATION = irradiation_duration
     PRE_MEASUREMENT = irradiation_duration + transit_duration
     POST_MEASUREMENT = irradiation_duration + transit_duration + measurement_duration
-    assert os.path.exists(a_priori_flux), (
-        f"the -f, --a-priori-flux argument ({a_priori_flux}) must be a valid file path!"
-    )
+    assert os.path.exists(
+        a_priori_flux
+    ), f"the -f, --a-priori-flux argument ({a_priori_flux}) must be a valid file path!"
 
     print(f"Loading {expected_files}...", end="\r")
     processed_composition = read_atomic_composition_json()
@@ -98,9 +95,9 @@ def main(
     sigma_df.drop(_trivial_rx, axis="index", inplace=True)
 
     flux = read_flux(a_priori_flux)
-    assert len(flux) == sigma_df.shape[1], (
-        "The number of bins in the a priori neutron spectrum the must match the group structure (n+1 boundaries)."
-    )
+    assert (
+        len(flux) == sigma_df.shape[1]
+    ), "The number of bins in the a priori neutron spectrum the must match the group structure (n+1 boundaries)."
     fluence = ary(flux) * irradiation_duration
     save_vector(fluence, ".fluence.txt")  # needed in step 4: optimization
     print(f"Loading {expected_files}... Done!")

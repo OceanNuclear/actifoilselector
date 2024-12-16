@@ -369,13 +369,13 @@ def draw_networkx_weighted_directed_graph(
         and the returned value is a str, or hex values.
     """
     pos = nx.get_node_attributes(graph, "pos")
-    assert len(pos) == len(graph.nodes), (
-        "All nodes must have a 'pos' attribute as given by one of the nx.drawing.layout functions!"
-    )
+    assert (
+        len(pos) == len(graph.nodes)
+    ), "All nodes must have a 'pos' attribute as given by one of the nx.drawing.layout functions!"
     weights = nx.get_edge_attributes(graph, "weight")
-    assert len(weights) == len(graph.edges), (
-        "All edeges must have a 'weight' attribute, to represent either the branching ratio (decay) or the number of reactions (neutron-induced reaction)."
-    )
+    assert (
+        len(weights) == len(graph.edges)
+    ), "All edeges must have a 'weight' attribute, to represent either the branching ratio (decay) or the number of reactions (neutron-induced reaction)."
 
     # draw the nodes, and label them.
     nx.draw_networkx_nodes(
@@ -393,7 +393,10 @@ def draw_networkx_weighted_directed_graph(
     if len(graph.edges) > 0:
         minw, maxw = min(weights.values()), max(weights.values())
         scale_factor = (maxarrow - minarrow) / (maxw - minw)
-        normalize_weights_into_widths = lambda w: minarrow + (w - minw) * scale_factor
+
+        def normalize_weights_into_widths(w):
+            return minarrow + (w - minw) * scale_factor
+
         unique_weights = set(data["weight"] for n1, n2, data in graph.edges(data=True))
         for weight in unique_weights:
             # 4 d. Form a filtered list with just the weight you want to draw

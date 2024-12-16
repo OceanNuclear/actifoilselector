@@ -50,9 +50,9 @@ def ask_for_gs(directory: Path):
             directory, "a priori spectrum's mean energy of each bin"
         )
         bin_sizes = np.diff(gs_mean)
-        assert all(bin_sizes > 0), (
-            "The a priori spectrum must be given in ascending order of energy."
-        )
+        assert all(
+            bin_sizes > 0
+        ), "The a priori spectrum must be given in ascending order of energy."
         # deal with two special cases: lin space and log space
         if all(np.isclose(np.diff(bin_sizes), 0, atol=1e-3)):  # second derivative = 0
             print("equal spacing in energy space detected")

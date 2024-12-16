@@ -29,7 +29,7 @@ from foilselector.openmcextension import unserialize_dict
 from foilselector.physicalparameters import HPGe_efficiency_curve_generator
 from foilselector.reactionnaming import unpack_reactions
 from foilselector.openmcextension.gamma import GammaSpectrum, SingleDecayGammaSignature, arrow
-from foilselector.simulation.gamma import 
+from foilselector.simulation.gamma import
 from foilselector.simulation.schedule import *
 from foilselector.simulation.decay import (
     pprint_tree,

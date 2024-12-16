@@ -36,9 +36,9 @@ def HPGe_efficiency_curve_generator(file_location=default_file_path, deg=4, cov=
         }
     """
     datapoints = pd.read_csv(file_location)
-    assert "energ" in datapoints.columns[0].lower(), (
-        "The file must contain a header. Energy (eV/MeV) has to be placed in the first column"
-    )
+    assert (
+        "energ" in datapoints.columns[0].lower()
+    ), "The file must contain a header. Energy (eV/MeV) has to be placed in the first column"
     E, eff = datapoints.values.T[:2]
     if "MeV" in datapoints.columns[0] or "MeV" in file_location:
         E = MeV * E

@@ -13,10 +13,19 @@ import numpy as np
 from uncertainties.core import Variable
 from foilselector.openmcextension.library_reader import flatten_photon_spectrum
 
+ln2 = np.log(2)
+
+
 class IsotopeDecay(
     namedtuple(
         "IsotopeDecayTuple",
-        ["names", "branching_ratios", "decay_constants", "discrete_photon_spectrum", "background_photon_spectrum"],
+        [
+            "names",
+            "branching_ratios",
+            "decay_constants",
+            "discrete_photon_spectrum",
+            "background_photon_spectrum",
+        ],
     )
 ):
     """
@@ -35,14 +44,17 @@ class IsotopeDecay(
     background_photon_spectrum: list[ContinuousRadiationDistribution]
         Continuous distribution of photon emission probability v.s. photon energies.
     """
+
     def __add__(self, daughters_decay: IsotopeDecay):
         """
         __add__ is a non-commutative operation, where the daughter's info is appended
         onto the parent chain's info, but the spectrum refers to only the daughter's
         characteristic gamma-ray spectrum released during the daughter's decay.
         """
-        assert daughters_decay.names[0] not in self.names, ("Expected the isotopes decay"
-                " graph to form a DAG (i.e. acyclic in nature)!")
+        assert daughters_decay.names[0] not in self.names, (
+            "Expected the isotopes decay"
+            " graph to form a DAG (i.e. acyclic in nature)!"
+        )
         return IsotopeDecay(
             self.names + daughters_decay.names,
             self.branching_ratios + daughters_decay.branching_ratios,
@@ -50,6 +62,7 @@ class IsotopeDecay(
             daughters_decay.discrete_photon_spectrum,
             daughters_decay.background_photon_spectrum,
         )
+
 
 class DecayInfo(dict):
     """
@@ -68,10 +81,8 @@ class DecayInfo(dict):
 
 
 def build_decay_chain_tree(
-        decay_dict: dict,
-        decay_parent: str,
-        decay_constant_threshold=1e-23
-    ) -> dict:
+    decay_dict: dict, decay_parent: str, decay_constant_threshold=1e-23
+) -> dict:
     """
     Build the entire decay chain (recursively) *AS A TREE* for a given starting isotope to decay from.
 
@@ -129,9 +140,9 @@ def build_decay_chain_tree(
                 "decay_constant": Variable(0.0, 0.0),
                 "discrete_photon_spectrum": [],
                 "background_photon_spectrum": [],
-                "daughter_and_branching_ratio": [], 
+                "daughter_and_branching_ratio": [],
             }
-    else: # decay_dict contains the specified decay_parent
+    else:  # decay_dict contains the specified decay_parent
         parent = decay_dict[decay_parent]
         discrete, background = flatten_photon_spectrum(parent["spectra"], decay_parent)
         tree = {
@@ -146,15 +157,15 @@ def build_decay_chain_tree(
             return tree
         else:
             # Recursion criteria: non-empty daughter list
-            for daughter_name, branching_ratio in decay_dict[decay_parent]["branching_ratio"].items():
-                if daughter_name != decay_parent: # prevent self-referencing
+            for daughter_name, branching_ratio in decay_dict[decay_parent][
+                "branching_ratio"
+            ].items():
+                if daughter_name != decay_parent:  # prevent self-referencing
                     tree["daughter_and_branching_ratio"].append((
                         build_decay_chain_tree(
-                            decay_dict,
-                            daughter_name,
-                            decay_constant_threshold
+                            decay_dict, daughter_name, decay_constant_threshold
                         ),
-                        branching_ratio
+                        branching_ratio,
                     ))
     return tree
 
@@ -170,18 +181,22 @@ def linearize_decay_chain(decay_tree) -> list[IsotopeDecay]:
         [decay_tree["name"]],
         # Dummy branching ratio, which gets ignored in the bateman calculation.
         # This gets overwritten when it's acting as the DAUGHTER chain in the recursion condition.
-        [Variable(1.0, 0.0)], 
+        [Variable(1.0, 0.0)],
         [decay_tree["decay_constant"]],
         decay_tree["discrete_photon_spectrum"],
         decay_tree["background_photon_spectrum"],
     )
-    output_chains = [self_decay,] # output of linearize(self)
+    output_chains = [
+        self_decay,
+    ]  # output of linearize(self)
     for daughter, branching_ratio in decay_tree["daughter_and_branching_ratio"]:
-        for subbranch in linearize_decay_chain(daughter): # recursion condition:
+        for subbranch in linearize_decay_chain(daughter):  # recursion condition:
             # stick the output of linearize(daughter) onto the end of linearize(self).
             # type(subbranch)==IsotopeDecay
             subbranch.branching_ratios[0] = branching_ratio
-            output_chains.append(self_decay + subbranch) # parent's decay + daughter's decay.
+            output_chains.append(
+                self_decay + subbranch
+            )  # parent's decay + daughter's decay.
     return output_chains
 
 

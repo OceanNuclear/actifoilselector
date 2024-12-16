@@ -134,9 +134,9 @@ def determine_next_vector_sqrt(bottom_matrix):
 def wedge_product(matrix_formed_by_row_vectors):
     """Calculates the outerproduct/(AKA wedge product) of n-1 vectors each with len =s= n"""
     shape = matrix_formed_by_row_vectors.shape
-    assert shape[1] == shape[0] + 1, (
-        f"must be a matrix of shape (n, n-1), not shape {shape}"
-    )
+    assert (
+        shape[1] == shape[0] + 1
+    ), f"must be a matrix of shape (n, n-1), not shape {shape}"
 
     product = np.zeros(shape[1])  # resultant product vector
     for i in range(shape[1]):

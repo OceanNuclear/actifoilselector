@@ -24,22 +24,9 @@ from scipy.special import perm as n_perm_k
 
 # uncertainties is a module that openmc uses. Thus the values are
 # local libraries
-from foilselector.constants import BARN, MM_CM
-from foilselector.generic import ordered_set
-from foilselector.foldermanagement import (
-                                            get_apriori_from_folder,
-                                            save_parameters_as_json,
-                                            get_parameters_json
-                                        )
-from foilselector.openmcextension.extended_io import (
-                                                        unserialize_dict,
-                                                        unserialize_pd_DataFrame
-                                                    )
-from foilselector.physicalparameters.choosematerial import get_physical_property
-from foilselector.physicalparameters.filepaths import PHYSICAL_PROP_FILE
-from foilselector.optimizer.comb_sum.comb_sum import top_n_sums_of_dict
+from foilselector.constants import BARN
 
-SATURATION_COUNT_RATE = 10000 # maximum number of gamma countable accurately per second
+SATURATION_COUNT_RATE = 10000  # maximum number of gamma countable accurately per second
 # MAX_THICKNESS = 0.1 # mm
 # MAX_THICKNESS should be determined by the thickness at which no self-shielding occurs;
 # which should in turn be determined by the max(microscopic cross-sections)
@@ -158,9 +145,9 @@ def scalar_curvature(R, S_N_inv, apriori):
 
 class ABCFoil:
     def __add__(self, foil_like):
-        assert isinstance(foil_like, (ABCFoil, FoilSet)), (
-            "Can only add Foil/FoilSet onto another Foil/FoilSet to create another FoilSet."
-        )
+        assert isinstance(
+            foil_like, (ABCFoil, FoilSet)
+        ), "Can only add Foil/FoilSet onto another Foil/FoilSet to create another FoilSet."
         return FoilSet(self, foil_like)
 
     def get_reaction_filter(self, threshold_count=COUNT_THRESHOLD):
@@ -468,7 +455,7 @@ class FoilSet:
 
         for foil_like in foils:
             self.response_per_unit_flux.append(foil_like.response_per_unit_flux)
-            self.counts.extend( list(foil_like.counts) )
+            self.counts.extend(list(foil_like.counts))
             for attr in "material_name", "thickness", "price", "area", "melting_point":
                 curr_attr = getattr(self, attr)
                 new_attr = getattr(foil_like, attr)
@@ -795,7 +782,7 @@ There are nCk solutions.
 
 # Verify that "greedy" appraoch is a reasonable? done.
 1. greedy appraoch -> greedy choice reordering
-2. relaxation of choices: branch at each foil-num increment: 
+2. relaxation of choices: branch at each foil-num increment:
     include n-1 more optimal choices
     -> generates at most n C k combos
 3. relaxation of order: using the greedy choice ordering,

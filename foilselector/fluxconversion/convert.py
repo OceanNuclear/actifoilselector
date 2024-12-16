@@ -52,9 +52,9 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
     elif in_fmt == "per keV":
         flux_per_eV = flux / keV
     else:
-        assert in_fmt == "per eV", (
-            "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (k/M)eV'"
-        )
+        assert (
+            in_fmt == "per eV"
+        ), "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (k/M)eV'"
         flux_per_eV = flux
 
     # convert from per eV back into output format
@@ -69,9 +69,9 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
         )  # reuse the same function, but via a different path.
         flux_out = flux_integrated / leth_space
     else:
-        assert out_fmt == "per eV", (
-            "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (M)eV'"
-        )
+        assert (
+            out_fmt == "per eV"
+        ), "the input format 'i' must be one of the following 4='integrated'|'PUL'(per unit lethargy)|'per (M)eV'"
         # does not allow per keV output, because that's not a standard/common method to use.
         flux_out = flux_per_eV
 

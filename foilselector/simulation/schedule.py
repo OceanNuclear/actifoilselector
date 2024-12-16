@@ -157,9 +157,9 @@ def process_one_material_schedule_text(keywords_and_params):
         keyword = keywords_and_params.pop(0)
 
         if keyword.upper() == "FLUX":
-            assert not COOLING_ONLY, (
-                "Only allowed to change flux before the ZERO keyword."
-            )
+            assert (
+                not COOLING_ONLY
+            ), "Only allowed to change flux before the ZERO keyword."
             flux = float(keywords_and_params.pop(0))
 
         elif keyword.upper() == "TIME":
@@ -179,9 +179,9 @@ def process_one_material_schedule_text(keywords_and_params):
                 time_end_kw = next_word_probably_unit.upper()
                 duration_seconds = numerical_duration * unit_conversion["SECS"]
 
-            assert time_end_kw in end_step_kw, (
-                f"Must end this irradiation step in one of the pre-approved keywords, not {time_end_kw}, {len(keywords_and_params)}"
-            )
+            assert (
+                time_end_kw in end_step_kw
+            ), f"Must end this irradiation step in one of the pre-approved keywords, not {time_end_kw}, {len(keywords_and_params)}"
             if time_end_kw.upper() in gamma_acquisition_kw:
                 steps_schedule.append(GammaSpectrometryStep(duration_seconds))
                 file_path = keywords_and_params.pop(0)
