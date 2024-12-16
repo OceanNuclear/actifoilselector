@@ -28,10 +28,11 @@
     [].response_matrices.json
     [].background_response_matrices.json
     [].effective_response_matrices.json
-    []Add the list of radiations into f"gamma_spectra/{foil_name}.json" (might need to re-jig the list saving files) as key="peaks", and don't save it as .effective_peaks.json?
+    [].gamma-resolution-count-rate-coefs.txt
+    [].gamma-Compton-to-peak-coefs.txt
+    [x]Add the list of radiations into f"gamma_spectra/{foil_name}.json" (might need to re-jig the list saving files) as key="peaks", and don't save it as .effective_peaks.json?
         - Or as a separate .csv file.
     [].effective_peaks.json
-[]Kick out unused (deprecated) functions
     - using vulture
     - foilselector.openmcextension.extended_io.load_endf_directories()
 [x]spectral_simulation.py is growing out of control. Split into multiple modules?
@@ -53,6 +54,7 @@
 ----General code maintainability/quality (generic)
 []Ruff seems to be disabled for some small things (capitalization, documentation, etc.) - find out where!
 []Tests/Unittest
+[]Kick out unused (deprecated) functions
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
 []Sphinx
 []Step4: copy of step2-3, but uses the true irradiation schedule, where each foil's irradiation times differ.
