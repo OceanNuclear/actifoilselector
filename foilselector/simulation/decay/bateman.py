@@ -291,8 +291,9 @@ def Bateman_num_decays_factorized(
                 unpy.expm1(ary(decay_constants) * (c - b)) / ary(decay_constants),
             )
             print("end of measurement term\n", unpy.exp(-ary(decay_constants) * c))
-        except:
-            print("Overflow error")
+        except Exception as e:
+            print("Likely overflow error:")
+            print(e)
     return premultiplying_factor * (multiplying_factors @ vector)
 
 
