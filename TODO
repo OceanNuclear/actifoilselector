@@ -33,7 +33,6 @@
     [x]Add the list of radiations into f"gamma_spectra/{foil_name}.json" (might need to re-jig the list saving files) as key="peaks", and don't save it as .effective_peaks.json?
         - Or as a separate .csv file.
     [].effective_peaks.json
-    - using vulture
     - foilselector.openmcextension.extended_io.load_endf_directories()
 [x]spectral_simulation.py is growing out of control. Split into multiple modules?
 []os.path -> pathlib.Path
@@ -41,6 +40,8 @@
     - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
     - efficiency (default stored as .csv file) -> stored data as various file endings -> re-load from data
     - peak-to-Compton (default stored as .csv file) -> coefficients stored in .txt file -> re-load from coefs
+[]Ruff seems to be disabled for some small things (capitalization, documentation, etc.) - find out where!
+[]Remove all of the TODO notes
 
 ----Nice-to-have physics features
 [x]Apply resolution curve blurring to the Compton Edge.
@@ -50,19 +51,19 @@
         - Works much better, but is limited to use cases where the Compton edge is located where the resolution curve is not so steep.
 []Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
 []Incorporate pair-production effects? And multiple Compton scatter effects?
+[]Remove networkx visualization.
+[]Remove step1 stage4+5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.
 
 ----General code maintainability/quality (generic)
-[]Ruff seems to be disabled for some small things (capitalization, documentation, etc.) - find out where!
+[]Open issue to add tutorial for future use
 []Tests/Unittest
-[]Kick out unused (deprecated) functions
+[]Kick out unused (deprecated) functions using vulture
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
-[]Sphinx
-[]Step4: copy of step2-3, but uses the true irradiation schedule, where each foil's irradiation times differ.
-    []Takes in the following extra arguments:
-        []--irradiation-schedule into the distribution
-            - Make a document describing the syntax of the --irradiation-schedule file
-            - location of such a sample: ~/Self/FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
-            []Separate efficiency curve for each sample included inside the file(?)
-        []--mass-file to specify the mass of each foil
+[]Sphinx Documentation
+[]Step2: copy of step2, but handles irradiation differently to more closely simulate the thing.
+    []Takes in --irradiation-schedule as an extra argument
+        []Make a document describing the syntax of the --irradiation-schedule file
+            - location of such a sample: ../FoilSelector/NewChipIR/PostHoc/irradiation_schedule.txt
+            - Separate efficiency curve for each sample included inside the file.
     []Also calculate the activity at time d, where d>c, used for health physics reasons.
     []Calculates which reactions may require self-shielding corrections
