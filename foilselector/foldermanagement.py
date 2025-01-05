@@ -229,10 +229,10 @@ def append_to_json(obj: dict, json_path: Path) -> None:
     return
 
 
-def append_to_csv(row_name: str, data: dict, *, csv_path: Path = Path("each_foil.csv")):
+def append_to_csv(row_name: str, data: dict, csv_path: Path = Path("each_foil.csv")):
     """
-    Append to a .csv file, where the user is supposed to have already known the column
-    names.
+    Append to a .csv, where the column names order are supposed to match the ordering
+    of the keys of the data dictionary.
     Create the .csv file if it doesn't already exist.
 
     Parameters
