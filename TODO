@@ -16,6 +16,7 @@
     - "Pd106-Ru103-MT=(800-819,849)"
     - use "~/Others/FoilSelector/JEFF/JEFF33-n/endf6/46-Pd-106g.jeff33" compared to another library's 46-Pd-106.
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
+[]Why is Vanadium's specificity=5 when there's only 3 reactions?
 []Write the optimization part of the step2 script
 [x]Merge peak should give a list of peaks (depending on how many is detectible) of {0<=len(output_peaks)<len(peak_group)} rather than a single peak.
 [x]Peak-to-total ratio: give a better estimate (See reference/)
@@ -56,6 +57,7 @@
 
 ----General code maintainability/quality (generic)
 []Open issue to add tutorial for future use
+[x]For some reason ruff hasn't been fully working?
 []Tests/Unittest
 []Kick out unused (deprecated) functions using vulture
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
