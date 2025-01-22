@@ -19,13 +19,13 @@ def test_accuracy():
             mock_response_matrix[i]+= mock_reaction_xs[i]
         for j in range(len(mock_reaction_xs)):
             if np.random.rand()<0.4:
-                weight = np.random.randint(1, 20)
+                weight = np.random.rand()
                 mock_response_matrix[i] += weight * mock_reaction_xs[j]
 
     mock_apriori = np.random.rand(mock_reaction_xs.shape[1])
     mock_response = mock_response_matrix @ mock_apriori
     mock_response = ary([Variable(resp, 0.01) for resp in mock_response])
-    return accuracy.reduce_matrix_vector(mock_response_matrix, mock_response)
+    assert accuracy.get_accuracy(mock_response_matrix, mock_response)==4
 
 def test_num_bases_contained():
     a = ary([1, 2, 3, 0], dtype=float)
@@ -61,16 +61,16 @@ def test_num_bases_contained():
 #     source_set, accuracy = get_theoretical_max_lines(foil_name)
 #     print(foil_name, accuracy - len(source_set))
 # PV, response_matrix = effective_foil_peaks["Ga"], effective_foil_matrices["Ga"]
-# # mock_resp = response_matrix @ apriori_fluence
+# mock_resp = response_matrix @ apriori_fluence
 # import numpy as np
 # from numpy import array as ary
 # from uncertainties.core import Variable
 # response_vector = [peak.intensity for peak in PV]
 # R = response_matrix.T[response_matrix.sum(axis=0)>0].T
-# # mock_response = [Variable(peak_counts, np.sqrt(peak_counts)) for peak_counts in mock_resp]
-# # with np.printoptions(linewidth=120, precision=4):
-# #     print(ary([response_vector, mock_response]).T)
-# # error_principle_ratio_threshold = 0.2
+# mock_response = [Variable(peak_counts, np.sqrt(peak_counts)) for peak_counts in mock_resp]
+# with np.printoptions(linewidth=120, precision=4):
+#     print(ary([response_vector, mock_response]).T)
+# error_principle_ratio_threshold = 0.2
 
 def test_precision_weight_vector():
     gs_array = ary([[1,2,3],[2,3,4]]).T

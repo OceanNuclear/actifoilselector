@@ -7,6 +7,8 @@ from foilselector.generic import SilenceNumpyDivisionError, SilenceNumpyInvalidE
 from uncertainties.core import AffineScalarFunc, Variable
 from uncertainties import nominal_value as nom, std_dev
 
+FLOAT_THRESHOLD = np.finfo(float).resolution * 10
+
 if TYPE_CHECKING:
     from foilselector.openmcextension.library_reader import DiscreteRadiation
 
@@ -120,7 +122,6 @@ def response_matrix_rank_new(
         most_effective_row_index = np.argmin(error_principle_ratios)
         most_effective_row = response_matrix[most_effective_row_index]
         most_effective_count = response_vector[most_effective_row_index]
-        print("Eliminating copies of row #", most_effective_row_index)
         for i, this_row_still_in_play in enumerate(rows_in_play):
             if this_row_still_in_play and i!=most_effective_row_index:
                 num_basis_contained = get_max_num_basis(response_matrix[i], most_effective_row)
@@ -135,9 +136,15 @@ def response_matrix_rank_new(
 def get_accuracy(
     response_matrix: np.ndarray, response_vector: np.ndarray[AffineScalarFunc]
 ) -> int:
-    return reduce_matrix_vector(response_matrix, response_vector)
-    # singular_values = np.linalg.svdvals(foil_response_matrix)
-    # accuracy = np.sum(np.tanh(singular_values/singular_values[0]))
+    """
+    Finds the accuracy score of a given set of response-matrix and response-vector.
+    """
+    reduced_matrix, reduced_vector = reduce_matrix_vector(response_matrix, response_vector)
+    accuracy_score = 0
+    for count in reduced_vector:
+        if nom(count)<FLOAT_THRESHOLD:
+            accuracy_score += 1
+    return accuracy_score
 
 def safely_get_error_principle_ratio(vector: Iterable[AffineScalarFunc]) -> Iterable[AffineScalarFunc]:
     """
@@ -276,30 +283,18 @@ def reduce_matrix_vector(matrix: np.ndarray, vector: np.ndarray[AffineScalarFunc
         The same response matrix, but *missing*.
     """
     matrix, vector = matrix.copy(), vector.copy() # don't overwrite the original.
-    inverse_vector = np.array([1/nom(v) for v in vector])
-    vector *= inverse_vector
     matrix = matrix.T[matrix.sum(axis=0)>0.0].T
-    matrix = (matrix.T/inverse_vector).T
     while True:
         row_indices_to_be_reduced = get_valid_rows_id(vector)
         for i in row_indices_to_be_reduced:
-            print(f"Attempting to reduce by row {i}")
             num_copies = num_bases_row_contained(matrix, i)
             if num_copies.sum()>0.0:
-                print(vector)
-                print(num_copies * vector[i])
                 matrix, vector = subtract_row(matrix, vector, i, num_copies)
-                break # inside while loop
         else:
             break # outside while loop
-        with np.printoptions(linewidth=120, precision=4, suppress=True):
-            print(matrix)
-        with np.printoptions(linewidth=20, suppress=True):
-            input(vector)
-        print()
     return matrix, vector
 
-def get_valid_rows_id(remaining_response_vector: np.ndarray[float], *, error_principle_ratio_threshold=0.2):
+def get_valid_rows_id(remaining_response_vector: np.ndarray[float]):
     """
     Find the indices of rows that are still valid, in ascending order of error:principle
     ratio, A.K.A. descending order of effective accuracy contribution.
@@ -318,8 +313,6 @@ def get_valid_rows_id(remaining_response_vector: np.ndarray[float], *, error_pri
         Indices of rows which still has low enough error:principle ratio.
     """
     ratios = safely_get_error_principle_ratio(remaining_response_vector)
-    # rows_still_in_play = np.where(ratios<error_principle_ratio_threshold)[0]
-    # return [row_id for row_id in np.argsort(ratios) if row_id in rows_still_in_play]
     return np.argsort(ratios)
 
 def get_all_reactions(expected_peak_list: list[DiscreteRadiation]) -> set:
