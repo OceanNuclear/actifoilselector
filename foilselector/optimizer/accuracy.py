@@ -33,7 +33,8 @@ def get_all_reactions(expected_peak_list: list[DiscreteRadiation]) -> set:
     source_set = set()
     for peak in expected_peak_list:
         for source in peak.source.split(";"):
-            source_set.add(source.split(" from")[0][:-5].strip())
+            reaction_chain = source.split(" from")[0][:-5].strip().split("->")
+            source_set.add("->".join(reaction_chain[:2]))
     return source_set
 
 
