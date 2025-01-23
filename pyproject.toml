@@ -51,27 +51,7 @@ Issues        = "https://github.com/OceanNuclear/actifoilselector/issues"
 [project.scripts]
 foilselector = "foilselector.cli:cli"
 
-# tool: ruff
 [tool.ruff]
-select = ["ALL"]
-ignore = [
-  "ANN",     # type annotations
-  "EM",      # string in error messages
-  "D205",    # description not always necessary if summary is provided.
-  "DOC502",  # Omit non-explicit exceptions from docstrings
-  "E203",    # black/ruff format conflicts
-  "FIX002",  # Line contains todo
-  "ISC001",  # ruff format conflict
-  "PLW1514", # Specify file open encoding
-  "EXE",     # shebang not needed at the beginning of file.
-  "ERA",  # remove commented out code
-  # The following are no longer ignored:
-  # "COM812",  # enforce trailing comma, disagrees with black/ruff format
-  # "TD",  # standardise TODOs
-  # "PTH123",  # use Path.open
-  # "TRY003",  # put error messages in error class
-  # "SLF001",  # private method use
-]
 target-version = "py310"
 line-length = 89
 output-format = "concise"
@@ -87,14 +67,45 @@ exclude = [
 [tool.ruff.format]
 preview = true
 
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+ignore = [
+  "ANN",    # type annotations
+  "CPY",    # we don't need a copyright info.
+  "EM",     # string in error messages
+  "D205",   # description not always necessary if summary is provided.
+  "DOC502", # Omit non-explicit exceptions from docstrings
+  "E203",   # black/ruff format conflicts
+  "FIX002", # Line contains todo
+  "ISC001", # ruff format conflict
+  "PLW1514",# Specify file open encoding
+  "EXE",    # shebang not needed at the beginning of file.
+  "ERA",    # remove commented out code
+  "N80",   # Allow uppercase variables because physics variables.
+  # The following are no longer ignored:
+  # "COM812",  # enforce trailing comma, disagrees with black/ruff format
+  # "TD",  # standardise TODOs
+  # "PTH123",  # use Path.open
+  "TRY003",  # put error messages in error class
+  # "SLF001",  # private method use
+  "T201",   # Allow print statements for now. May be changed to a log file later.
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["foilselector"]
+case-sensitive = true
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 89
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 "__init__.py" = ["F401", "F403"]
-
