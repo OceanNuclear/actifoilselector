@@ -86,7 +86,9 @@ def get_apriori(directory: Path, irradiation_duration: float | None = None):
         join(directory, ".integrated_apriori.csv"),
     ), "Output directory must already have integrated_apriori.csv for calculating the radionuclide populations."
     print(
-        f"Reading integrated_apriori.csv as the fluence, i.e. total number of neutrons/cm^2/eV/s, averaged over the IRRADIATION_DURATION = {irradiation_duration} s\n",
+        "Reading integrated_apriori.csv as the fluence, i.e. "
+        "total number of neutrons/cm^2/eV/s, "
+        f"averaged over the IRRADIATION_DURATION = {irradiation_duration} s\n",
     )
     apriori_flux = pd.read_csv(
         join(directory, ".integrated_apriori.csv"),
