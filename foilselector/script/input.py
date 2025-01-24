@@ -58,7 +58,7 @@ from foilselector.simulation.efficiency import (
     list_dir_eff_files,
     EfficiencyCurve,
     APPROVED_EFFICIENCY_FILE_EXTENSIONS,
-    get_default_efficiency_curve_file,
+    get_default_efficiency_curve_path,
 )
 from foilselector.simulation.resolution import (
     resolution_curve_factory,
@@ -632,7 +632,7 @@ def stage7_load_and_save_gamma_efficiency():
 
     while True:
         try:
-            default_efficiency_file = get_default_efficiency_curve_file()
+            default_efficiency_file = EfficiencyCurve.from_file(get_default_efficiency_curve_path())
             chosen_eff_file = input(
                 f"Please choose file from the list above (file must end in {endings});\nOr enter nothing to use the example efficiency file stored at {default_efficiency_file}:"
             )

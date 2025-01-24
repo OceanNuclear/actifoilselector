@@ -109,3 +109,4 @@ convention = "numpy"
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 "__init__.py" = ["F401", "F403"]
+"foilselector/foldermanagement.py" = ["D103"]
