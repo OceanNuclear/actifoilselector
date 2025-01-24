@@ -26,48 +26,48 @@ Files saved
     more details.
 """
 
+import shutil
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 from numpy import array as ary
 from numpy import typing as npt
-import pandas as pd
 from openmc.data import Tabulated1D
-from matplotlib import pyplot as plt
-from pathlib import Path
-import shutil
-from os.path import basename
 
+from foilselector.constants import MeV, keV
 from foilselector.fluxconversion import (
-    ask_question,
-    get_column_interactive,
-    ask_yn_question,
-    list_dir_csv,
     ask_for_gs,
+    ask_question,
+    ask_yn_question,
     flux_conversion,
-    scale_to_eV_interactive,
+    get_column_interactive,
     histogramic,
+    list_dir_csv,
+    scale_to_eV_interactive,
 )
 from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
 from foilselector.foldermanagement import (
-    ResolutionMaxCountRate,
     PeakToComptonCoefficients,
+    ResolutionMaxCountRate,
 )
-from foilselector.generic import minmax, SilenceNumpyDivisionError
-from foilselector.constants import MeV, keV
+from foilselector.generic import SilenceNumpyDivisionError, minmax
 from foilselector.openmcextension import Integral, detabulate
+from foilselector.simulation.compton import (
+    ComptonToPeakRatioCurve,
+    get_default_peak_to_Compton_file,
+)
 from foilselector.simulation.efficiency import (
-    list_dir_eff_files,
-    EfficiencyCurve,
     APPROVED_EFFICIENCY_FILE_EXTENSIONS,
+    EfficiencyCurve,
     get_default_efficiency_curve_path,
+    list_dir_eff_files,
 )
 from foilselector.simulation.resolution import (
-    resolution_curve_factory,
-    get_default_resolution_coefficients,
     fit_fwhms,
-)
-from foilselector.simulation.compton import (
-    get_default_peak_to_Compton_file,
-    ComptonToPeakRatioCurve,
+    get_default_resolution_coefficients,
+    resolution_curve_factory,
 )
 
 
@@ -78,30 +78,86 @@ def section_title(title: str):
     print(title + "-" * pad_length)
 
 
-def stage1_read_raw_ap_gs():
-    """Read the apriori value"""
+def stage1_read_raw_ap_gs() -> tuple[np.ndarray, str, str]:
+    """Read the apriori value.
+
+    Returns
+    -------
+    apriori:
+        raw a priori spectrum, before unit conversion.
+    in_unit:
+        unit for each data point on the raw a priori spectrum.
+    group_or_point:
+        string of either "group-wise" or "point-wise".
+    """
     section_title("1.1 Reading the a priori values.")
     apriori = get_column_interactive(
         Path.cwd(),
         "a priori spectrum's values (ignoring the uncertainty)",
         first_time_use=True,
     )
-    fmt_question = "What format was the a priori provided in?('per eV', 'per keV', 'per MeV', 'PUL', 'integrated')"
+    fmt_question = (
+        "What format was the a priori provided in?"
+        "('per eV', 'per keV', 'per MeV', 'PUL', 'integrated')"
+    )
     in_unit = ask_question(
-        fmt_question, ["PUL", "per MeV", "per keV", "per eV", "integrated"]
+        fmt_question,
+        ["PUL", "per MeV", "per keV", "per eV", "integrated"],
     )
 
     section_title("1.2 Conversion into continuous format.")
-    group_or_point_question = "Is this a priori spectrum given in 'group-wise' (fluxes inside discrete bins) or 'point-wise' (continuous function requiring interpolation) format?"
+    group_or_point_question = (
+        "Is this a priori spectrum given in 'group-wise' "
+        "(fluxes inside discrete bins) or 'point-wise' (continuous function requiring "
+        "interpolation) format?"
+    )
     group_or_point = ask_question(group_or_point_question, ["group-wise", "point-wise"])
 
     return apriori, in_unit, group_or_point
 
 
 def stage2_interpret_ap_energy(
-    apriori: npt.NDArray, in_unit: str, *, group_or_point: str
-):
-    """Put apriori into the right group-structure"""
+    apriori: npt.NDArray,
+    in_unit: str,
+    *,
+    group_or_point: str,
+) -> tuple[
+    np.ndarray[float],
+    np.ndarray[float],
+    Tabulated1D,
+    int,
+]:
+    """Put apriori into the right group-structure, by asking the user to find the file
+    with the desired group structure.
+
+    Parameters
+    ----------
+    apriori:
+        The raw a priori spectrum outputted by :func:`~stage1_read_raw_ap_gs`.
+    in_unit:
+        The unit of the raw a priori spectrum as outputted by
+        :func:`~stage1_read_raw_ap_gs`.
+    group_or_point:
+        str of either "group-wise" or "point-wise" as outputted by
+        :func:`~stage1_read_raw_ap_gs`.
+
+    Returns
+    -------
+    E_values:
+        Flattend group structure, containing n+1 energy boundary values for the n bins.
+        Sorted in ascending energies.
+    apriori:
+        The a priori, after being re-binned into the desired group structure.
+        Each float in the array represents the integrated flux in that bin.
+    continuous_apriori:
+        The a priori represented as a continuous function.
+    apriori_gs:
+        Group structure, with shape (n, 2) listing the lower and upper bound of each of
+        the n bins.
+    scheme:
+        integer representing which interpolation scheme does the continuous_apriori
+        follow.
+    """
     section_title("2. Reading the energy values associated with the a priori.")
     cwd = Path.cwd()
     if group_or_point == "group-wise":
@@ -113,7 +169,8 @@ def stage2_interpret_ap_energy(
 
     elif group_or_point == "point-wise":
         E_values = get_column_interactive(
-            cwd, "energy paired to each data point of the a priori"
+            cwd,
+            "energy paired to each data point of the a priori",
         )
         E_values = scale_to_eV_interactive(E_values)
         # convert to per eV format
@@ -127,7 +184,7 @@ def stage2_interpret_ap_energy(
             pass  # nothing needs to change
         elif in_unit == "integrated":
             raise NotImplementedError(
-                "Point-wise (continuous) data should never be an integrated flux!"
+                "Point-wise (continuous) data should never be an integrated flux!",
             )
 
         print(
@@ -137,9 +194,10 @@ def stage2_interpret_ap_energy(
         )
         scheme = int(
             ask_question(
-                "What scheme should be used to interpolate between the two points? (type the index)",
-                [str(i) for i in INTERPOLATION_SCHEME.keys()],
-            )
+                "What scheme should be used to interpolate between the two points? "
+                "(type the index)",
+                [str(i) for i in INTERPOLATION_SCHEME],
+            ),
         )
 
         if scheme == histogramic:
@@ -165,13 +223,17 @@ def calculate_x_points(E_values):
     """
     Calculate the optimal list of points to be sampled to fully capture a histogramic
     function represented by a Tabulated1D file.
+
+    Returns
+    -------
+    x:
+        a list of energy values useful for sampling and plotting the a priori at.
     """
     x = np.linspace(E_values[:-1], E_values[1:], 4, endpoint=True).T
     span = ary(E_values[1:]) - ary(E_values[:-1])
     x[:, -1] -= span * 0.0001
     x = x.flatten()
-    x = np.hstack([x, E_values[-1]])
-    return x
+    return np.hstack([x, E_values[-1]])
 
 
 def stage2_plot_apriori(
@@ -190,7 +252,8 @@ def stage2_plot_apriori(
         plt.ylabel("neutron flux per unit energy (cm^-2 s^-1 eV^-1)"),
     )
     plt.show()
-    # and then the same thing, but in in log-log scale, because on some computers the matplotlib plot function doesn't show a button to see log-scale and it works
+    # and then the same thing, but in in log-log scale, because on some computers the
+    # matplotlib plot function doesn't show a button to see log-scale and it works
     plt.loglog(x, continuous_apriori(x))
     (
         plt.xlabel("Neutron energy (eV)"),
@@ -276,7 +339,8 @@ def stage4_add_uncertainty(
     """Add an uncertainty quantification to the a priori."""
     section_title("4. [optional] adding an uncertainty to the a priori.")
     if ask_yn_question(
-        "Does the a priori spectrum comes with an associated error (y-error bars) on itself?"
+        "Does the a priori spectrum comes with an associated error (y-error bars) on "
+        "itself?",
     ):
         error_series = get_column_interactive(
             Path.cwd(),
@@ -317,6 +381,7 @@ def stage4_add_uncertainty(
         plt.loglog(x, continuous_apriori(x), color="orange")
         plt.show()
         return continuous_apriori_lower, continuous_apriori_upper
+    return None
 
 
 def stage5_load_group_structure(
@@ -327,42 +392,51 @@ def stage5_load_group_structure(
     """Choose a different group structure than what the a priori used."""
     section_title("5. [optional] Load in new group structure.")
     if ask_yn_question(
-        "Should a different group structure than the apriori_gs (entered above) be used?"
+        "Should a different group structure than the apriori_gs (entered above) be used?",
     ):  # same gs as the a priori
         gs_source = ask_question(
-            "Would you like to read the gs_bounds 'from file' or manually create an 'evenly spaced' group structure?",
+            "Would you like to read the gs_bounds 'from file' or manually create an "
+            "'evenly spaced' group structure?",
             ["from file", "evenly spaced"],
         )
         if gs_source == "evenly spaced":
             print(
-                "Using the naïve approach of dividing the energy/lethargy axis into equally spaced bins."
+                "Using the naïve approach of dividing the energy/lethargy axis into "
+                "equally spaced bins.",
             )
             print(
-                "For reference, the current minimum and maximum of the a priori spectrum are",
+                "For reference, the current minimum and maximum of the a priori "
+                "spectrum are",
                 *minmax(continuous_apriori.x),
             )
             while True:
                 try:
                     E_min = float(
                         ask_question(
-                            "What is the desired minimum energy for the group structure used?",
+                            "What is the desired minimum energy for the group structure "
+                            "used?",
                             [],
                             check=False,
-                        )
+                        ),
                     )
                     E_max = float(
                         ask_question(
-                            "What is the desired maximum energy for the group structure used?",
+                            "What is the desired maximum energy for the group structure "
+                            "used?",
                             [],
                             check=False,
-                        )
+                        ),
                     )
-                    spacing_prompt = "Would you like to perform a 'log-space'(equal spacing in energy space) or 'lin-space'(equal spacing in lethargy space) interpolation between these two limits?"
+                    spacing_prompt = "Would you like to perform a 'log-space'(equal "
+                    "spacing in energy space) or 'lin-space'(equal spacing in lethargy "
+                    "space) interpolation between these two limits?"
                     E_interp = ask_question(spacing_prompt, ["log-space", "lin-space"])
                     E_num = int(
                         ask_question(
-                            "How many bins would you like to have?", [], check=False
-                        )
+                            "How many bins would you like to have?",
+                            [],
+                            check=False,
+                        ),
                     )
                     break
                 except ValueError as e:
@@ -379,7 +453,7 @@ def stage5_load_group_structure(
         gs_array = apriori_gs
 
     # plot the histogramic version of it once
-    fig, ax = plt.subplots()
+    _fig, ax = plt.subplots()
     ax.set_xlabel("E(eV)")
     ax.set_ylabel("flux(per eV)")
     x = calculate_x_points(E_values)
@@ -405,6 +479,7 @@ def stage5_save_apriori_files(
     continuous_apriori,
     error_present: tuple[Tabulated1D, Tabulated1D] | None,
 ):
+    """Save the a priori as a file to be used in the next step."""
     gs_df = pd.DataFrame(gs_array, columns=["min", "max"])
     gs_df.to_csv(".gs.csv", index=False)
 
@@ -417,33 +492,41 @@ def stage5_save_apriori_files(
             - Integral(continuous_apriori_lower).definite_integral(*gs_array.T)
         ) / 2
         print(
-            "An (inaccurate) estimate of the error is provided as well. If a different group structure than the input file's group structure is used, then this error likely overestimated (by a factor of ~ sqrt(2)) as it does not obey the rules of error propagation properly."
+            "An (inaccurate) estimate of the error is provided as well. If a different "
+            "group structure than the input file's group structure is used, then this "
+            "error likely overestimated (by a factor of ~ sqrt(2)) as it does not obey "
+            "the rules of error propagation properly.",
         )
         apriori_vector_df = pd.DataFrame(
-            ary([integrated_flux, uncertainty]).T, columns=["value", "uncertainty"]
+            ary([integrated_flux, uncertainty]).T,
+            columns=["value", "uncertainty"],
         )
     else:
         apriori_vector_df = pd.DataFrame(integrated_flux, columns=["value"])
 
     apriori_vector_df.to_csv(".integrated_apriori.csv", index=False)
 
-    # save the continuous a priori distribution (an openmc.data.Tabulated1D object) as a csv, by specifying the interpolation scheme as well.
+    # save the continuous a priori distribution (an openmc.data.Tabulated1D object) as a
+    # csv, by specifying the interpolation scheme as well.
     detabulated_apriori = detabulate(continuous_apriori)
     detabulated_apriori["interpolation"].append(
-        0
-    )  # 0 is a placeholder, it doesn't correspond to any interpolation scheme, but is an integer so that pandas wouldn't treat it differently; unlike using None, which would force the entire column to become floats.
+        0,
+    )  # 0 is a placeholder, it doesn't correspond to any interpolation scheme, but is an
+    # integer so that pandas wouldn't treat it differently; unlike using None, which
+    # would force the entire column to become floats.
     detabulated_apriori_df = pd.DataFrame(detabulated_apriori)
     detabulated_apriori_df["interpolation"] = detabulated_apriori_df[
         "interpolation"
     ].astype(int)
     detabulated_apriori_df.to_csv(
-        ".continuous_apriori.csv", index=False
+        ".continuous_apriori.csv",
+        index=False,
     )  # x already acts pretty well as the index.
     print(
         """Preprocessing completed. The outputs are saved to:
 group structure                                         => .gs.csv,
 apriori flux                                            => .integrated_apriori.csv,
-continuous apriori (an openmc.data.Tabulated1D object)  => .continuous_apriori.csv"""
+continuous apriori (an openmc.data.Tabulated1D object)  => .continuous_apriori.csv""",
     )
 
 
@@ -466,15 +549,19 @@ def stage6_load_and_save_gamma_resolution():
     )
     print(f"Default resolution is\n{fwhm_examples}.")
     if ask_yn_question(
-        "Would you like to provide your own resolution curve instead of using the default resolutions? (no = use default)"
+        "Would you like to provide your own resolution curve instead of using the "
+        "default resolutions? (no = use default)",
     ):
         if ask_yn_question(
-            "Do you have the coefficients in the resolution curve R(E) = √(x_0 + x_1*E + x_2*E^2 + ...) (where E and R(E) have unit eV)? (y/n)"
+            "Do you have the coefficients in the resolution curve "
+            "R(E) = √(x_0 + x_1*E + x_2*E^2 + ...) (where E and R(E) have unit eV)? "
+            "(y/n)",
         ):
             while True:
                 try:
                     coef_str = input(
-                        "Please enter the list of coefficients, separated by comma, in increasing degree of the coefficients: "
+                        "Please enter the list of coefficients, separated by comma, in "
+                        "increasing degree of the coefficients: ",
                     )
                     coefficients = ary([float(c) for c in coef_str.split(",")])
                     break
@@ -495,14 +582,18 @@ def stage6_load_and_save_gamma_resolution():
                         file_path_given=full_path,
                     )
                     degree_of_fit = ask_question(
-                        "How many degrees of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-3])",
+                        "How many degrees of coefficient shall be fitted (i.e. how "
+                        "precise should the fitting polynomial be)? (Please enter "
+                        "number between [0-3])",
                         "0123",
                     )
                     coefficients = fit_fwhms(
-                        E_keV * keV, fwhm_keV * keV, int(degree_of_fit)
+                        E_keV * keV,
+                        fwhm_keV * keV,
+                        int(degree_of_fit),
                     )
                     break
-                except Exception as e:
+                except ValueError as e:
                     print(e, ", trying again...")
     else:
         coefficients = get_default_resolution_coefficients()
@@ -511,13 +602,15 @@ def stage6_load_and_save_gamma_resolution():
         try:
             max_count_rate = float(
                 input(
-                    "What is the maximum count rate (pulse/s) that the gamma-ray detector can be operated at without degrading this resolution?"
-                )
+                    "What is the maximum count rate (pulse/s) that the gamma-ray "
+                    "detector can be operated at without degrading this resolution?",
+                ),
             )
             break
         except ValueError as e:
             print(
-                e, ". Please enter the numeric value of the max. count rate in pulse/s."
+                e,
+                ". Please enter the numeric value of the max. count rate in pulse/s.",
             )
     return ResolutionMaxCountRate(coefficients, max_count_rate).save()
 
@@ -534,7 +627,7 @@ def stage8_load_and_save_gamma_peak_to_Compton_ratio():
     cwd = Path.cwd()
     section_title("8. Save gamma-ray detector Compton-to-photopeak ratio")
     default_CS_func = ComptonToPeakRatioCurve.from_file(
-        get_default_peak_to_Compton_file()
+        get_default_peak_to_Compton_file(),
     )
     cs_ratio_examples = ";\n".join(
         f"Compton : peak ratio = {default_CS_func(peak * keV)} keV at E={peak} keV"
@@ -542,15 +635,19 @@ def stage8_load_and_save_gamma_peak_to_Compton_ratio():
     )
     print(f"Default Compton-to-peak ratio is\n{cs_ratio_examples}.")
     if ask_yn_question(
-        "Would you like to provide your own Compton-to-peak curve instead of using the default Compton-to-photopeak ratios? (no = use default)"
+        "Would you like to provide your own Compton-to-peak curve instead of using the "
+        "default Compton-to-photopeak ratios? (no = use default)",
     ):
         if ask_yn_question(
-            "Do you have the coefficients for the Compton-to-peak ratios log(Compton-to-Peak(E)) = x_0 + x_1*log(E) + x_2*log(E)^2 + ... (where E has unit eV)? (y/n)"
+            "Do you have the coefficients for the Compton-to-peak ratios "
+            "log(Compton-to-Peak(E)) = x_0 + x_1*log(E) + x_2*log(E)^2 + ... "
+            "(where E has unit eV)? (y/n)",
         ):
             while True:
                 try:
                     coef_str = input(
-                        "Please enter the list of coefficients, separated by comma, in increasing degree of the coefficients: "
+                        "Please enter the list of coefficients, separated by comma, in "
+                        "increasing degree of the coefficients: ",
                     )
                     coefficients = ary([float(c) for c in coef_str.split(",")])
                     curve = ComptonToPeakRatioCurve(coefficients)
@@ -572,14 +669,18 @@ def stage8_load_and_save_gamma_peak_to_Compton_ratio():
                         file_path_given=full_path,
                     )
                     degree_of_fit = ask_question(
-                        "How many degree of coefficient shall be fitted (i.e. how precise should the fitting polynomial be)? (Please enter number between [0-11])",
+                        "How many degree of coefficient shall be fitted (i.e. how "
+                        "precise should the fitting polynomial be)? (Please enter a "
+                        "number between [0-11] inclusive.)",
                         list(range(12)),
                     )
                     curve = ComptonToPeakRatioCurve.fit_data(
-                        E_keV * keV, pc, int(degree_of_fit)
+                        E_keV * keV,
+                        pc,
+                        int(degree_of_fit),
                     )
                     break
-                except Exception as e:
+                except ValueError as e:
                     print(e, ", trying again...")
     else:
         curve = default_CS_func
@@ -590,13 +691,14 @@ def stage7_load_and_save_gamma_efficiency():
     """Write to file the gamma-ray detector's absolute efficiency curve."""
     cwd = Path.cwd()
     section_title("7. Save photopeak efficiency file")
-    endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS.keys())
+    endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS)
 
     def one_loop(eff_file_path):
-        """A single iteration of opening an efficiency file and plotting it."""
-        with open(eff_file_path) as f:
-            print(f"Opened {basename(eff_file_path)}, which has `head` = ")
-            for i in range(3):
+        """A single iteration of opening an efficiency file and plotting it."""  # noqa: D401
+        eff_file_path = Path(eff_file_path)
+        with eff_file_path.open() as f:
+            print(f"Opened {eff_file_path.name}, which has `head` = ")
+            for _ in range(3):
                 print(f.readline()[:-1])
         print("...")
 
@@ -615,7 +717,9 @@ def stage7_load_and_save_gamma_efficiency():
         else:
             plt.scatter(E, eff, label="efficiency data-points")
         x = np.geomspace(
-            np.min(E), max([np.max(E), 2000]), 300
+            np.min(E),
+            max([np.max(E), 2000]),
+            300,
         )  # from the lowest E point to 2000 keV.
         plt.semilogy(
             x,
@@ -632,44 +736,49 @@ def stage7_load_and_save_gamma_efficiency():
 
     while True:
         try:
-            default_efficiency_file = EfficiencyCurve.from_file(get_default_efficiency_curve_path())
-            chosen_eff_file = input(
-                f"Please choose file from the list above (file must end in {endings});\nOr enter nothing to use the example efficiency file stored at {default_efficiency_file}:"
+            default_efficiency_file = EfficiencyCurve.from_file(
+                get_default_efficiency_curve_path(),
             )
-            if chosen_eff_file == "":
+            chosen_eff_file = input(
+                f"Please choose file from the list above (file must end in {endings});"
+                "\nOr enter nothing to use the example efficiency file stored at "
+                f"{default_efficiency_file}:",
+            )
+            if not chosen_eff_file:
                 chosen_eff_file = default_efficiency_file
             eff_curve = one_loop(chosen_eff_file)
             if ask_yn_question("Is this curve satisfactory?"):
                 shutil.copyfile(
-                    chosen_eff_file, ".efficiency" + Path(chosen_eff_file).suffix
+                    chosen_eff_file,
+                    ".efficiency" + Path(chosen_eff_file).suffix,
                 )
                 break
-            else:
-                print(
-                    "Add/change datapoints/ use a different data file, and try again..."
-                )
+            print(
+                "Add/change datapoints/ use a different data file, and try again...",
+            )
         except FileNotFoundError as e:
             print(
                 e,
                 f", please confirm that file name is correct and exists in {cwd}. "
                 "Trying again...",
             )
-        except Exception as e:
+        except ValueError as e:
             print(e, ", Perhaps not enough data points were given? Trying again...")
 
     return eff_curve
 
 
 def main():
+    """Main script of step1:input."""  # noqa: D401
     cwd = Path.cwd()
     print(
-        """
+        f"""
 The following inputs are needed:
 1. The a priori spectrum, and the energies at which those measurements are taken.
 2. The group structure to be used in the investigation that follows.
 
 The relevant data will be retrieved from the following csv files.
-In the current directory {}, the following .csv files are found:""".format(cwd)
+In the current directory {cwd}, the following .csv files are found:""",
     )
 
     list_dir_csv(cwd)
@@ -689,7 +798,11 @@ In the current directory {}, the following .csv files are found:""".format(cwd)
 
     # stage 4
     error_present = stage4_add_uncertainty(
-        apriori, continuous_apriori, orig_apriori_raw_values, scheme, E_values
+        apriori,
+        continuous_apriori,
+        orig_apriori_raw_values,
+        scheme,
+        E_values,
     )
 
     # stage 5
@@ -697,7 +810,7 @@ In the current directory {}, the following .csv files are found:""".format(cwd)
     stage5_save_apriori_files(gs_array, continuous_apriori, error_present)
 
     # stage 6
-    resolution_max_count_rate = stage6_load_and_save_gamma_resolution()
+    _resolution_max_count_rate = stage6_load_and_save_gamma_resolution()
 
     # stage 7
     list_dir_eff_files(cwd)
