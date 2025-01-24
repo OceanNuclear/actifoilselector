@@ -31,8 +31,8 @@
     [].response_matrices.json
     [].background_response_matrices.json
     [].effective_response_matrices.json
-    [].gamma-resolution-count-rate-coefs.txt
-    [].gamma-Compton-to-peak-coefs.txt
+    [x].gamma-resolution-count-rate-coefs.txt
+    [x].gamma-Compton-to-peak-coefs.txt
     [x]Add the list of radiations into f"gamma_spectra/{foil_name}.json" (might need to re-jig the list saving files) as key="peaks", and don't save it as .effective_peaks.json?
         - Or as a separate .csv file.
     [].effective_peaks.json
