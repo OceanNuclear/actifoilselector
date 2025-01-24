@@ -1,5 +1,9 @@
+"""
+Constants for converting to and from cgs units.
+cgs (centimeter, grams, second) is used throughout the entire foilselector package.
+"""
+
 import math
-# we use cgs throughout the entire module.
 
 # convert values in MeV/keV to eV
 MeV = 1e6

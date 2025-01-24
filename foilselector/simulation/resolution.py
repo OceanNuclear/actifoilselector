@@ -8,19 +8,21 @@ Compton continuum:mean energy of the peak as a function of energy of the peak, e
 as
 """
 
-import numpy as np
 from collections.abc import Callable, Iterable
 
+import numpy as np
+
 __all__ = [
-    "get_default_resolution_coefficients",
     "fit_fwhms",
+    "get_default_resolution_coefficients",
     "resolution_curve_factory",
 ]
 
 
 def get_default_resolution_coefficients():
     """
-    Placeholder values.
+    Give a set of default resolution coefficient values.
+
     This specific set of values is obtained by fitting
     01_Cu_001.Spe from
     https://github.com/OceanNuclear/PeakFinding/commit/a386d484420d8efd2f5b3132f17fa5a66cc9988c
@@ -28,14 +30,17 @@ def get_default_resolution_coefficients():
     https://github.com/OceanNuclear/PeakFinding/commit/dd17a8d9cbbb80ce62f3bd10f4a24c5c6594b217
     .
     """
-    return np.array([5.212873549440453 * 1e5, 2.4969943490051713])
+    return np.array([5.212873549440453 * 1e5, 2.4969943490051713])  # noqa: DOC201
 
 
 def fit_fwhms(
-    E: np.ndarray[float], fwhm: np.ndarray[float], degree_of_fit: int = 2
+    E: np.ndarray[float],
+    fwhm: np.ndarray[float],
+    degree_of_fit: int = 2,
 ) -> np.ndarray[float]:
     """
     Fit the FWHM curve R(E) = √(x_0 + x_1 * E + x_2 * E^2 + ...) where E has units eV.
+
     Parameters
     ----------
     E:
@@ -59,9 +64,10 @@ def resolution_curve_factory(
     Parameters
     ----------
     coefficients:
-        an iterable of coefficients in ascending degrees.
+        An iterable of coefficients in ascending degrees.
     min_fwhm:
-        The, minimum resolution of the gamma-ray detector. It is not allowed to have resolution better than this.
+        The resolution of the gamma-ray detector is bounded below by this limit[eV].
+        The FWHM (at low E) is clamped to above this limit.
 
     Returns
     -------
@@ -70,9 +76,10 @@ def resolution_curve_factory(
         returned FWHM will never be smaller than min_fwhm.
     """
     raw_curve = np.poly1d(coefficients[::-1])
+    min_fwhm_squared = min_fwhm**2
 
     def resolution_curve(E: float | np.ndarray) -> float | np.ndarray:
-        """A function that clamps the resolution output from below."""
-        return np.clip(raw_curve(E), min_fwhm, np.inf)
+        """Clamp the resolution output from below, and transform it by taking sqrt."""
+        return np.clip(raw_curve(E), min_fwhm_squared, np.inf) ** 0.5  # noqa: DOC201
 
     return resolution_curve
