@@ -243,7 +243,7 @@ class PeakToComptonCoefficients:
 
 
 def find_efficiency_file():
-    return Path(Path.cwd()).glob(".efficiency.*")[0]
+    return next(Path(Path.cwd()).glob(".efficiency.*"))
 
 
 # def get_gs_and_flux(file_path, directory="."):
