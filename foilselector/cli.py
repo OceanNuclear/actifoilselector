@@ -91,7 +91,7 @@ def step1():
     ),
     nargs=3,
 )
-def step2(  # noqa: PLR0913, PLR0917
+def step2(
     composition,
     library,
     irradiation_duration,
