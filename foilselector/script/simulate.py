@@ -19,72 +19,74 @@ A nuance that I have to clear up: if a(n advaned) user _knows_ that there's a sp
 """
 
 import json
-from pathlib import Path
-from typing import TYPE_CHECKING
 from collections import defaultdict
-from tqdm import tqdm
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy import array as ary
-import matplotlib.pyplot as plt
+from tqdm import tqdm
 from uncertainties import nominal_value as nom
 
-from foilselector.reactionnaming import (
-    specify_isotopic_composition,
-    commonname_to_atnum_massnum,
-)
-from foilselector.generic import sorted_dict
+from foilselector.constants import BARN, keV
 from foilselector.foldermanagement import (
+    PeakToComptonCoefficients,
+    ResolutionMaxCountRate,
     append_to_csv,
     append_to_json,
+    find_efficiency_file,
     get_apriori,
     read_gs,
-    find_efficiency_file,
-    ResolutionMaxCountRate,
-    PeakToComptonCoefficients,
     save_atomic_composition_json,
 )
+from foilselector.generic import sorted_dict
 from foilselector.openmcextension.extended_io import (
-    sparsely_load_xs_and_decay_dict,
+    reactions_matching,
     serialize_radiation_dict,
     serialize_radiation_list,
-    reactions_matching,
+    sparsely_load_xs_and_decay_dict,
 )
 from foilselector.openmcextension.library_reader import (
-    DiscreteRadiation,
     ContinuousRadiationDistribution,
+    DiscreteRadiation,
     collapse_single_xs,
 )
-from foilselector.constants import BARN, keV
-from foilselector.simulation.spectral_simulation import (
-    merge_peaks,
-    delete_peaks,
-    fold_background,
-    simulate_peaks_with_uncertainties,
-    corresponding_background_level,
-    integrate_peak_area,
-    discoverable,
-    simulate_full_spectrum,
-    plot_spectrum,
-)
-from foilselector.simulation.resolution import resolution_curve_factory
-from foilselector.simulation.efficiency import EfficiencyCurve
-from foilselector.simulation.compton import ComptonToPeakRatioCurve
-from foilselector.simulation.decay.bateman import mat_exp_num_decays
-from foilselector.simulation.decay import linearize_decay_chain, build_decay_chain_tree
+from foilselector.optimizer.accuracy import get_accuracy_upper_bound
 from foilselector.optimizer.choose_mass import (
+    choose_num_reactant_in_foil,
     mass_from_num_atoms,
     max_num_counts,
-    choose_num_reactant_in_foil,
 )
-from foilselector.optimizer.precision import get_precision_weight_vector, get_precision
-from foilselector.optimizer.accuracy import get_accuracy
-
-if TYPE_CHECKING:
-    pass
+from foilselector.optimizer.precision import (
+    get_precision,
+    get_precision_unit,
+    get_precision_weight_vector,
+)
+from foilselector.reactionnaming import (
+    commonname_to_atnum_massnum,
+    specify_isotopic_composition,
+)
+from foilselector.simulation.compton import ComptonToPeakRatioCurve
+from foilselector.simulation.decay import build_decay_chain_tree, linearize_decay_chain
+from foilselector.simulation.decay.bateman import mat_exp_num_decays
+from foilselector.simulation.efficiency import EfficiencyCurve
+from foilselector.simulation.resolution import resolution_curve_factory
+from foilselector.simulation.spectral_simulation import (
+    corresponding_background_level,
+    delete_peaks,
+    discoverable,
+    fold_background,
+    integrate_peak_area,
+    merge_peaks,
+    plot_spectrum,
+    simulate_full_spectrum,
+    simulate_peaks_with_uncertainties,
+)
 
 
 def load_relevant_xs_and_decay_info(
-    composition_dict: dict, libraries: list[Path]
+    composition_dict: dict,
+    libraries: list[Path],
 ) -> tuple[dict, dict]:
     """
     Open the libraries, load in only the relevant cross-sections and decay data.
@@ -99,7 +101,7 @@ def load_relevant_xs_and_decay_info(
     # stage 3.1: find what isotopes need to be extracted.
     isotope_of_interest = set()
     for isotopes in composition_dict.values():
-        for iso in isotopes.keys():
+        for iso in isotopes:
             atnum_and_massnum = commonname_to_atnum_massnum(iso)
             isotope_of_interest.add(atnum_and_massnum)
     # stage 3.2: extract them
@@ -152,6 +154,11 @@ def calculate_response_matrix(
         """
         For creating an empty array representing the cross-section for generating a
         single count in whichever gamma-line of interest.
+
+        Returns
+        -------
+        :
+            A blank row (placeholder in the response matrix).
         """
         return np.zeros(len(gs_array), dtype=float)
 
@@ -164,7 +171,7 @@ def calculate_response_matrix(
             leave=False,
         ):
             decay_pathways = linearize_decay_chain(
-                build_decay_chain_tree(decay_dict, rx_name.split("-")[1])
+                build_decay_chain_tree(decay_dict, rx_name.split("-")[1]),
             )
             for pathway in decay_pathways:
                 # calculate how many decays of PRODUCT are measured per REACTANT ATOM
@@ -172,7 +179,11 @@ def calculate_response_matrix(
                 # in each bin from time t=0-a seconds, and then measured from time
                 # t= b-c seconds.
                 decay_correction_factor = mat_exp_num_decays(
-                    pathway.branching_ratios, pathway.decay_constants, a, b, c
+                    pathway.branching_ratios,
+                    pathway.decay_constants,
+                    a,
+                    b,
+                    c,
                 )
                 if nom(decay_correction_factor):
                     scaled_collapsed_xs = (
@@ -186,7 +197,7 @@ def calculate_response_matrix(
                             path_string + " " + line.source,
                         )
                         this_foil[scaled_line] += scaled_collapsed_xs * efficiency_curve(
-                            line.energy
+                            line.energy,
                         )
 
                     for continuum in pathway.background_photon_spectrum:
@@ -201,23 +212,47 @@ def calculate_response_matrix(
     return this_foil, this_background
 
 
-def main(
+def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     composition: Path,
     libraries: list[Path],
     irradiation_duration: float,
     transit_duration: float,
     measurement_duration: float,
     gamma_spectrum_parameters: list[float],
-    number_of_foils: int = 1,
-):
-    # Stage 1.0: load data from last stap.
+) -> tuple[
+    dict[str, float],
+    dict[str, np.ndarray],
+    dict[str, list[DiscreteRadiation]],
+]:
+    """Main script of step2:simulate.
+
+    Returns
+    -------
+    mass_record:
+        Dictionary of recommended masses used by each foil.
+
+    effective_foil_matrices:
+        Dictionary of response matrix for generating each visible peak on the gamma-ray
+        spectrum for each foil.
+
+    effective_foil_peaks:
+        Dictionary of list of visible peaks on the gamma-ray spectrum for each foil.
+
+    foil_precision:
+        Dictionary of each foil's contribution to the precision score.
+
+    foil_accuracy:
+        Dictionary of each foil's contribution to the accurcy score.
+    """  # noqa: D401
+    # Stage 1.0: load data from last step.
     cwd = Path.cwd()
     gspec_directory = Path(cwd, "gamma_spectra")
 
     gs_array = read_gs(".gs.csv")
     w_vector = get_precision_weight_vector(gs_array)
+    precision_unit = get_precision_unit()
 
-    apriori_flux, apriori_fluence = get_apriori(cwd, irradiation_duration)
+    _apriori_flux, apriori_fluence = get_apriori(cwd, irradiation_duration)
     resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load()
     resolution_curve = resolution_curve_factory(resolution_coefficients)
     max_counts_per_foil = max_num_counts(max_count_rate, measurement_duration)
@@ -230,7 +265,7 @@ def main(
     gamma_simulation_energies = gamma_simulation_energies_keV * keV
 
     # stage 2: break down the foil composition into its consituent isotopes.
-    with open(composition) as j:
+    with Path(composition).open() as j:
         _composition_used_here = json.load(j)
     processed_composition = {
         foil_name: specify_isotopic_composition(foil_comp)
@@ -241,16 +276,22 @@ def main(
 
     # stage 3: get nuclear data
     xs_dict, decay_dict = load_relevant_xs_and_decay_info(
-        processed_composition, libraries
+        processed_composition,
+        libraries,
     )
 
     # stage 4.1: for each foil, optimize mass, and then whittle down radiation list.
     mass_record = {}
     effective_foil_matrices, effective_foil_peaks = {}, {}
     foil_precision, foil_accuracy = {}, {}
+    Path(cwd, ".response_matrices.json").unlink(missing_ok=True)
+    Path(cwd, ".background_response_matrices.json").unlink(missing_ok=True)
+    Path(cwd, ".effective_response_matrices.json").unlink(missing_ok=True)
+    Path(cwd, "each_foil.csv").unlink(missing_ok=True)
     for foil_name, foil_comp in (
         pbar := tqdm(
-            processed_composition.items(), desc="Processing each foil individually"
+            processed_composition.items(),
+            desc="Processing each foil individually",
         )
     ):
         pbar.set_postfix_str(foil_name)
@@ -277,12 +318,12 @@ def main(
         )
         append_to_json(
             serialize_radiation_dict({foil_name: final_response_matrix}),
-            Path(cwd, ".response_matrices.json"),
+            json_path=Path(cwd, ".response_matrices.json"),
         )
 
         append_to_json(
             serialize_radiation_dict({foil_name: final_background}),
-            Path(cwd, ".background_response_matrices.json"),
+            json_path=Path(cwd, ".background_response_matrices.json"),
         )
         mass_record[foil_name] = {
             "number of atoms": foil_num_atoms,
@@ -290,7 +331,8 @@ def main(
         }
         # stage 4.2: calculate all gamma-peaks (and the response matrix for that).
         full_peak_list = simulate_peaks_with_uncertainties(
-            final_response_matrix, apriori_fluence
+            final_response_matrix,
+            apriori_fluence,
         )
         # stage 4.3: (final_response_matrix, full_peak_list) -merge-delete-> (detectible_peaks, detectible_response_matrix)
         detectible_peaks, detectible_response_matrix = merge_peaks(
@@ -314,18 +356,22 @@ def main(
             include_uncertainties=True,
         )
         net_peak_areas = integrate_peak_area(
-            detectible_peaks, resolution_curve, background_levels
+            detectible_peaks,
+            resolution_curve,
+            background_levels,
         )
 
         # stage 4.4: (detectible_peaks, detectible_response_matrix) -merge-delete-> (effective_matrix, reaction_info)
         effective_matrix, reaction_info = [], []
         for net_area, (peak, xs) in zip(
-            net_peak_areas, detectible_response_matrix.items()
+            net_peak_areas,
+            detectible_response_matrix.items(),
+            strict=False,
         ):
             if discoverable(net_area):
                 effective_matrix.append(nom(peak.intensity) * xs)
                 reaction_info.append(
-                    DiscreteRadiation(peak.energy, net_area, peak.source)
+                    DiscreteRadiation(peak.energy, net_area, peak.source),
                 )
 
         effective_matrix = np.array(effective_matrix, dtype=float)
@@ -339,7 +385,7 @@ def main(
 
         append_to_json(
             serialize_radiation_dict({foil_name: effective_matrix}),
-            Path(cwd, ".effective_response_matrices.json"),
+            json_path=Path(cwd, ".effective_response_matrices.json"),
         )
         # [deserialize_radiation_dict(rad) for rad in json.load(j)]
         foil_precision[foil_name] = get_precision(
@@ -347,18 +393,22 @@ def main(
             ary([peak.intensity for peak in reaction_info]),
             w_vector,
         )
-        foil_accuracy[foil_name] = get_accuracy(
-            effective_matrix, [peak.intensity for peak in reaction_info]
+        foil_accuracy[foil_name] = get_accuracy_upper_bound(
+            effective_matrix,
+            reaction_info,
         )
         append_to_csv(
             foil_name,
             {
                 "recommended number of atoms": mass_record[foil_name]["number of atoms"],
                 "recommended mass (mg)": mass_record[foil_name]["mass (g)"] * 1000,
-                "sensitivity (cm^2 eV^3)": foil_precision[foil_name],
-                "specificity": foil_accuracy[foil_name] / len(gs_array),
+                f"sensitivity ({precision_unit})": foil_precision[foil_name],
+                f"specificity upper limit (max value = {len(gs_array)})": foil_accuracy[
+                    foil_name
+                ],
                 "number of detectable peaks": len(reaction_info),
             },
+            csv_path=Path(cwd, "each_foil.csv"),
         )
 
         if not Path(gspec_directory, foil_name + ".pdf").exists():
@@ -372,7 +422,7 @@ def main(
                 resolution_curve,
                 gamma_simulation_energies,
             )
-            with open(Path(gspec_directory, foil_name + ".json"), "w") as j:
+            with Path(gspec_directory, foil_name + ".json").open("w") as j:
                 json.dump(
                     {
                         "energy (keV)": gamma_simulation_energies_keV.tolist(),
@@ -388,7 +438,7 @@ def main(
                     peak_labels=reaction_info,
                 )
                 ax.set_title(
-                    foil_name + f"\n(foil mass= {mass_record[foil_name]['mass (g)']} g)"
+                    foil_name + f"\n(foil mass= {mass_record[foil_name]['mass (g)']} g)",
                 )
                 ax.get_figure().set_size_inches(20, 12)
                 plt.savefig(Path(gspec_directory, foil_name + ".pdf"))
