@@ -246,10 +246,6 @@ def find_efficiency_file():
     return next(Path(Path.cwd()).glob(".efficiency.*"))
 
 
-# def get_gs_and_flux(file_path, directory="."):
-#     return pd.read_csv(file_path, index_col=[0], comment="#")
-
-
 def get_microscopic_cross_sections_df(directory="."):
     """Read the .csv of microscopic cross-sections from stated directory,
     And return it as a pandas dataframe.
