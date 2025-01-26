@@ -8,18 +8,84 @@ Compton continuum:mean energy of the peak as a function of energy of the peak, e
 as
 """
 
-from collections.abc import Callable, Iterable
+from __future__ import annotations
+
+import warnings
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+
 __all__ = [
+    "ResolutionMaxCountRate",
     "fit_fwhms",
     "get_default_resolution_coefficients",
     "resolution_curve_factory",
 ]
 
+GAMMA_RES_AND_COUNT_RATE_FILENAME = ".gamma-resolution-count-rate-coefs.txt"
 
-def get_default_resolution_coefficients():
+
+class ResolutionMaxCountRate:
+    """Data on the resolution curve of the gamma-ray detector, and the maximum count rate
+    at which this resolution can be achieved without degredation.
+    """
+
+    def __init__(self, resolution_coefficients: Iterable[float], max_count_rate: float):
+        """
+        Initialize from an Iterable of resolution curve coefficients and the maximum
+        count rate.
+
+        Paraemters
+        ----------
+        resolution_coefficients:
+            The polynomial coefficients that get the resolution (expressed as FWHM) as
+            FWHM = sqrt(polynomial(energy)).
+            See :func:`~resolution_curve_factory` for more details.
+        """
+        self.resolution_coefficients = resolution_coefficients
+        self.max_count_rate = max_count_rate
+
+    def save(self, directory: Path | str = ".") -> None:
+        """Store data as plain text file."""
+        with Path(directory, GAMMA_RES_AND_COUNT_RATE_FILENAME).open("w") as f:
+            for i, coef in enumerate(self.resolution_coefficients):
+                f.write(f"x_{i}={coef}\n")
+            f.write(f"max. count rate={self.max_count_rate}\n")
+
+    @staticmethod
+    def load(directory: Path | str = ".") -> tuple[list[float], float]:
+        """Load data back from the GAMMA_RES_AND_COUNT_RATE_FILENAME file.
+
+        Returns
+        -------
+        Directly return the two objects:
+            resolution_coefficients, max_count_rate [float].
+
+        Raises
+        ------
+        ValueError
+            Raised when the text inside the GAMMA_RES_AND_COUNT_RATE_FILENAME does not
+            match the expected text.
+        """
+        with Path(directory, GAMMA_RES_AND_COUNT_RATE_FILENAME).open() as f:
+            text = f.readlines()
+        resolution_coefficients = []
+        while text:
+            if text[0].startswith("x"):
+                resolution_coefficients.append(float(text.pop(0).split("=")[1]))
+            else:
+                break
+        if not text[0].startswith("max"):
+            raise ValueError("Expected x_0=...\nx_1=...\n...\nmax. count rate=...")
+        max_count_rate = float(text.pop(0).split("=")[1])
+        return resolution_coefficients, max_count_rate
+
+
+def get_default_resolution_coefficients() -> np.ndarray[float]:
     """
     Give a set of default resolution coefficient values.
 
@@ -52,8 +118,17 @@ def fit_fwhms(
     -------
     coefficients:
         a list of coefficients in ascending degrees.
+
+    Raises
+    ------
+    ValueError
+
     """
-    return np.polyfit(E, fwhm**2, degree_of_fit)[::-1]
+    with warnings.catch_warnings(record=True) as w:
+        polynomial = np.polyfit(E, fwhm**2, degree_of_fit)[::-1]
+    if w:
+        raise ValueError(f"{w[0].category}: {w[0].message}")
+    return polynomial
 
 
 def resolution_curve_factory(

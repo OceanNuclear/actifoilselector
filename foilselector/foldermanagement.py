@@ -8,29 +8,31 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from foilselector.selfshielding import MaxSigma
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable
-
-GAMMA_RES_AND_COUNT_RATE_FILENAME = ".gamma-resolution-count-rate-coefs.txt"
-PEAK_TO_COMPTON_FILENAME = ".gamma-Compton-to-peak-coefs.txt"
+GROUP_STRUCTURE_FILENAME = ".gs.csv"
 APRIORI_FILENAME = ".integrated_apriori.csv"
+CONT_APRIORI_FILENAME = ".continuous_apriori.csv"
+ATOMIC_COMPOSITION_FILENAME = ".atomic_composition.json"
+
+RAW_RESPONSE_MATRICES = ".response_matrices.json"
+BG_RESPONSE_MATRICES = ".background_response_matrices.json"
+EFFECTIVE_RESPONSE_MATRICES = ".effective_response_matrices.json"
+
 SIGMA_CSV = "microscopic_xs.csv"
 PARAM_JSON_FILE = ".parameters_used.json"
 
 
 # atomic_composition
 def save_atomic_composition_json(
-    processed_composition,
-    json_filename: str = ".atomic_composition.json",
+    processed_composition: dict[str, float],
+    json_filename: Path | str = ATOMIC_COMPOSITION_FILENAME,
     cwd: str | None = None,
-):
+) -> None:
     """Save the atomic composition as a json file."""
     cwd = cwd or Path.cwd()
     json_fullpath = Path(cwd, json_filename)
@@ -39,31 +41,43 @@ def save_atomic_composition_json(
         json.dump(processed_composition, j, indent=1)
 
 
-def read_atomic_composition_json(json_filename=".atomic_composition.json"):
+def read_atomic_composition_json(
+    json_filename: Path | str = ATOMIC_COMPOSITION_FILENAME,
+) -> dict[str, float]:
     with Path(json_filename).open() as j:
         return json.load(j)
 
 
 # selfshielding_dict
-def save_self_shielding(selfshielding_dict, json_path=".self-shielding.json"):
+def save_self_shielding(
+    selfshielding_dict: dict,
+    json_path: Path | str = ".self-shielding.json",
+) -> None:
     with Path(json_path).open("w") as j:
         return json.dump(selfshielding_dict, j)
 
 
-def read_self_shielding(json_path=".self-shielding.json"):
+def read_self_shielding(json_path: Path | str = ".self-shielding.json") -> MaxSigma:
     with Path(json_path).open() as j:
         return MaxSigma(json.load(j))
 
 
-def read_gs(file_path: Path):
+def read_gs(file_path: Path | str = GROUP_STRUCTURE_FILENAME) -> pd.DataFrame:
     return pd.read_csv(Path(file_path)).to_numpy()
 
 
-def read_flux(file_path: Path):
+def save_gs(
+    gs_df: pd.DataFrame,
+    file_path: Path | str = GROUP_STRUCTURE_FILENAME,
+) -> None:
+    return gs_df.to_csv(Path(file_path), index=False)
+
+
+def read_flux(file_path: Path) -> np.ndarray[float]:
     return np.squeeze(pd.read_csv(Path(file_path)).values)
 
 
-def get_durations_from_csv(file: Path):
+def get_durations_from_csv(file: Path) -> float:
     """Get the durations saved at the comments before the header of the csv file.
 
     Parameters
@@ -96,8 +110,17 @@ def get_durations_from_csv(file: Path):
     return irradiation_duration, transit_duration, acquisition_duration
 
 
-# The rest of these functions below aren't going to be needed. ####
-def get_apriori(directory: Path, irradiation_duration: float | None = None):
+def save_apriori(
+    apriori_vector_df: pd.DataFrame,
+    file_path: Path = APRIORI_FILENAME,
+) -> None:
+    return apriori_vector_df.to_csv(Path(file_path), index=False)
+
+
+def read_apriori(
+    directory: Path,
+    irradiation_duration: float | None = None,
+) -> np.ndarray[float] | tuple[np.ndarray[float], np.ndarray[float]]:
     """Get the apriori neutron spectrum, as flux (and potentially fluence).
 
     Parameters
@@ -140,113 +163,11 @@ def get_apriori(directory: Path, irradiation_duration: float | None = None):
     return apriori_flux
 
 
-class ResolutionMaxCountRate:
-    """Data on the resolution curve of the gamma-ray detector, and the maximum count rate
-    at which this resolution can be achieved without degredation.
-    """
-
-    def __init__(self, resolution_coefficients: Iterable[float], max_count_rate: float):
-        """
-        Initialize from an Iterable of resolution curve coefficients and the maximum
-        count rate.
-
-        Paraemters
-        ----------
-        resolution_coefficients:
-            The polynomial coefficients that get the resolution (expressed as FWHM) as
-            FWHM = sqrt(polynomial(energy)).
-            See :func:`~resolution_curve_factory` for more details.
-        """
-        self.resolution_coefficients = resolution_coefficients
-        self.max_count_rate = max_count_rate
-
-    def save(self, directory="."):
-        """Store data as plain text file."""
-        with Path(directory, GAMMA_RES_AND_COUNT_RATE_FILENAME).open("w") as f:
-            for i, coef in enumerate(self.resolution_coefficients):
-                f.write(f"x_{i}={coef}\n")
-            f.write(f"max. count rate={self.max_count_rate}\n")
-
-    @staticmethod
-    def load(directory=".") -> tuple[list[float], float]:
-        """Load data back from the GAMMA_RES_AND_COUNT_RATE_FILENAME file.
-
-        Returns
-        -------
-        Directly return the two objects:
-            resolution_coefficients, max_count_rate [float].
-
-        Raises
-        ------
-        ValueError
-            Raised when the text inside the GAMMA_RES_AND_COUNT_RATE_FILENAME does not
-            match the expected text.
-        """
-        with Path(directory, GAMMA_RES_AND_COUNT_RATE_FILENAME).open() as f:
-            text = f.readlines()
-        resolution_coefficients = []
-        while text:
-            if text[0].startswith("x"):
-                resolution_coefficients.append(float(text.pop(0).split("=")[1]))
-            else:
-                break
-        if not text[0].startswith("max"):
-            raise ValueError("Expected x_0=...\nx_1=...\n...\nmax. count rate=...")
-        max_count_rate = float(text.pop(0).split("=")[1])
-        return resolution_coefficients, max_count_rate
-
-
-class PeakToComptonCoefficients:
-    """Data on the resolution curve of the gamma-ray detector, and the maximum count rate
-    at which this resolution can be achieved without degredation.
-    """
-
-    def __init__(self, peak_to_Compton_coefficients: Iterable[float]):
-        """
-        Initialize object from an Iterable of coefficients describing the peak-to-Compton
-        curve.
-
-        Paraemters
-        ----------
-        peak_to_Compton_coefficients:
-            The polynomial coefficients that get the efficiency as
-            log(peak-to-Compton ratio) = polynomial(log(energy)).
-            See :func:`~ComptonToPeakRatioCurve` for more details.
-        """
-        self.peak_to_Compton_coefficients = peak_to_Compton_coefficients
-
-    def save(self, directory="."):
-        """Store data as plain text file."""
-        with Path(directory, PEAK_TO_COMPTON_FILENAME).open("w") as f:
-            for i, coef in enumerate(self.peak_to_Compton_coefficients):
-                f.write(f"logx_{i}={coef}\n")
-
-    @staticmethod
-    def load(directory=".") -> list[float]:
-        """
-        Load data back from the PEAK_TO_COMPTON_FILENAME file.
-
-        Returns
-        -------
-        peak_to_Compton_coefficients:
-            Directly return the coefficients describing the peak-to-Compton curve.
-        """
-        with Path(directory, PEAK_TO_COMPTON_FILENAME).open() as f:
-            text = f.readlines()
-        peak_to_Compton_coefficients = []
-        while text:
-            if text[0].startswith("logx"):
-                peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
-            else:
-                break
-        return peak_to_Compton_coefficients
-
-
-def find_efficiency_file():
+def find_efficiency_file() -> Path:
     return next(Path(Path.cwd()).glob(".efficiency.*"))
 
 
-def get_microscopic_cross_sections_df(directory="."):
+def get_microscopic_cross_sections_df(directory: Path | str = ".") -> pd.DataFrame:
     """Read the .csv of microscopic cross-sections from stated directory,
     And return it as a pandas dataframe.
 
@@ -271,7 +192,7 @@ def get_microscopic_cross_sections_df(directory="."):
     return pd.read_csv(expected_microscopic_xs_path, index_col=[0])
 
 
-def get_parameters_json(directory) -> dict:
+def get_parameters_json(directory: Path | str) -> dict:
     """Open the PARAM_JSON_FILE file if it exists at the directory provided.
     Else return an empty dict.
 
@@ -290,7 +211,7 @@ def get_parameters_json(directory) -> dict:
     return json_data
 
 
-def save_parameters_as_json(directory, parameter_dict):
+def save_parameters_as_json(directory: Path | str, parameter_dict: dict) -> None:
     """
     Search for PARAM_JSON_FILE in the directory, open it and append the
     parameter_dict, and then save at the same location.
@@ -332,7 +253,11 @@ def append_to_json(obj: dict, json_path: Path) -> None:
         j.write((starting + content + closing).encode())
 
 
-def append_to_csv(row_name: str, data: dict, csv_path: Path = Path("each_foil.csv")):
+def append_to_csv(
+    row_name: str,
+    data: dict,
+    csv_path: Path = Path("each_foil.csv"),
+) -> None:
     """Append to a .csv, where the column names order are supposed to match the ordering
     of the keys of the data dictionary.
     Create the .csv file if it doesn't already exist.

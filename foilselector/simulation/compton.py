@@ -4,15 +4,79 @@ This include functions to calculate the shape of the compton continuum, as well 
 function to calculate the compton-to-peak ratio.
 """
 
+from __future__ import annotations
+
 import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 from uncertainties import nominal_value as nom
-from uncertainties.core import AffineScalarFunc
 
 from foilselector.constants import MeV, keV, me_eV
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from uncertainties.core import AffineScalarFunc
+
+__all__ = [
+    "PEAK_TO_COMPTON_FILENAME",
+    "ComptonToPeakRatioCurve",
+    "PeakToComptonCoefficients",
+    "compton_edge",
+    "get_default_peak_to_Compton_file",
+    "make_sharp_compton_distribution",
+]
+
+PEAK_TO_COMPTON_FILENAME = ".gamma-Compton-to-peak-coefs.txt"
+
+
+class PeakToComptonCoefficients:
+    """Data on the resolution curve of the gamma-ray detector, and the maximum count rate
+    at which this resolution can be achieved without degredation.
+    """
+
+    def __init__(self, peak_to_Compton_coefficients: Iterable[float]):
+        """
+        Initialize object from an Iterable of coefficients describing the peak-to-Compton
+        curve.
+
+        Paraemters
+        ----------
+        peak_to_Compton_coefficients:
+            The polynomial coefficients that get the efficiency as
+            log(peak-to-Compton ratio) = polynomial(log(energy)).
+            See :class:`~ComptonToPeakRatioCurve` for more details.
+        """
+        self.peak_to_Compton_coefficients = peak_to_Compton_coefficients
+
+    def save(self, directory: Path | str = ".") -> None:
+        """Store data as plain text file."""
+        with Path(directory, PEAK_TO_COMPTON_FILENAME).open("w") as f:
+            for i, coef in enumerate(self.peak_to_Compton_coefficients):
+                f.write(f"logx_{i}={coef}\n")
+
+    @staticmethod
+    def load(directory: Path | str = ".") -> list[float]:
+        """
+        Load data back from the PEAK_TO_COMPTON_FILENAME file.
+
+        Returns
+        -------
+        peak_to_Compton_coefficients:
+            Directly return the coefficients describing the peak-to-Compton curve.
+        """
+        with Path(directory, PEAK_TO_COMPTON_FILENAME).open() as f:
+            text = f.readlines()
+        peak_to_Compton_coefficients = []
+        while text:
+            if text[0].startswith("logx"):
+                peak_to_Compton_coefficients.append(float(text.pop(0).split("=")[1]))
+            else:
+                break
+        return peak_to_Compton_coefficients
 
 
 class ComptonToPeakRatioCurve:
@@ -127,6 +191,10 @@ class ComptonToPeakRatioCurve:
 
         ratio = ratio_csv[ratio_csv.columns[1]]
         return cls.fit_data(np.array(energy), np.array(ratio), degree_of_fit)
+
+    def save(self, directory: Path | str = ".") -> None:
+        """Hijack the save function of PeakToComptonCoefficients."""
+        return PeakToComptonCoefficients(self.coefficients).save(directory)
 
 
 def get_default_peak_to_Compton_file() -> Path:
