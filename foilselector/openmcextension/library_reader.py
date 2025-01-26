@@ -1,26 +1,26 @@
+"""Functions to read the nucleat data libraries using openmc."""
+
 # typical system/python stuff
 from __future__ import annotations
-from collections import namedtuple
 
-# typical python numerical stuff
+from typing import TYPE_CHECKING, namedtuple
+
 import numpy as np
 from numpy import typing as npt
-
-# openmc stuff
-from openmc.data import Tabulated1D
-
-# uncertainties
-from uncertainties.core import Variable
 from uncertainties import nominal_value as nom
 
-# local modules
 from foilselector.constants import keV
 from foilselector.openmcextension.table import Integral, Tab1DExtended
 
+if TYPE_CHECKING:
+    from openmc.data import Tabulated1D
+    from uncertainties.core import Variable
+
+
 __all__ = [
-    "collapse_single_xs",
-    "DiscreteRadiation",
     "ContinuousRadiationDistribution",
+    "DiscreteRadiation",
+    "collapse_single_xs",
     "flatten_photon_spectrum",
 ]
 
@@ -61,8 +61,9 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         release of this radiation. e.g. "gamma from Y101 beta-"
     """
 
-    def __hash__(self):
-        return hash((
+    def __hash__(self) -> int:
+        """Create a hash out of the contents."""
+        return hash((  # noqa: DOC201
             (nom(self.energy), 0.0 if isinstance(self.energy, float) else self.energy.s),
             (
                 nom(self.intensity),
@@ -72,6 +73,15 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         ))
 
     def copy(self) -> DiscreteRadiation:
+        """Shallow copy the discrete radiation.
+
+        Returns
+        -------
+        :
+            A copy of the discrete radiation with the same self.energy and
+            self.intensity, i.e. referring to the same AffineScalarFunc object, but the
+            self.source (which should be a string) is duplicated as it is immutable.
+        """
         return self.__class__(self.energy, self.intensity, self.source)
 
     def plot_label_format(self) -> str:
@@ -79,13 +89,15 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         Return a str representation of itself that that can be used as a label for itself
         when plotting.
         """
-        return "{} keV\n{} counts\nby {}".format(
-            nom(self.energy) / keV, nom(self.intensity), self.source.replace("; ", ";\n")
+        return "{} keV\n{} counts\nby {}".format(  # noqa: DOC201
+            nom(self.energy) / keV,
+            nom(self.intensity),
+            self.source.replace("; ", ";\n"),
         )
 
 
 class ContinuousRadiationDistribution(
-    namedtuple("RadiationDistribution", ["distribution", "source"])
+    namedtuple("RadiationDistribution", ["distribution", "source"]),
 ):
     """
     Attributes
@@ -102,15 +114,31 @@ class ContinuousRadiationDistribution(
     """
 
     def copy(self) -> ContinuousRadiationDistribution:
-        self.__class__(self.distribution, self.source)
-        return
+        """Shallow copy.
+
+        Returns
+        -------
+        :
+            self.distribution is referring to the same object, while self.source is
+            a copy of itself as it is immutable.
+        """
+        return self.__class__(self.distribution, self.source)
 
     def deep_copy(self) -> ContinuousRadiationDistribution:
-        self.__class__(self.distribution.copy(), self.source)
+        """Deep copy.
+
+        Returns
+        -------
+        :
+            self.distribution is copied, while self.source is
+            a copy of itself as it is immutable.
+        """
+        return self.__class__(self.distribution.copy(), self.source)
 
 
 def flatten_photon_spectrum(
-    openmc_decay_spectrum: dict, isotope_name: str
+    openmc_decay_spectrum: dict,
+    isotope_name: str,
 ) -> tuple[list[DiscreteRadiation], list[ContinuousRadiationDistribution]]:
     """
     Turn a openmc.data.Decay.from_endf(...).spectra from a nested dictionary into
@@ -134,9 +162,11 @@ def flatten_photon_spectrum(
     discrete_spec, continuous_spec = [], []
 
     def extend_discrete_lines(
-        discrete: list[dict], discrete_normalization: Variable, source: str
+        discrete: list[dict],
+        discrete_normalization: Variable,
+        source: str,
     ):
-        """Flatten a decay["spectrum"][radiation_type]["discrete"]"""
+        """Flatten a decay["spectrum"][radiation_type]["discrete"]."""
         if nom(discrete_normalization):
             for line in discrete:
                 discrete_spec.append(
@@ -144,7 +174,7 @@ def flatten_photon_spectrum(
                         line["energy"],
                         line["intensity"] * discrete_normalization,
                         f"{source} from {isotope_name} {','.join(line['from_mode'])}",
-                    )
+                    ),
                 )
 
     if "xray" in openmc_decay_spectrum:
@@ -160,11 +190,12 @@ def flatten_photon_spectrum(
             xray_dist = (Tab1DExtended.from_openmc(prob_table) * cont_norm,)
 
             if cont_norm:
+                src = ",".join(openmc_decay_spectrum["xray"]["continuous"]["from_mode"])
                 continuous_spec.append(
                     ContinuousRadiationDistribution(
                         xray_dist,
-                        f"xray from {isotope_name} {','.join(openmc_decay_spectrum['xray']['continuous']['from_mode'])}",
-                    )
+                        f"xray from {isotope_name} {src}",
+                    ),
                 )
     if "gamma" in openmc_decay_spectrum:
         if "discrete" in openmc_decay_spectrum["gamma"]:
@@ -178,18 +209,13 @@ def flatten_photon_spectrum(
             cont_norm = nom(openmc_decay_spectrum["gamma"]["continuous_normalization"])
             gamma_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm
 
-            # num_counts = Integral(gamma_dist).definite_integral(*minmax(gamma_dist))
-            # warnings.warn(
-            #     "Continuous gamma-ray distribution found in the decay gamma-ray spectrum"
-            #     f"! This distribution sums up to {num_counts * nom()} gamma-rays "
-            #     f"released per decay of {isotope_name}."
-            # )
             if cont_norm:
+                src = ",".join(openmc_decay_spectrum["gamma"]["continuous"]["from_mode"])
                 continuous_spec.append(
                     ContinuousRadiationDistribution(
                         gamma_dist,
-                        f"gamma from {isotope_name} {','.join(openmc_decay_spectrum['gamma']['continuous']['from_mode'])}",
-                    )
+                        f"gamma from {isotope_name} {src}",
+                    ),
                 )
 
     return discrete_spec, continuous_spec
