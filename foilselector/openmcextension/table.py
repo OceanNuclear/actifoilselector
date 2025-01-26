@@ -1,30 +1,36 @@
-"""extend the functionalities of openmc classes Tabulate(openmc.data.Tabulated1D related classes)"""
+"""Extend the functionalities of openmc classes Tabulate(openmc.data.Tabulated1D related
+classes).
+"""
 
 from __future__ import annotations
 
-# numpy stuff
-import numpy as np
-from numpy import typing as npt
-from numpy import array as ary
-from numpy import log as ln
-
-import openmc
-from openmc.data import INTERPOLATION_SCHEME
-from collections.abc import Iterable, Callable
+from collections.abc import Callable, Iterable
 
 import matplotlib.pyplot as plt
+
+# numpy stuff
+import numpy as np
+import openmc
+from numpy import array as ary
+from numpy import log as ln
+from numpy import typing as npt
+from openmc.data import INTERPOLATION_SCHEME
+
 from foilselector.generic import SilenceNumpyDivisionError
 
 
 def plot_tab(tab: openmc.data.Tabulated1D | Tab1DExtended, *args, **kwargs) -> plt.Axes:
-    return plt.plot(tab.x, tab.y, *args, **kwargs)
+    """Quick function to plot the curve described by the Tab1D."""
+    return plt.plot(tab.x, tab.y, *args, **kwargs)  # noqa: DOC201
 
 
 def expand_interpolation_regions(
-    interpolation: Iterable[float], breakpoints, length_of_table: int
+    interpolation: Iterable[float],
+    breakpoints,
+    length_of_table: int,
 ) -> npt.NDArray[float]:
-    """
-    Convert the openmc.data.Tabulated1D data into data that
+    """Convert the openmc.data.Tabulated1D interpolation scheme data into a format
+    that is more verbose, but easier to manage.
 
     Parameters
     ----------
@@ -33,18 +39,26 @@ def expand_interpolation_regions(
     """
     # n cells, with n+1 boundaries
     new_interpolation = np.zeros(length_of_table - 1, dtype=int)
-    for point, scheme_number in list(zip(breakpoints, interpolation))[::-1]:
+    for point, scheme_number in list(zip(breakpoints, interpolation, strict=False))[
+        ::-1
+    ]:
         # use an offset of -1 to describe the cell *before* it,
         new_interpolation[: point - 1] = scheme_number
     return new_interpolation
 
 
 def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
-    """
-    Convert a openmc.data.openmc_tab1d into something json serialize-able.
+    """Convert a openmc.data.openmc_tab1d into something json serialize-able.
+
+    Returns
+    -------
+    :
+        A dictionary of the data described by the Tab1D.
     """
     scheme = expand_interpolation_regions(
-        openmc_tab1d.interpolation, openmc_tab1d.breakpoints, len(openmc_tab1d.x)
+        openmc_tab1d.interpolation,
+        openmc_tab1d.breakpoints,
+        len(openmc_tab1d.x),
     )
 
     return dict(
@@ -56,51 +70,66 @@ def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
 
 def tabulate(detabulated_dict: dict) -> openmc.data.Tabulated1D:
     """
-    parameters
+    Parameters
     ----------
-    detabulated_dict : should have 3 columns: "x" (list of len=n+1), "y" (list of len=n+1), "interpolation" (list of len=n).
+    detabulated_dict:
+        Should have 3 columns: "x" (list of len=n+1), "y" (list of len=n+1),
+        "interpolation" (list of len=n).
+
+    Returns
+    -------
+    :
+        An openmc.data.Tabulated1D reconstructed from the dictionary of data.
     """
     interpolation_long = list(detabulated_dict["interpolation"])  # make a copy
     # pad the interpolation_long to the lenght of n+1
-    interpolation_long.append(
-        0
-    )  # outside of the specified data range, the interpolation scheme = N/A; use zero as placeholder for N/A.
+    interpolation_long.append(0)
+    # the interpolation scheme = N/A; use zero as placeholder for N/A.
     breakpoints = sorted(np.argwhere(np.diff(interpolation_long)).flatten() + 2)
     interpolation = ary(interpolation_long)[ary(breakpoints) - 2].tolist()
     return openmc.data.Tabulated1D(
-        detabulated_dict["x"], detabulated_dict["y"], breakpoints, interpolation
+        detabulated_dict["x"],
+        detabulated_dict["y"],
+        breakpoints,
+        interpolation,
     )
 
 
 class Integral:
     __slots__ = [
         "_area",
-        "func",
         "_interpolation",
+        "func",
         "verbose",
     ]  # for memory management, in case we want to create a lot of instances of Integral.
 
-    def __init__(self, func, verbose=False):
+    def __init__(self, func, *, verbose=False):
         """
         self.interpolation[i] describes the interpolation scheme between self.x[i-1] to self.x[i], using the scheme specified by
             INTERPOLATION_SCHEME[self.interpolation[i]]
         """
-        assert all(
-            np.diff(func.x) >= 0
-        ), "The data points must be stored in a manner so that the x values are monotonically increasing."
+        if not (np.diff(func.x) >= 0).all():
+            raise ValueError(
+                "The data points must be stored in a manner so that the x "
+                "values are monotonically increasing.",
+            )
         # there are n+1 boundaries, but only n cells. And whenever we use x1, we'll also use x2.
         # Therefore the best way to store x and y is to store them as above: x1, x2, y1, y2.
         self.func = func  # pointer to the actual function, so that it can be used later.
         if isinstance(func, openmc.data.Tabulated1D):
             self._interpolation = expand_interpolation_regions(
-                func.interpolation, func.breakpoints, len(func.x)
+                func.interpolation,
+                func.breakpoints,
+                len(func.x),
             )
         elif isinstance(func, Tab1DExtended):
             self._interpolation = func.interpolation
         else:
-            TypeError("Must be a Tabulated1D/Tab1DExtended object!")
+            raise TypeError("Must be a Tabulated1D/Tab1DExtended object!")
         self._area = self._calculate_area_of_each_cell(
-            self.func.x, self.func.y, self._interpolation
+            self.func.x,
+            self.func.y,
+            self._interpolation,
         )
         self.verbose = verbose
 
@@ -111,49 +140,62 @@ class Integral:
         The main difference is that (a, b) will be clipped back into range if it exceeds the recorded x-values' range in the array case;
         while such treatment won't happen in the scalar case.
         We might change this later to remove the problem of havin g
+
+        Returns
+        -------
+        :
+            The function integrated between a and b.
+
+        Raises
+        ------
+        ValueError
+            When the integration limits don't make sense,
+            i.e. a<b and with the same shape.
         """
-        assert (
-            np.diff([a, b], axis=0) >= 0
-        ).all(), "Can only integrate in the positive direction."
+        if not (np.diff([a, b], axis=0) >= 0).all():
+            raise ValueError("Can only integrate in the positive direction.")
         if np.not_equal(np.clip(a, self.func.x.min(), self.func.x.max()), a).any():
             if self.verbose:
                 print(
-                    "Integration limit is below recorded range of x values! Clipping it back into range..."
+                    "Integration limit is below recorded range of x values! Clipping it back into range...",
                 )
             a = np.clip(a, self.func.x.min(), self.func.x.max())
         if np.not_equal(np.clip(b, self.func.x.min(), self.func.x.max()), b).any():
             if self.verbose:
                 print(
-                    "Integration limit is above recorded range of x values! Clipping it back into range..."
+                    "Integration limit is above recorded range of x values! Clipping it back into range...",
                 )
             b = np.clip(b, self.func.x.min(), self.func.x.max())
 
         if isinstance(a, Iterable):
-            assert np.shape(a) == np.shape(
-                b
-            ), "The dimension of (a) must match that of (b)"
-            assert ary(a).ndim == 1, "Must be a flat 1D array"
+            if np.shape(a) != np.shape(b):
+                raise ValueError("The dimension of (a) must match that of (b)")
+            if ary(a).ndim != 1:
+                raise ValueError(f"{a} must be a flat 1D array")
             return self._definite_integral_array(ary(a), ary(b))
-        else:
-            return self._definite_integral_array(ary([a]), ary([b]))[0]
+        return self._definite_integral_array(ary([a]), ary([b]))[0]
 
     def _definite_integral_array(self, a, b):
         n = len(self._area)
 
         # finding the completely enveloped cells using l_bounds and u_bounds.
         l_bounds = np.broadcast_to(
-            self.func.x[:-1], [len(a), n]
+            self.func.x[:-1],
+            [len(a), n],
         ).T  # we don't care whether or not a is larger than the last x
         u_bounds = np.broadcast_to(
-            self.func.x[1:], [len(b), n]
+            self.func.x[1:],
+            [len(b), n],
         ).T  # we dont' care whether or not b is smaller than the first x.
 
         # calculate area.
         ge_a = np.greater_equal(
-            l_bounds, a
+            l_bounds,
+            a,
         ).T  # 2D array of bin upper bounds which are >= a.
         le_b = np.less_equal(
-            u_bounds, b
+            u_bounds,
+            b,
         ).T  # 2D array of bin lower bounds which are <= b.
         # use <= and >= instead of < and > to allow the left-edge and right-edge to have zero dx.
 
@@ -178,16 +220,17 @@ class Integral:
 
         # calculate the left-edge half cell and right-edge half cell areas.
         l_edge_area, r_edge_area = np.zeros(len(a)), np.zeros(len(a))
-        for scheme_number in (
-            INTERPOLATION_SCHEME.keys()
-        ):  # loop 5 times (x2 area calculations per loop) to get the l/r edges areas
+        for scheme_number in INTERPOLATION_SCHEME:
+            # loop 5 times (x2 area calculations per loop) to get the l/r edges areas
             matching_l = l_edge_scheme == scheme_number
             matching_r = l_edge_scheme == scheme_number
             l_edge_area[matching_l] = getattr(self, "area_scheme_" + str(scheme_number))(
-                *l_edge_x.T[matching_l].T, *l_edge_y.T[matching_l].T
+                *l_edge_x.T[matching_l].T,
+                *l_edge_y.T[matching_l].T,
             )
             r_edge_area[matching_r] = getattr(self, "area_scheme_" + str(scheme_number))(
-                *r_edge_x.T[matching_r].T, *r_edge_y.T[matching_r].T
+                *r_edge_x.T[matching_r].T,
+                *r_edge_y.T[matching_r].T,
             )
 
         return l_edge_area + central_area + r_edge_area
@@ -207,9 +250,8 @@ class Integral:
         """
         # for interpoloation_scheme in
         areas = np.zeros(len(x[:-1]))
-        for scheme_number in (
-            INTERPOLATION_SCHEME.keys()
-        ):  # loop through each type of interpolation scheme
+        for scheme_number in INTERPOLATION_SCHEME:
+            # loop through each type of interpolation scheme
             matching_cells = (
                 interpolation == scheme_number
             )  # matching_cells is a boolean mask of len = n.
@@ -217,7 +259,8 @@ class Integral:
                 matching_cells.sum() > 0
             ):  # save time by avoiding unnecessary method calls. Don't know if this helps or not, need to test.
                 areas[matching_cells] = getattr(
-                    cls, "area_scheme_" + str(scheme_number)
+                    cls,
+                    "area_scheme_" + str(scheme_number),
                 )(
                     x[:-1][matching_cells],
                     x[1:][matching_cells],
@@ -238,10 +281,8 @@ class Integral:
 
     @staticmethod
     def area_scheme_3(x1, x2, y1, y2):
-        """
-        0<=x1<=x2
-        """
         dx, dy = x2 - x1, y2 - y1
+        # expected 0<x1<=x2
         dlnx = ln(x2) - ln(x1)
         # m = dy/dlnx
         return (
@@ -288,10 +329,12 @@ class Integral:
         # find the special cases: dlnx==0; x^-1; all others.
         dlnx_0 = dlnx == 0
         inverse_special_case = np.logical_and(
-            np.isclose(dlnx, -dlny), ~dlnx_0
+            np.isclose(dlnx, -dlny),
+            ~dlnx_0,
         )  # not already included by dlnx==0 case
         normal = ~np.logical_or(
-            inverse_special_case, dlnx_0
+            inverse_special_case,
+            dlnx_0,
         )  # no dlnx==0 and no slope ==-1
 
         # dlnx==0 case
@@ -333,16 +376,17 @@ class Integral:
 
 
 class Tab1DExtended:
-    """
-    Tabulated1D class extended so that it can be used for higher
-    """
+    """Tabulated1D class extended so that it can be used for higher level functions."""
 
     _fields = ("x", "y", "interpolation")
 
     def __init__(self, x, y, interpolation):
-        assert np.shape(x) == np.shape(y)
-        assert np.ndim(x) == 1
-        assert len(interpolation) == len(x) - 1
+        if (
+            (np.shape(x) != np.shape(y))
+            or (np.ndim(x) != 1)
+            or (len(interpolation) == len(x) - 1)
+        ):
+            raise ValueError("Expected 1D array of the correct shape.")
         self.x = ary(x)
         self.y = ary(y)
         self.interpolation = ary(interpolation)
@@ -376,7 +420,7 @@ class Tab1DExtended:
         # )
 
     def __mul__(self, scale_factor: float) -> Tab1DExtended:
-        if isinstance(scale_factor, (Tab1DExtended, openmc.data.Tabulated1D)):
+        if isinstance(scale_factor, Tab1DExtended | openmc.data.Tabulated1D):
             raise NotImplementedError("Use apply_scaling instead!")
         return self.__class__(self.x, self.y * scale_factor, self.interpolation)
 
@@ -404,7 +448,7 @@ class Tab1DExtended:
         return hash((tuple(self.x), tuple(self.y), tuple(self.interpolation)))
 
     def __repr__(self) -> str:
-        return f"<{str(self.__class__)} with {len(self.interpolation)} cells, where x is between {np.min(self.x)}-{np.max(self.x)} and y is between {np.min(self.y)}-{np.max(self.y)}>"
+        return f"<{self.__class__!s} with {len(self.interpolation)} cells, where x is between {np.min(self.x)}-{np.max(self.x)} and y is between {np.min(self.y)}-{np.max(self.y)}>"
 
     def copy(self) -> Tab1DExtended:
         return self.__class__(self.x, self.y, self.interpolation)
