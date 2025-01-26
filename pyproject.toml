@@ -81,7 +81,6 @@ ignore = [
   "ISC001", # ruff format conflict
   "PLW1514",# Specify file open encoding
   "EXE",    # shebang not needed at the beginning of file.
-  "ERA",    # remove commented out code
   "N80",    # Allow uppercase variables because physics variables.
   "N816",
   # The following are no longer ignored:

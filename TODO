@@ -37,7 +37,12 @@
         - Or as a separate .csv file.
     [].effective_peaks.json
     - foilselector.openmcextension.extended_io.load_endf_directories()
-[]os.path -> pathlib.Path
+    []Mixing foldermanagement.py with filereading.py
+[]git rm
+    - physicalparameters/{choose_material,,efficiency}.py
+    - choose_material.py
+[]physicalparameters/filepaths.py -> used by efficiency.py and compton.py
+[x]os.path -> pathlib.Path
 [x]spectral_simulation.py is growing out of control. Split into multiple modules?
 []Apply validation (via the setter) on DiscreteRadiation.source
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
