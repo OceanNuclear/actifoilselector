@@ -4,21 +4,20 @@ This include functions to calculate the shape of the compton continuum, as well 
 function to calculate the compton-to-peak ratio.
 """
 
+import warnings
 from pathlib import Path
-import os
 
 import numpy as np
 import pandas as pd
 from uncertainties import nominal_value as nom
 from uncertainties.core import AffineScalarFunc
 
-from foilselector.constants import me_eV, MeV, keV
+from foilselector.constants import MeV, keV, me_eV
 
 
 class ComptonToPeakRatioCurve:
-    """
-    Also known as the Compton-from-Peak curve, because it is a curve with the following
-    input and output:
+    """Also known as the Compton-from-Peak curve, because it is a curve with the
+    following input and output:
     curve(input: # counts in peaks) -> ouput: # counts in the compton continuum.
     """
 
@@ -29,10 +28,36 @@ class ComptonToPeakRatioCurve:
         compton_to_peak_ratio: np.ndarray[float],
         degree_of_fit: int = 6,
     ):
-        """Create a fit using the data given."""
-        loglog_coefficients = np.polyfit(
-            np.log(energy), np.log(compton_to_peak_ratio), degree_of_fit
-        )
+        """Create a fit using the data given.
+
+        Parameters
+        ----------
+        energy:
+            Energy of each data point in [eV]
+        compton_to_peak_ratio:
+            Compton-to-peak ratio of each data point [dimensionless].
+        degree_of_fit:
+            Degree of fit in log-log space,
+            from log(energy) to log(compton_to_peak_ratio).
+
+        Returns
+        -------
+        self:
+            A new instance created by fitting the data provided.
+
+        Raises
+        ------
+        ValueError
+            Raised when fitting is not done correctly.
+        """
+        with warnings.catch_warnings(record=True) as w:
+            loglog_coefficients = np.polyfit(
+                np.log(energy),
+                np.log(compton_to_peak_ratio),
+                degree_of_fit,
+            )
+        if w:
+            raise ValueError(f"{w[0].category}: {w[0].message}")
         self = cls(loglog_coefficients)
         self.E = energy
         self.compton_to_peak_ratio = compton_to_peak_ratio
@@ -43,12 +68,49 @@ class ComptonToPeakRatioCurve:
         self.coefficients = coefficients
         self._fitted_func_in_loglog_space = np.poly1d(coefficients)
 
-    def __call__(self, required_E_in_eV: float | np.ndarray[float]):
+    def __call__(
+        self,
+        required_E_in_eV: float | np.ndarray[float],
+    ) -> float | np.ndarray[float]:
+        """
+        Parameters
+        ----------
+        required_E_in_eV:
+            input in the x-coordinates
+
+        Returns
+        -------
+        :
+            output in the y-coordinates
+        """
         return np.exp(self._fitted_func_in_loglog_space(np.log(nom(required_E_in_eV))))
 
     @classmethod
     def from_file(cls, filename: Path, degree_of_fit: int = 6):
-        """Create a compton-to-peak-ratio curve object from a .csv file."""
+        """Create a compton-to-peak-ratio curve object from a .csv file.
+
+        Parameters
+        ----------
+        filename:
+            A .csv file storing the data points to be fitted, in 2 columns.
+            The first column is the x-data (energy) column, which must have eV/MeV/keV
+            as its unit, present in the file name (e.g. "energy (eV)").
+            The second column has the y-data column, which is the Compton-to-peak ratio
+            [dimensionless].
+        degree_of_fit:
+            parsed onto :meth:`~ComptonToPeakRatioCurve.fit_data`.
+
+        Returns
+        -------
+        :
+            An object of :class:`~ComptonToPeakRatioCurve` created by fitting the data
+            points in filename.
+
+        Raises
+        ------
+        ValueError
+            A unit error
+        """
         ratio_csv = pd.read_csv(filename, comment="#")
         energy_name = ratio_csv.columns[0]
         if "MeV" in energy_name:
@@ -60,7 +122,7 @@ class ComptonToPeakRatioCurve:
         else:
             raise ValueError(
                 f"UnitError: column 0 of {filename} (gamma-energy column)"
-                "has ambiguous unit!"
+                "has ambiguous unit!",
             )
 
         ratio = ratio_csv[ratio_csv.columns[1]]
@@ -68,23 +130,26 @@ class ComptonToPeakRatioCurve:
 
 
 def get_default_peak_to_Compton_file() -> Path:
-    """Get the file path of the peak-to-Compton-ratio file."""
-    return os.path.abspath(  # get the absolute path version of this
-        os.path.join(
-            # relative path, relative to
-            os.path.dirname(__file__),  # THIS particular file, compton.py right here.
-            "..",
-            "physicalparameters",
-            "efficiency",
-            "Compton_to_peak_ratio.csv",
-        )
-    )
+    """Get the file path of the peak-to-Compton-ratio file.
+
+    Returns
+    -------
+    :
+        The absolute path to the default peak-to-Compton-ratio file.
+    """
+    return Path(
+        # relative path, relative to
+        Path(__file__).parent,  # THIS particular file, compton.py right here.
+        "..",
+        "physicalparameters",
+        "efficiency",
+        "Compton_to_peak_ratio.csv",
+    ).resolve()
 
 
 def compton_edge(peak_energy: float) -> float:
-    """
-    Calculate the Compton edge energy corresponding to a photopeak, where a the photon recoils 180° and loses as much
-    energy to the electron as possible.
+    """Calculate the Compton edge energy corresponding to a photopeak, where a the photon
+    recoils 180° and loses as much energy to the electron as possible.
 
     Parameters
     ----------
@@ -101,7 +166,8 @@ def compton_edge(peak_energy: float) -> float:
 
 
 def make_sharp_compton_distribution(
-    photopeak_energy: AffineScalarFunc, test_energies: np.ndarray[float]
+    photopeak_energy: AffineScalarFunc,
+    test_energies: np.ndarray[float],
 ) -> np.ndarray[float]:
     r"""
     Create a normalized distribution that represents the Compton continuum.
@@ -113,9 +179,16 @@ def make_sharp_compton_distribution(
     test_energies:
         The array of energies for which we have to compute the Compton continuum for.
 
+    Returns
+    -------
+    energy_deposited:
+        The amount (per unit [eV]) of Compton scattered into each of the test_energies,
+        for every gamma-ray counted at the photopeak of photopeak_energy.
+
     Formulae
     --------
     The Compton distribution is given as below:
+
 
     .. math::
 
