@@ -4,17 +4,22 @@ Getting the name various interpolation schemes /their indices in openmc and endf
 
 from openmc.data import INTERPOLATION_SCHEME
 
-
 __all__ = ["get_interpolation_scheme"]
 
 
+interpolation_to_index = {v: k for k, v in INTERPOLATION_SCHEME.items()}
+
+
 def get_interpolation_scheme(scheme):
-    """
-    invert the dictionary from {1:"log-log", ..., 5:"histogramic"}
-    to {"log-log":1, ..., "histogramic":5},
+    """Invert the dictionary from {1:"log-log", ..., 5:"histogramic"} to
+    {"log-log":1, ..., "histogramic":5},
     and then get the scheme index corresponding to the variable 'scheme'.
+
+    Returns
+    -------
+    :
+        The index corresponding to that scheme.
     """
-    interpolation_to_index = {v: k for k, v in INTERPOLATION_SCHEME.items()}
     return interpolation_to_index[scheme]
 
 

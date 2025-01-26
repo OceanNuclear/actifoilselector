@@ -3,13 +3,7 @@ from foilselector.fluxconversion.convert import (
     convert_arbitrary_gs_from_means,
 )
 from foilselector.fluxconversion.smartconvert import scale_to_eV_interactive, ask_for_gs
-from foilselector.fluxconversion.filereading import (
-    list_dir_csv,
-    open_csv,
-    get_integrated_apriori_value_only,
-    get_gs_ary,
-    get_continuous_flux,
-)
+from foilselector.fluxconversion.filereading import list_dir_csv, open_csv
 from foilselector.fluxconversion.interactions import (
     get_column_interactive,
     ask_question,

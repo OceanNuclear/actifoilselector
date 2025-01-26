@@ -5,26 +5,29 @@ thus relies on the interactions and convert module in the same sub-package.
 """
 # numpy functions
 
-import numpy.typing as npt
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import numpy.typing as npt
+
+from foilselector.constants import MeV, keV
+from foilselector.fluxconversion.convert import convert_arbitrary_gs_from_means
 
 # custom functions
 from foilselector.fluxconversion.interactions import ask_question, get_column_interactive
-from foilselector.fluxconversion.convert import convert_arbitrary_gs_from_means
-from foilselector.constants import MeV, keV
 
-
-__all__ = ["scale_to_eV_interactive", "ask_for_gs"]
+__all__ = ["ask_for_gs", "scale_to_eV_interactive"]
 
 
 def scale_to_eV_interactive(gs_ary: npt.NDArray):
-    """
-    Scales the group structure values so that it describes the group structure in the correct unit (eV).
+    """Scales the group structure values so that it describes the group structure in the
+    correct unit (eV).
 
-    returns
+    Returns
     -------
-    gs_ary : group structure array, of the same shape as the input gs_ary, but now each value describes the energy bin bounds in eV.
+    gs_ary:
+        group structure array, of the same shape as the input gs_ary,
+        but now each value describes the energy bin bounds in eV.
     """
     gs_ary_fmt_unit_question = (
         f"Were the group structure values \n{gs_ary}\n given in 'eV', 'keV', or 'MeV'?"
@@ -39,20 +42,35 @@ def scale_to_eV_interactive(gs_ary: npt.NDArray):
 
 
 def ask_for_gs(directory: Path):
+    """Check directory for a file containing a group structure; and interact with the
+    program user to obtain said group structure.
+
+    Returns
+    -------
+    :
+        The group structure, scaled to have unit [eV].
+
+    Raises
+    ------
+    ValueError
+        When some/all bin sizes are zero or negative.
     """
-    Check directory for a file containing a group structure; and interact with the program user to obtain said group structure.
-    """
-    gs_fmt_question = "Were the flux values provided along with the mean energy of the bin ('class mark'), or the upper and lower ('class boundaries')?"
+    gs_fmt_question = (
+        "Were the flux values provided along with the mean energy of the "
+        "bin ('class mark'), or the upper and lower ('class boundaries')?"
+    )
     gs_fmt = ask_question(gs_fmt_question, ["class mark", "class boundaries"])
 
     if gs_fmt == "class mark":
         gs_mean = get_column_interactive(
-            directory, "a priori spectrum's mean energy of each bin"
+            directory,
+            "a priori spectrum's mean energy of each bin",
         )
         bin_sizes = np.diff(gs_mean)
-        assert all(
-            bin_sizes > 0
-        ), "The a priori spectrum must be given in ascending order of energy."
+        if not all(bin_sizes > 0):
+            raise ValueError(
+                "The a priori spectrum must be given in ascending order of energy.",
+            )
         # deal with two special cases: lin space and log space
         if all(np.isclose(np.diff(bin_sizes), 0, atol=1e-3)):  # second derivative = 0
             print("equal spacing in energy space detected")
@@ -71,7 +89,7 @@ def ask_for_gs(directory: Path):
                 endpoint=True,
             )
         elif all(
-            np.isclose(np.diff(np.diff(gs_mean)), 0, atol=1e-3)
+            np.isclose(np.diff(np.diff(gs_mean)), 0, atol=1e-3),
         ):  # second derivative of log(E) = 0
             average_step = np.mean(np.diff(np.log10(gs_mean)))
             start_point, end_point = np.log10(gs_mean[[0, -1]])
@@ -98,12 +116,14 @@ def ask_for_gs(directory: Path):
                 output_full_file_path=True,
             )
             gs_max = get_column_interactive(
-                directory, "upper bounds of the energy groups", file_path_given=full_path
+                directory,
+                "upper bounds of the energy groups",
+                file_path_given=full_path,
             )
             if (gs_min < gs_max).all():
                 break
             print(
-                "The left side of the bins must have strictly lower energy than the right side of the bins. Please try again:"
+                "The left side of the bins must have strictly lower energy than the "
+                "right side of the bins. Please try again:",
             )
-    gs_ary = scale_to_eV_interactive(np.array([gs_min, gs_max]).T)
-    return gs_ary
+    return scale_to_eV_interactive(np.array([gs_min, gs_max]).T)
