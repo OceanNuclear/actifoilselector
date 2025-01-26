@@ -5,15 +5,12 @@ cgs (centimeter, grams, second) is used throughout the entire foilselector packa
 
 import math
 
-# convert values in MeV/keV to eV
-MeV = 1e6
-keV = 1e3
+MeV = 1e6  # express [MeV] in [eV]
+keV = 1e3  # express [keV] in [eV]
 
-# convert values in barn to cm^2
-BARN = 1e-24
+BARN = 1e-24  # express [barn] in [cm2]
 
-# convert values in mm to cm
-MM_CM = 0.1
-amu = 1.660538921e-24
-me_eV = 510.9989461e3
-FWHM_SIGMA = 2 * math.sqrt(2 * math.log(2))
+MM_CM = 0.1  # express [mm] in [cm]
+amu = 1.660538921e-24  # express [atomic mass unit] in [gram]
+me_eV = 510.9989461e3  # express mass of electron in [eV]
+FWHM_SIGMA = 2 * math.sqrt(2 * math.log(2))  # express one FWHM in sigma.

@@ -6,21 +6,24 @@ and accuracy calculation.
 
 from __future__ import annotations
 
-from openmc.data import atomic_mass
-from collections.abc import Callable
 from typing import TYPE_CHECKING
+
+from openmc.data import atomic_mass
 from uncertainties import nominal_value as nom
 
-from foilselector.generic import minmax
 from foilselector.constants import amu
+from foilselector.generic import minmax
 from foilselector.openmcextension.table import Integral
 
 if TYPE_CHECKING:
-    from foilselector.openmcextension.library_reader import (
-        DiscreteRadiation,
-        ContinuousRadiationDistribution,
-    )
+    from collections.abc import Callable
+
     import numpy as np
+
+    from foilselector.openmcextension.library_reader import (
+        ContinuousRadiationDistribution,
+        DiscreteRadiation,
+    )
 
 __all__ = ["choose_num_reactant_in_foil", "mass_from_num_atoms", "max_num_counts"]
 
@@ -32,9 +35,8 @@ def choose_num_reactant_in_foil(
     max_counts_per_foil: float,
     compton_peak_ratio: Callable[[float | np.ndarray], float | np.ndarray] | None = None,
 ):
-    """
-    Returns the maximum number of reactants in the reactant foil without breaking the
-    max-gamma-count-rate threshold during the acquisition period.
+    """Calculate the maximum number of reactants in the reactant foil without breaking
+    the max-gamma-count-rate threshold during the acquisition period.
 
     Parameters
     ----------
@@ -65,7 +67,6 @@ def choose_num_reactant_in_foil(
         similar to input foil_background, but each row's response is scaled up by
         num_reactants_in_foil to get the foil's total response if it were at max. mass.
     """
-
     total_counts_per_reactant = 0.0  # we don't need fsum because it's purely increasing.
     for line, resp in foil_response_matrix.items():
         num_released_per_reactant = (resp @ apriori_fluence) * nom(line.intensity)
@@ -78,13 +79,13 @@ def choose_num_reactant_in_foil(
         # spectrum per decay of end-of-chain isotope
         radiation = dist.distribution
         num_detected_per_decay = Integral(radiation).definite_integral(
-            *minmax(radiation.x)
+            *minmax(radiation.x),
         )
         total_counts_per_reactant += num_detected_per_decay * (resp @ apriori_fluence)
         if compton_peak_ratio:
             compton_per_decay = radiation.apply_scaling(compton_peak_ratio)
             total_counts_per_reactant += Integral(compton_per_decay).definite_integral(
-                *minmax(compton_per_decay.x)
+                *minmax(compton_per_decay.x),
             ) * (resp @ apriori_fluence)
 
     # catch divide by 0s
@@ -103,12 +104,24 @@ def choose_num_reactant_in_foil(
 
 
 def convert_to_mass(isotope_name):
-    """Returns the atomic mass of an isotope in grams"""
+    """Calculate the atomic mass of an isotope in grams.
+
+    Returns
+    -------
+    :
+        atomic mass of the isotope in grams.
+    """
     return atomic_mass(isotope_name) * amu
 
 
 def mass_of_one_reactant_atom(composition_dict):
-    """Calculate the weighted average of the reactant nuclides' masses, in grams."""
+    """Calculate the weighted average of the reactant nuclides' masses, in grams.
+
+    Returns
+    -------
+    :
+        Mass of one reactant atom in grams
+    """
     return sum(
         convert_to_mass(isotope) * fraction
         for isotope, fraction in composition_dict.items()
@@ -116,7 +129,8 @@ def mass_of_one_reactant_atom(composition_dict):
 
 
 def mass_from_num_atoms(
-    num_atoms: float, isotope_composition: dict[str, float]
+    num_atoms: float,
+    isotope_composition: dict[str, float],
 ) -> float:
     """
     Parameters
@@ -135,8 +149,10 @@ def mass_from_num_atoms(
     return num_atoms * mass_of_one_reactant_atom(isotope_composition)
 
 
-def max_num_counts(max_gamma_count_rate, acquisition_duration):
-    """
+def max_num_counts(max_gamma_count_rate: float, acquisition_duration: float) -> float:
+    """Calculate the maximum number of counts that is allowed to enter the gamma-ray
+    detector during the acquisition period.
+
     The response matrix outputs the total number of gamma counts during the acquisition
     duration.
     Assuming the gamma-ray count rate remains constant over the acquisition duration, in
@@ -153,5 +169,11 @@ def max_num_counts(max_gamma_count_rate, acquisition_duration):
     the experimentalist can simply program the gamma-ray spectrum to stop and re-start
     its acquisition at the right time to avoid the noise generated from one peak to not
     overpower the rest of the peaks.)
+
+    Returns
+    -------
+    :
+        Maximum number of counts that we can allow the gamma-ray detector to register,
+        over the course of the entire acquisition duration.
     """
     return max_gamma_count_rate * acquisition_duration
