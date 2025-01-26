@@ -1,9 +1,16 @@
+"""All functions required to calculate the precision metric for a response matrix."""
+
 import numpy as np
 import uncertainties
 
+__all__ = ["get_precision", "get_precision_unit", "get_precision_weight_vector"]
+
 
 def get_precision_weight_vector(
-    gs_array: np.ndarray, *, log_flux: bool = False, const_lethargy: bool = False
+    gs_array: np.ndarray,
+    *,
+    log_flux: bool = False,
+    const_lethargy: bool = False,
 ) -> np.ndarray:
     """
     Get the weight vector w for calculating precision.
@@ -32,9 +39,41 @@ def get_precision_weight_vector(
         if log_flux:
             return log_diff**3
         return log_diff * log_diff * diff
-    elif log_flux:
+    if log_flux:
         return log_diff * diff * diff
     return diff**3
+
+
+def get_precision_unit(*, log_flux: bool = False, const_lethargy: bool = False):
+    """Get the unit applicable to the precision metric chosen by the user.
+
+    For a given setting of log_flux and const_lethargy, the precision parameter will have
+    a corresponding unit:
+    [cm^2 eV^3] (log_flux==False, const_lethargy==False)
+    [cm^2 eV^2] (log_flux==True , const_lethargy==False)
+    [cm^2 eV^1] (log_flux==False, const_lethargy==True )
+    [cm^2]      (log_flux==True , const_lethargy==True )
+
+    Parameters
+    ----------
+    log_flux:
+        see :func: `get_precision_weight_vector`
+    const_lethargy:
+        see :func: `get_precision_weight_vector`
+
+    Returns
+    -------
+    :
+        The string stating the unit.
+    """
+    if (not log_flux) and (not const_lethargy):
+        return "cm^2 eV^3"
+    if (log_flux) and (not const_lethargy):
+        return "cm^2 eV^2"
+    if (not log_flux) and (const_lethargy):
+        return "cm^2 eV^1"
+    # log_flux and const_lethargy
+    return "cm^2"
 
 
 def get_precision(
@@ -43,31 +82,38 @@ def get_precision(
     weight_vector: np.ndarray[float],
 ) -> float:
     """
+    Calculate the precision metric as defined in the thesis.
+
     Parameters
     ----------
     foil_response_matrix:
         foil response matrix, where row = count in gamma-bin measured, column = per unit
         flux of incoming radiation.
-    measured_variance:
-        expected variance of the response_vector. Can be naively obtained by folding the
-        response matrix with the a priori fluence.
-        TODO: replace with full covariance matrix later.
+    foil_response_vector:
+        The foil response vector (i.e. the number of counts under every detectable peak)
+        as obtained after being irradiated by the a priori fluence.
     weight_vector:
         Obtained by get_precision_weight_vector
 
     Returns
     -------
     :
-        precision/sensitivity value measured in the unit:
-        [cm^2 eV^3] (log_flux==False, const_lethargy==False)
-        [cm^2 eV^2] (log_flux==False, const_lethargy==True )
-        [cm^2 eV^1] (log_flux==True , const_lethargy==False)
-        [cm^2 eV^3] (log_flux==True , const_lethargy==True )
-        where log_flux, const_lethargy are parameters used in get_precision_weight_vector.
+        precision/sensitivity value measured in the unit specified by get_precision_unit,
+        where log_flux, const_lethargy are parameters used in get_precision_weight_vector
+
+    Note
+    ----
+        This function gets the 'precision' scalar quantity. This differs from the same
+        'precision' quantity mentioned in the thesis by a simple multiplicative factor of
+        'precision in program' = 'precision (in thesis)' * (irradiation duration)^2,
+        because here the a priori fluence is used instead of the a priori flux.
+        This change is minor and does not cause any meaningful difference to the result.
     """
     if len(foil_response_matrix) == 0:
         return 0.0
     covariance_matrix = uncertainties.covariance_matrix(foil_response_vector)
     return weight_vector @ np.diag(
-        foil_response_matrix.T @ np.linalg.pinv(covariance_matrix) @ foil_response_matrix
+        foil_response_matrix.T
+        @ np.linalg.pinv(covariance_matrix)
+        @ foil_response_matrix,
     )

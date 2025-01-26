@@ -1,9 +1,14 @@
+"""Functions to calculate the accuracy metric to quantify how good each effective
+response matrix is.
+"""
+
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 if TYPE_CHECKING:
+    import numpy as np
+
     from foilselector.openmcextension.library_reader import DiscreteRadiation
 
 
@@ -39,9 +44,10 @@ def get_all_reactions(expected_peak_list: list[DiscreteRadiation]) -> set:
 
 
 def get_accuracy_upper_bound(
-    response_matrix: np.ndarray[float], expected_peak_list: list[DiscreteRadiation]
+    response_matrix: np.ndarray[float],
+    expected_peak_list: list[DiscreteRadiation],
 ) -> int:
-    """
+    """Get the response matrix accuracy upper bound.
     The rank of the response matrix is bounded above by the number of distinct reactions
     used to construct that matrix.
     Each reaction, assuming that it is linearly independent to the rest of the reactions,
@@ -54,6 +60,11 @@ def get_accuracy_upper_bound(
     expected_peak_list:
         List of expected peaks, where neighbouring peaks have already been merged
         together and undetectable peaks removed.
+
+    Returns
+    -------
+    :
+        Accuracy metric calculated by the get_all_reactions function.
     """
     non_zero_bins = response_matrix.sum(axis=0) > 0.0
     return min([non_zero_bins.sum(), len(get_all_reactions(expected_peak_list))])
