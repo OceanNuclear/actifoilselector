@@ -5,7 +5,6 @@ Function to convert between different representations of
 """  # noqa: D400
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 from numpy import log as ln
 
@@ -105,7 +104,7 @@ def flux_conversion(flux_in, gs_in_eV, in_fmt: str, out_fmt: str):
     return flux_out
 
 
-def convert_arbitrary_gs_from_means(gs_means: npt.NDArray):
+def convert_arbitrary_gs_from_means(gs_means: np.ndarray):
     """
     Create a group structure (n bins, with upper and lower bounds each) from a list of
     n numbers. This is done by taking the first (n-1) numbers as the upper bounds of the
