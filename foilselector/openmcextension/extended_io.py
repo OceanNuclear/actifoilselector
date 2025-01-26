@@ -1,42 +1,44 @@
 # default system packages
+import json
 import os
 import sys
-import json
 import warnings
-from io import StringIO
 from collections import OrderedDict
+from io import StringIO
+
+import numpy as np
+import openmc
+import pandas as pd
+from numpy import array as ary
+from openmc.data import ATOMIC_SYMBOL
 
 # special numerical computing packages
 from tqdm import tqdm
-import numpy as np
-from numpy import array as ary
-from uncertainties.core import AffineScalarFunc, Variable
 from uncertainties import nominal_value as nom
-import pandas as pd
-import openmc
-from openmc.data import ATOMIC_SYMBOL
+from uncertainties.core import AffineScalarFunc, Variable
+
 from foilselector.openmcextension.constants import (
     AMBIGUOUS_MT,
     FISSION_MTS,
     MT_to_nuc_num,
 )
-from foilselector.openmcextension.table import tabulate, detabulate, Tab1DExtended
 from foilselector.openmcextension.library_reader import (
-    DiscreteRadiation,
     ContinuousRadiationDistribution,
+    DiscreteRadiation,
 )
+from foilselector.openmcextension.table import Tab1DExtended, detabulate, tabulate
 
 __all__ = [
-    "sparsely_load_xs_and_decay_dict",
+    "MF10",
+    "DecoderOpenMC",
+    "EncoderOpenMC",
+    "deduce_daughter_from_mt",
     "endf_data_list_to_xs_dict",
     "reactions_matching",
-    "deduce_daughter_from_mt",
-    "MF10",
-    "EncoderOpenMC",
-    "DecoderOpenMC",
-    "serialize_dict",
-    "unserialize_dict",
     "save_csv_with_uncertainty",
+    "serialize_dict",
+    "sparsely_load_xs_and_decay_dict",
+    "unserialize_dict",
     "unserialize_pd_DataFrame",
 ]
 
@@ -63,10 +65,10 @@ def load_endf_directories(*folder_list):
         print(
             "'python "
             + sys.argv[0]
-            + " output/ folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/'"
+            + " output/ folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/'",
         )
         print(
-            "Thus 'folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/' will be read."
+            "Thus 'folders/ containing/ endf/ tapes/ in/ ascending/ order/ of/ priority/' will be read.",
         )
         # print("where the outputs-saving directory 'output/' is only requried when read_apriori_and_gs_df is used.")
         print("Use wildcard (*) to replace directory as .../*/ if necessary")
@@ -87,14 +89,14 @@ def load_endf_directories(*folder_list):
         ]
 
     print(
-        f"Found {len(endf_file_list)} regular files (excluding files ending in '.json' or '.csv'). Assuming these are all endf data/decay data, reading them ..."
+        f"Found {len(endf_file_list)} regular files (excluding files ending in '.json' or '.csv'). Assuming these are all endf data/decay data, reading them ...",
     )
     # read in each file:
     endf_data = []
     for path in tqdm(endf_file_list):
         try:
             endf_data += openmc.data.get_evaluations(
-                path
+                path,
             )  # works with IRDFF/IRDFFII.endf and EAF/*.endf
         except ValueError:  # get_evaluations works doesn't work on decay/decay/files.
             endf_data += [
@@ -118,10 +120,12 @@ def _extract_decay(dec_file):
     """
     decay_constant = Variable(
         np.nan_to_num(
-            dec_file.decay_constant.n, nan=np.nan, posinf=1e23
+            dec_file.decay_constant.n,
+            nan=np.nan,
+            posinf=1e23,
         ),  # remove infinities
         np.nan_to_num(
-            float(dec_file.decay_constant.s)
+            float(dec_file.decay_constant.s),
         ),  # remove the nans which are often used as the uncertainties on the stable isotopes.
     )
     modes = {}
@@ -130,14 +134,20 @@ def _extract_decay(dec_file):
             mode.branching_ratio
         )  # we don't care what mechanism is used to transmute it. We just care about the respective branching ratios.
     return dict(
-        decay_constant=decay_constant, branching_ratio=modes, spectra=dec_file.spectra
+        decay_constant=decay_constant,
+        branching_ratio=modes,
+        spectra=dec_file.spectra,
     )
 
 
 def _rename_branching_ratio(decay_dict, isomeric_to_excited_state):
     """
-    decay_dict : a dictionary of decay_dict
-    isomeric_to_excited_state : a dictionary that translates from isomeric state to excited state.
+    Parameters
+    ----------
+    decay_dict:
+        a dictionary of decay_dict
+    isomeric_to_excited_state:
+        a dictionary that translates from isomeric state to excited state.
     """
     for parent in decay_dict.keys():
         products = decay_dict[parent]["branching_ratio"]
@@ -156,11 +166,13 @@ def sparsely_load_xs_and_decay_dict(required_isotopes, folder_list):
     """
     Load in ONLY cross-sections of the required isotopes from a list of folders.
     This massively reduce the memory usage (therefore the prefix 'sparsely' in its name.)
+
     Parameters
     ----------
     required_isotopes: an iterable of isotopes,
                 represented by a tuple of (atomic number, mass number)
     folder_list: an literable of directories where endf files can be found.
+
     Returns
     -------
     xs_dict: {isotope_name-product_name-MT=?? : openmc.data.Tabulated1D(microscopic cross-section in barns)}
@@ -187,7 +199,8 @@ def sparsely_load_xs_and_decay_dict(required_isotopes, folder_list):
     with warnings.catch_warnings(record=True) as w_list:
         # catching warnings occuring at the Decay.from_endf stage.
         for path in tqdm(
-            endf_file_list, desc="Reading ENDF files from the provided directories"
+            endf_file_list,
+            desc="Reading ENDF files from the provided directories",
         ):
             try:
                 # this is likely a incident neutron file:
@@ -226,7 +239,7 @@ def sparsely_load_xs_and_decay_dict(required_isotopes, folder_list):
                             isotope_data.target["isomeric_state"] > 0
                         ):  # if it is not at the lowest isomeric state: add the _e behind it too.
                             isomeric_name += "_m" + str(
-                                isotope_data.target["isomeric_state"]
+                                isotope_data.target["isomeric_state"],
                             )
                             name += "_e" + str(isotope_data.target["state"])
                         isomeric_to_excited_state[isomeric_name] = name[
@@ -240,7 +253,7 @@ def sparsely_load_xs_and_decay_dict(required_isotopes, folder_list):
     if w_list:
         print(
             w_list[0].filename
-            + ", line {}, {}'s:".format(w_list[0].lineno, w_list[0].category.__name__)
+            + f", line {w_list[0].lineno}, {w_list[0].category.__name__}'s:",
         )
         for w in w_list:
             print("    " + str(w.message))
@@ -252,7 +265,7 @@ def sparsely_load_xs_and_decay_dict(required_isotopes, folder_list):
 
     xs_dict = endf_data_list_to_xs_dict(micro_xs, isomeric_to_excited_state)
     xs_dict = _sort_and_trim_ordered_dict(
-        xs_dict
+        xs_dict,
     )  # sort to increase ease of finding things the user needs.
     return xs_dict, decay_dict
 
@@ -278,7 +291,7 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
 
         # get the higher-energy range values of xs as well if available.
         mf10_mt5 = MF10(
-            file.section.get((10, 5), None)
+            file.section.get((10, 5), None),
         )  # default value = None if (10, 5 doesn't exist.)
         for (izap, isomeric_state), xs in mf10_mt5.items():
             atomic_number, mass_number = divmod(izap, 1000)
@@ -289,7 +302,8 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
                 if isomeric_state > 0:
                     isomeric_name += "_m" + str(isomeric_state)
                 e_name = isomeric_to_excited_state.get(
-                    isomeric_name, isomeric_name.split("_")[0]
+                    isomeric_name,
+                    isomeric_name.split("_")[0],
                 )  # return the ground state name if there is no corresponding excited state name for such isomer.
                 long_name = nuc_sort_name + "-" + e_name + "-MT=5"
                 xs_dict[long_name] = xs
@@ -300,10 +314,13 @@ def endf_data_list_to_xs_dict(inc_nuc_list, isomeric_to_excited_state):
                 continue  # skip the cases of AMBIGUOUS_MT, fission mt, and heating information. They don't give us useful information about radionuclides produced.
 
             append_name_list, xs_list = _extract_xs(
-                inc_f.atomic_number, inc_f.mass_number, rx, tabulated=True
+                inc_f.atomic_number,
+                inc_f.mass_number,
+                rx,
+                tabulated=True,
             )
             # add each product into the dictionary one by one.
-            for name, xs in zip(append_name_list, xs_list):
+            for name, xs in zip(append_name_list, xs_list, strict=False):
                 xs_dict[nuc_sort_name + "-" + name] = xs
     return xs_dict
 
@@ -330,7 +347,9 @@ def _extract_xs(parent_atomic_number, parent_atomic_mass, rx_file, tabulated=Tru
     if isinstance(xs, openmc.data.ResonancesWithBackground):
         xs = xs.background  # When shrinking the group structure, this contains everything you need. The Resonance part of xs can be ignored (only matters for self-shielding.)
     daughter_name = deduce_daughter_from_mt(
-        parent_atomic_number, parent_atomic_mass, rx_file.mt
+        parent_atomic_number,
+        parent_atomic_mass,
+        rx_file.mt,
     )
     if daughter_name:  # if a matching MT number is found.
         # deduce_daughter_from_mt will return the ground state value
@@ -354,13 +373,11 @@ def deduce_daughter_from_mt(parent_atomic_number, parent_atomic_mass, mt):
         ):  # if it indicates an excited state
             excited_state = "_e" + str(MT_to_nuc_num[mt][2])
             return element_symbol + product_mass + excited_state
-        else:
-            return element_symbol + product_mass
-    else:
-        return None
+        return element_symbol + product_mass
+    return None
 
 
-class MF10(object):
+class MF10:
     def __getitem__(self, key):
         return self.reactions.__getitem__(key)
 
@@ -378,12 +395,12 @@ class MF10(object):
 
     __slots__ = [
         "number_of_reactions",
-        "za",
-        "target_mass",
-        "target_isomeric_state",
         "reaction_mass_difference",
         "reaction_q_value",
         "reactions",
+        "target_isomeric_state",
+        "target_mass",
+        "za",
     ]
 
     # __slots__ created for memory management purpose in case there are many suriving instances of MF10 all present at once.
@@ -391,7 +408,7 @@ class MF10(object):
         if mf10_mt5_section is not None:
             file_stream = StringIO(mf10_mt5_section)
             za, target_mass, target_iso, _, ns, _ = openmc.data.get_head_record(
-                file_stream
+                file_stream,
             )  # read the first line, i.e. the head record for MF=10, MT=5.
             self.number_of_reactions = ns
             self.za = za
@@ -403,9 +420,9 @@ class MF10(object):
                 (mass_diff, q_value, izap, isomeric_state), tab = (
                     openmc.data.get_tab1_record(file_stream)
                 )
-                self.reaction_mass_difference[(izap, isomeric_state)] = mass_diff
-                self.reaction_q_value[(izap, isomeric_state)] = q_value
-                self.reactions[(izap, isomeric_state)] = tab
+                self.reaction_mass_difference[izap, isomeric_state] = mass_diff
+                self.reaction_q_value[izap, isomeric_state] = q_value
+                self.reactions[izap, isomeric_state] = tab
         else:
             self.reactions = {}
 
@@ -431,12 +448,12 @@ class EncoderOpenMC(json.JSONEncoder):
         # numpy types
         if isinstance(o, np.integer):
             return int(o)
-        elif isinstance(o, np.ndarray):
+        if isinstance(o, np.ndarray):
             return o.tolist()
-        elif isinstance(o, np.float64):
+        if isinstance(o, np.float64):
             return float(o)
         # uncertainties types
-        elif isinstance(o, AffineScalarFunc):
+        if isinstance(o, AffineScalarFunc):
             try:
                 return str(o)
             except ZeroDivisionError:
@@ -466,8 +483,7 @@ class DecoderOpenMC(json.JSONDecoder):
             else:
                 multiplier = 1.0
             return Variable(*[float(i) * multiplier for i in o.split("+/-")])
-        else:
-            return super().decode(o)
+        return super().decode(o)
 
 
 def serialize_dict(mixed_object):
@@ -532,7 +548,7 @@ def save_csv_with_uncertainty(df, filename, *args, **kwargs):
         df.to_csv(filename, *args, **kwargs)
     except ZeroDivisionError:
         print(
-            "Minor issue when trying to write values which are too small. Plese allow several_extra_minutes..."
+            "Minor issue when trying to write values which are too small. Plese allow several_extra_minutes...",
         )
         cols = df.columns
         is_uncertain = ary([
@@ -540,7 +556,8 @@ def save_csv_with_uncertainty(df, filename, *args, **kwargs):
         ])
         uncertain_columns = cols[is_uncertain]
         for col in tqdm(
-            df.columns, desc="Setting almost infinitesimally small values to zero"
+            df.columns,
+            desc="Setting almost infinitesimally small values to zero",
         ):
             if col in uncertain_columns:
                 # when trying to express uncertainties.core.Variable using the  __str__ method, it will try to factorize it.
@@ -557,7 +574,8 @@ def save_csv_with_uncertainty(df, filename, *args, **kwargs):
 
 def unserialize_pd_DataFrame(df):
     """Convert the strings that represent uncertain values in a csv read in by pd.read_csv
-    into unc.core.Variable(those strings)"""
+    into unc.core.Variable(those strings)
+    """
     new_values = []
     for col in df.values.T:
         new_values.append(unserialize_dict(list(col)))
@@ -569,22 +587,23 @@ def serialize_radiation_dict(obj):
     if isinstance(obj, AffineScalarFunc):
         # AffineScalarFunc -> dict{'n':float, 's':float}
         return {"n": obj.n, "s": obj.s}
-    elif isinstance(obj, np.ndarray):
+    if isinstance(obj, np.ndarray):
         if obj.dtype.name == "object":
             return [nom(var) for var in obj]
         # np.ndarray -> list[float] | list[int]
         return obj.tolist()
-    elif isinstance(
-        obj, (DiscreteRadiation, ContinuousRadiationDistribution, Tab1DExtended)
+    if isinstance(
+        obj,
+        DiscreteRadiation | ContinuousRadiationDistribution | Tab1DExtended,
     ):
         # namedtuple | Tab1DExtended -> dict
         return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         # a dict of reactions and their xs: turn into list instead
         if len(obj) == 0:
             return {}
         k0 = list(obj.keys())[0]
-        if isinstance(k0, (DiscreteRadiation, ContinuousRadiationDistribution)):
+        if isinstance(k0, DiscreteRadiation | ContinuousRadiationDistribution):
             # dict -> list[{             'DiscreteRadiation' : dict, 'xs':list[float]}, ...]
             # dict -> list[{'ContinuousRadiationDistribution': dict, 'xs':list[float]}, ...]
             return [
@@ -606,28 +625,30 @@ def deserialize_radiation_dict(obj):
         keys = obj.keys()
         if tuple(keys) == ("n", "s"):
             return Variable(obj["n"], obj["s"])
-        elif "DiscreteRadiation" in keys:
+        if "DiscreteRadiation" in keys:
             return {
                 DiscreteRadiation(**{
                     k: deserialize_radiation_dict(v)
                     for k, v in obj["DiscreteRadiation"].items()
-                }): np.array(obj["xs"])
+                }): np.array(obj["xs"]),
             }
-        elif "ContinuousRadiationDistribution" in keys:
+        if "ContinuousRadiationDistribution" in keys:
             return {
                 ContinuousRadiationDistribution(**{
                     k: deserialize_radiation_dict(v)
                     for k, v in obj["ContinuousRadiationDistribution"].items()
-                }): np.array(obj["xs"])
+                }): np.array(obj["xs"]),
             }
-        elif sorted(keys) == sorted(Tab1DExtended._fields):
+        if sorted(keys) == sorted(Tab1DExtended._fields):
             return Tab1DExtended(
-                x=obj["x"], y=obj["y"], interpolation=obj["interpolation"]
+                x=obj["x"],
+                y=obj["y"],
+                interpolation=obj["interpolation"],
             )
         return {k: deserialize_radiation_dict(v) for k, v in obj.items()}
 
     if isinstance(obj, list):
-        if isinstance(obj[0], (float, int)):
+        if isinstance(obj[0], float | int):
             return np.array(obj)
         # should be a list of len==2 dicts left at this stage.
         d = {}
@@ -636,7 +657,8 @@ def deserialize_radiation_dict(obj):
             d.update(deserialize_radiation_dict(item))
             if (prev_len + 1) != len(d):
                 raise ValueError(
-                    "Programmer error! This list is supposed to represent a dict; but this list contains repeated items!"
+                    "Programmer error! This list is supposed to represent a dict; "
+                    "but this list contains repeated items!",
                 )
         return d
     return obj
@@ -645,19 +667,19 @@ def deserialize_radiation_dict(obj):
 def serialize_radiation_list(obj):
     if isinstance(obj, list):
         return [serialize_radiation_list(o) for o in obj]
-    elif isinstance(obj, (DiscreteRadiation, ContinuousRadiationDistribution)):
+    if isinstance(obj, DiscreteRadiation | ContinuousRadiationDistribution):
         return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
 
 
 def deserialize_radiation_list(obj):
     if isinstance(obj, list):
         return [deserialize_radiation_list(o) for o in obj]
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         if tuple(obj.keys()) == DiscreteRadiation._fields:
             return DiscreteRadiation(**{
                 k: deserialize_radiation_dict(v) for k, v in obj.items()
             })
-        elif tuple(obj.keys()) == ContinuousRadiationDistribution._fields:
+        if tuple(obj.keys()) == ContinuousRadiationDistribution._fields:
             return ContinuousRadiationDistribution(**{
                 k: deserialize_radiation_dict(v) for k, v in obj.items()
             })
