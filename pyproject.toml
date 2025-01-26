@@ -71,7 +71,6 @@ preview = true
 preview = true
 select = ["ALL"]
 ignore = [
-  "ANN",    # type annotations
   "CPY",    # we don't need a copyright info.
   "EM",     # string in error messages
   "D205",   # description not always necessary if summary is provided.
