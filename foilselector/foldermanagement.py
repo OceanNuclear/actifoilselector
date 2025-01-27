@@ -12,8 +12,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from foilselector.selfshielding import MaxSigma
-
 GROUP_STRUCTURE_FILENAME = ".gs.csv"
 APRIORI_FILENAME = ".integrated_apriori.csv"
 CONT_APRIORI_FILENAME = ".continuous_apriori.csv"
@@ -46,20 +44,6 @@ def read_atomic_composition_json(
 ) -> dict[str, float]:
     with Path(json_filename).open() as j:
         return json.load(j)
-
-
-# selfshielding_dict
-def save_self_shielding(
-    selfshielding_dict: dict,
-    json_path: Path | str = ".self-shielding.json",
-) -> None:
-    with Path(json_path).open("w") as j:
-        return json.dump(selfshielding_dict, j)
-
-
-def read_self_shielding(json_path: Path | str = ".self-shielding.json") -> MaxSigma:
-    with Path(json_path).open() as j:
-        return MaxSigma(json.load(j))
 
 
 def read_gs(file_path: Path | str = GROUP_STRUCTURE_FILENAME) -> pd.DataFrame:
