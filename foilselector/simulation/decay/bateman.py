@@ -32,20 +32,20 @@ They are the easiest to implement (matrix exponentiation is harder to implement 
     in point 2., there is no need for other function factories.
 """
 
-import numpy as np
-from numpy import array as ary
-import uncertainties.unumpy as unpy
-from uncertainties import nominal_value as nom
-import scipy.linalg as spln
+import warnings
 
-from foilselector.generic import SilenceNumpyInvalidError
+import numpy as np
+import scipy.linalg as spln
+import uncertainties.unumpy as unpy
+from numpy import array as ary
+from uncertainties import nominal_value as nom
 
 __all__ = [
-    "Bateman_equation_generator",
     "Bateman_convolved_generator",
+    "Bateman_equation_generator",
     "Bateman_num_decays_factorized",
-    "mat_exp_population_convolved",
     "mat_exp_num_decays",
+    "mat_exp_population_convolved",
 ]
 
 
@@ -67,7 +67,9 @@ def kahan_sum(a, axis=0):
 
 # (Function factory) population variation due to decay-in minus decay-out after flash irradiation, calculated using the Bateman equation
 def Bateman_equation_generator(
-    branching_ratios, decay_constants, decay_constant_threshold=1e-23
+    branching_ratios,
+    decay_constants,
+    decay_constant_threshold=1e-23,
 ):
     """
     Function factory that generates the expression that calculates the radioisotope population at the end of the chain specified assuming flash irradiation.
@@ -95,17 +97,18 @@ def Bateman_equation_generator(
     if len(decay_constants) == 1 and decay_constants[0] <= decay_constant_threshold:
         return lambda x: x - x + 1  # stable population, no decay.
     # expand out the Bateman equation into a matrix, we can then multiply the columns together and then summed the rows.
-    premultiplying_factor = np.product(decay_constants[:-1]) * np.product(
-        branching_ratios[1:]
+    premultiplying_factor = np.prod(decay_constants[:-1]) * np.prod(
+        branching_ratios[1:],
     )
     upside_down_matrix = np.diff(
-        np.meshgrid(decay_constants, decay_constants)[::-1], axis=0
+        np.meshgrid(decay_constants, decay_constants)[::-1],
+        axis=0,
     )
     upside_down_matrix += np.diag(
-        np.ones(len(decay_constants))
+        np.ones(len(decay_constants)),
     )  # 1/(lambda_i - lambda_j) term doesn't exist if i=j.
     final_matrix = 1 / upside_down_matrix
-    multiplying_factors = np.product(final_matrix, axis=-1)  # multiply across columns
+    multiplying_factors = np.prod(final_matrix, axis=-1)  # multiply across columns
 
     def calculate_population(t):
         vector = (
@@ -121,7 +124,10 @@ def Bateman_equation_generator(
 
 # (Funtion factory) population variation due to decay-in minus decay-out after a drawn out irradiation schedule, calculated using the Bateman equation
 def Bateman_convolved_generator(
-    branching_ratios, decay_constants, a, decay_constant_threshold=1e-23
+    branching_ratios,
+    decay_constants,
+    a,
+    decay_constant_threshold=1e-23,
 ):
     """
     Function factory that generates the expression that calculates the radioisotope population at the end of the chain specified assuming a uniformly drawn-out irrdiation.
@@ -155,20 +161,21 @@ def Bateman_convolved_generator(
     if len(decay_constants) == 1 and decay_constants[0] <= decay_constant_threshold:
         return lambda x: x - x + 1  # stable population, no decay.
     premultiplying_factor = (
-        np.product(decay_constants[:-1]) * np.product(branching_ratios[1:]) / a
+        np.prod(decay_constants[:-1]) * np.prod(branching_ratios[1:]) / a
     )
     upside_down_matrix = np.diff(
-        np.meshgrid(decay_constants, decay_constants)[::-1], axis=0
+        np.meshgrid(decay_constants, decay_constants)[::-1],
+        axis=0,
     )
     upside_down_matrix += np.diag(decay_constants)
     final_matrix = 1 / upside_down_matrix
-    multiplying_factors = np.product(final_matrix, axis=-1)
+    multiplying_factors = np.prod(final_matrix, axis=-1)
 
     def calculate_convoled_population(t):
-        """
+        f"""
         Calculates the population at any given time t when a non-flash irradiation schedule is used,
-        generated using irradiation duration a={} seconds
-        """.format(a)
+        generated using irradiation duration a={a} seconds
+        """
         vector_uncollapsed = ary(
             [
                 +unpy.exp(-ary([l * np.clip(t - a, 0, None) for l in decay_constants])),  # noqa: E741
@@ -228,17 +235,18 @@ def Bateman_num_decays_factorized(
         # catch the cases where there are zeros in the decay_rates
         # in practice this should only happen for chains with stable parents, i.e.
         # this if-condition would only be used if the decay chain is of length==1.
-        return 0 * np.product(branching_ratios) * a * b * c
+        return 0 * np.prod(branching_ratios) * a * b * c
     premultiplying_factor = (
-        np.product(decay_constants[:]) * np.product(branching_ratios[1:]) / a
+        np.prod(decay_constants[:]) * np.prod(branching_ratios[1:]) / a
     )
     upside_down_matrix = np.diff(
-        np.meshgrid(decay_constants, decay_constants)[::-1], axis=0
+        np.meshgrid(decay_constants, decay_constants)[::-1],
+        axis=0,
     )[0]
     # upside_down_matrix += np.diag(decay_constants)**2
     upside_down_matrix += np.diag(np.ones(len(decay_constants)))
     final_matrix = 1 / upside_down_matrix
-    multiplying_factors = np.product(final_matrix, axis=-1)
+    multiplying_factors = np.prod(final_matrix, axis=-1)
     try:
         vector_uncollapsed = ary(
             [
@@ -246,7 +254,7 @@ def Bateman_num_decays_factorized(
                 / ary(decay_constants) ** 2
                 * unpy.expm1(ary(decay_constants) * a)
                 * unpy.expm1(ary(decay_constants) * (c - b))
-                * unpy.exp(-ary(decay_constants) * c)
+                * unpy.exp(-ary(decay_constants) * c),
             ],
             dtype=object,
         )
@@ -260,7 +268,7 @@ def Bateman_num_decays_factorized(
                     / ary(l) ** 2
                     * unpy.expm1(ary(l) * a)
                     * unpy.expm1(ary(l) * (c - b))
-                    * unpy.exp(-ary(l) * c)
+                    * unpy.exp(-ary(l) * c),
                 ])
             except OverflowError:  # catch all cases and pop them out of the list
                 decay_constants_copy.pop(ind)
@@ -279,7 +287,7 @@ def Bateman_num_decays_factorized(
         print(  # upside_down_matrix, '\n', final_matrix, '\n',
             "multiplying_factors=\n",
             multiplying_factors,
-            #'\n--------\nvector=\n', vector,
+            # '\n--------\nvector=\n', vector,
         )
         try:
             print(
@@ -311,13 +319,19 @@ def _expm(M):
     dangerous to apply; TODO: need to audit to see if there's a safer way of calculating
     without ignoring the invalids! Or see if this ignoring of error is acceptable or not!
     """
-    with SilenceNumpyInvalidError():  # dangerous to use!
-        return spln.expm(M)
+    # with SilenceNumpyInvalidError():  # dangerous to use? TODO: audit safety.
+    with warnings.catch_warnings(record=True):
+        exponentiated = spln.expm(M)
+    return exponentiated
 
 
 # population after drawn out irrdiation, calculated by matrix exponentiation
 def mat_exp_population_convolved(
-    branching_ratios, decay_constants, a, t, decay_constant_threshold: float = 1e-23
+    branching_ratios,
+    decay_constants,
+    a,
+    t,
+    decay_constant_threshold: float = 1e-23,
 ):
     """
     Calculates the population at any one point after a drawn out irradiation (from time=0 to time=a) at time = t>a.
@@ -339,19 +353,19 @@ def mat_exp_population_convolved(
     """
     # Separated cases out that that will cause singular matrix or 1/0's.
     if any(
-        ary(decay_constants[:-1]) <= decay_constant_threshold
+        ary(decay_constants[:-1]) <= decay_constant_threshold,
     ):  # any stable isotope in the chain:
-        return 0 * np.product(branching_ratios) * a * t
-    elif (
+        return 0 * np.prod(branching_ratios) * a * t
+    if (
         len(decay_constants) == 1 and decay_constants[0] <= decay_constant_threshold
     ):  # single stable isotope in chain:
-        return 0 * np.product(branching_ratios) * a * t + 1.0
-    elif (
+        return 0 * np.prod(branching_ratios) * a * t + 1.0
+    if (
         decay_constants[-1] <= decay_constant_threshold
     ):  # last isotope is stable; rest of the chain is unstable:
         if t < a:
             raise NotImplementedError(
-                "The formula for population during irradiation hasn't been derived properly yet."
+                "The formula for population during irradiation hasn't been derived properly yet.",
             )
         matrix, iden = (
             create_lambda_matrix(decay_constants[:-1]),
@@ -362,7 +376,7 @@ def mat_exp_population_convolved(
             [
                 1.0,
             ]
-            + [0.0 for _ in decay_constants[1:-1]]
+            + [0.0 for _ in decay_constants[1:-1]],
         )
 
         # during_irradiation_production_matrix = -1/a * inv @ ( a*iden - inv @ (_expm(-matrix*a) - iden) )
@@ -370,46 +384,55 @@ def mat_exp_population_convolved(
             -inv + 1 / a * (_expm(matrix * a) - iden) @ inv @ inv
         )
         during_irradiation_production_matrix = np.nan_to_num(
-            during_irradiation_production_matrix
+            during_irradiation_production_matrix,
         )  # fix the nans
         during_irradiation_production = (
             (during_irradiation_production_matrix @ initial_population_vector)[-1]
             * decay_constants[-2]
-            * np.product(branching_ratios)
+            * np.prod(branching_ratios)
         )
         post_irradiation_production = mat_exp_num_decays(
-            branching_ratios, decay_constants[:-1], a, a, t
+            branching_ratios,
+            decay_constants[:-1],
+            a,
+            a,
+            t,
         )
         return during_irradiation_production + post_irradiation_production
-    else:  # all unstable:
-        matrix, iden = (
-            create_lambda_matrix(decay_constants),
-            np.identity(len(decay_constants)),
-        )
-        inv = np.linalg.inv(matrix)
-        initial_population_vector = ary(
-            [
-                1.0,
-            ]
-            + [0.0 for _ in decay_constants[1:]]
-        )
+    # all unstable:
+    matrix, iden = (
+        create_lambda_matrix(decay_constants),
+        np.identity(len(decay_constants)),
+    )
+    inv = np.linalg.inv(matrix)
+    initial_population_vector = ary(
+        [
+            1.0,
+        ]
+        + [0.0 for _ in decay_constants[1:]],
+    )
 
-        transformation = (
-            1
-            / a
-            * _expm(matrix * np.clip(t - a, 0, None))
-            @ (_expm(matrix * np.clip(t, 0, a)) - iden)
-            @ inv
-        )
-        final_fractions = transformation @ initial_population_vector
-        fraction = final_fractions[-1]
-        fraction = np.nan_to_num(fraction)
-        return np.product(branching_ratios[1:]) * fraction
+    transformation = (
+        1
+        / a
+        * _expm(matrix * np.clip(t - a, 0, None))
+        @ (_expm(matrix * np.clip(t, 0, a)) - iden)
+        @ inv
+    )
+    final_fractions = transformation @ initial_population_vector
+    fraction = final_fractions[-1]
+    fraction = np.nan_to_num(fraction)
+    return np.prod(branching_ratios[1:]) * fraction
 
 
 # decay from drawn out irradiation, calculated using matrix exponentiation
 def mat_exp_num_decays(
-    branching_ratios, decay_constants, a, b, c, decay_constant_threshold=1e-23
+    branching_ratios,
+    decay_constants,
+    a,
+    b,
+    c,
+    decay_constant_threshold=1e-23,
 ):
     """
     Calculates the number of decays experienced during time=b to time=c if the irradiation is drawn out from time=0 to time=a,
@@ -456,7 +479,7 @@ def mat_exp_num_decays(
     if any(ary(decay_constants) <= decay_constant_threshold):
         # if any one nuclide in the chain is so slow to decay that the user considers as 'stable', then
         # there's no point in calculating the number of decays, because it will be effectively zero.
-        return 0 * np.product(branching_ratios) * a * b * c
+        return 0 * np.prod(branching_ratios) * a * b * c
         # Using the expression above because this will preserve the type:
         # if any of those data came in the form of uncertainties.core.Variable/similar,
         # then we will output uncertainties.core.AffineScalarFunc.
@@ -477,7 +500,7 @@ def mat_exp_num_decays(
         [
             1,
         ]
-        + [0 for _ in decay_constants[1:]]
+        + [0 for _ in decay_constants[1:]],
     )  # initial population of all nuclides = 0 except for the very first isotope, which has 1.0.
     final_fractions = (
         multiplier @ inv @ inv @ initial_population_vector
@@ -486,6 +509,6 @@ def mat_exp_num_decays(
     fraction = final_fractions[-1]
     fraction = np.clip(np.nan_to_num(fraction), 0, np.inf)
     answer = (
-        np.product(branching_ratios[1:]) * fraction * decay_constants[-1]
+        np.prod(branching_ratios[1:]) * fraction * decay_constants[-1]
     )  # multiplied by its own decay rate will give the number of decays over time period b to c.1
     return answer
