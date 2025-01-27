@@ -1,20 +1,23 @@
 """Simulates the gamma-ray spectrum, including how the peak broadens."""
 
+import warnings
 from collections import defaultdict
 from collections.abc import Callable
-import warnings
 
-import scipy
-import numpy as np
-from uncertainties import nominal_value as nom
-from foilselector.constants import keV, FWHM_SIGMA
-from foilselector.openmcextension.library_reader import (
-    DiscreteRadiation,
-    ContinuousRadiationDistribution,
-)
-from uncertainties.core import Variable, AffineScalarFunc
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy
+from uncertainties import nominal_value as nom
+from uncertainties.core import AffineScalarFunc, Variable
+
+from foilselector.constants import FWHM_SIGMA, keV
+from foilselector.openmcextension.library_reader import (
+    ContinuousRadiationDistribution,
+    DiscreteRadiation,
+)
 from foilselector.simulation.compton import compton_edge, make_sharp_compton_distribution
+
+NUM_SIGMA_INTEGRATED = 3
 
 
 def get_response_matrix_and_peaks_without_uncertainty(
@@ -49,9 +52,13 @@ def simulate_peaks_with_uncertainties(
     peaks_multiplier = matrix @ apriori_fluence
 
     radiations = []
-    for line, multiplier in zip(list(discrete_response_matrix.keys()), peaks_multiplier):
+    for line, multiplier in zip(
+        list(discrete_response_matrix.keys()),
+        peaks_multiplier,
+        strict=False,
+    ):
         radiations.append(
-            DiscreteRadiation(line.energy, multiplier * line.intensity, line.source)
+            DiscreteRadiation(line.energy, multiplier * line.intensity, line.source),
         )
     return radiations
 
@@ -94,8 +101,7 @@ def merge_peaks(
         Private function to wrap up the content of the buffer and add them to the
         merged_peaks, merged_response_matrix queues.
         """
-        nonlocal buffer, index_buffer
-        nonlocal merged_peaks, merged_response_matrix
+        nonlocal buffer, index_buffer, merged_peaks, merged_response_matrix
         if len(buffer) == 1:
             merged_peaks.append(buffer.pop())
             i = index_buffer.pop()
@@ -113,12 +119,13 @@ def merge_peaks(
             merged_response_matrix.update(response_dict)
 
         buffer, index_buffer = [], []
-        return
 
     # iterate through the whole list
     for j, peak in enumerate(peak_list[1:]):
         if peaks_are_distinct(
-            peak, buffer[-1], fwhm_to_sigma(resolution_curve(nom(peak.energy)))
+            peak,
+            buffer[-1],
+            fwhm_to_sigma(resolution_curve(nom(peak.energy))),
         ):
             clear_buffers()
         buffer.append(peak.copy())
@@ -161,7 +168,8 @@ def merge_peak_group(
     # check meticulously for any roots in the gradient plot.
     gradient = gradient_factory(peak_buffer, resolution_curve)
     checked_energies = np.linspace(
-        nom(peak_buffer[0].energy), nom(peak_buffer[-1].energy)
+        nom(peak_buffer[0].energy),
+        nom(peak_buffer[-1].energy),
     )
     gradient_samples = gradient(checked_energies)
     grad_signs = np.sign(gradient_samples)
@@ -175,7 +183,7 @@ def merge_peak_group(
     upper_bound = np.hstack([checked_energies[cuts], nom(peak_buffer[-1].energy) + 1])
     mean_E_array = np.array([nom(peak.energy) for peak in peak_buffer])
 
-    for low, upp in zip(lower_bound, upper_bound):
+    for low, upp in zip(lower_bound, upper_bound, strict=False):
         chosen_peaks = np.logical_and(low <= mean_E_array, mean_E_array < upp)
         if any(chosen_peaks):
             chosen_slice = mask_to_slice(chosen_peaks)
@@ -220,7 +228,7 @@ def merge_peaks_and_responses(
     this_row_response = np.zeros(len_response, dtype=float)
     normalization_factor = nom(this_peak.intensity)
     if normalization_factor:
-        for rad, resp in zip(radiations, responses):
+        for rad, resp in zip(radiations, responses, strict=False):
             this_row_response += nom(rad.intensity) / normalization_factor * resp
     # else: this_row_response = np.zeros(len_response)
     return this_peak, this_row_response
@@ -240,12 +248,13 @@ def gradient_factory(
                 nom(peak.energy),
                 fwhm_to_sigma(resolution_curve(nom(peak.energy))),
                 nom(peak.intensity),
-            )
+            ),
         )
 
     def total_gradient_calculator(x: float | np.ndarray) -> float | np.ndarray:
         """Function that takes in energy and output the gradient at that energy due to
-        contributions from every single peak listed."""
+        contributions from every single peak listed.
+        """
         return np.sum([curve(x) for curve in curve_container], axis=0)
 
     return total_gradient_calculator
@@ -288,6 +297,8 @@ def combine_as_single_peak(peak_group: list[DiscreteRadiation]) -> DiscreteRadia
         merged single peak.
     """
     # new interval must span the entire group's old interval.
+    if len(peak_group) == 1:
+        return peak_group[0]
     total_counts = sum(nom(p.intensity) for p in peak_group)
     if total_counts:  # not equal to zero
         peak_energy = sum(p.energy * nom(p.intensity) for p in peak_group) / total_counts
@@ -299,12 +310,14 @@ def combine_as_single_peak(peak_group: list[DiscreteRadiation]) -> DiscreteRadia
     return DiscreteRadiation(
         peak_energy,
         sum(p.intensity for p in peak_group),
-        "; ".join([f"{p.source} at {nom(p.energy)}" for p in peak_group]),
+        "; ".join([f"{p.source} at {nom(p.energy)} eV" for p in peak_group]),
     )
 
 
 def peaks_are_distinct(
-    peak_1: DiscreteRadiation, peak_2: DiscreteRadiation, sigma: float
+    peak_1: DiscreteRadiation,
+    peak_2: DiscreteRadiation,
+    sigma: float,
 ) -> bool:
     """
     Check if two peaks are distinct from each other (True), or shall be merged as one
@@ -375,13 +388,20 @@ def delete_peaks(
         510.998950 keV +/- exclusion_zone_511 keV would be deleted
     """
     new_peak_list, new_response_matrix = [], {}
-    for peak, (radiation, reaction) in zip(peak_list, response_matrix.items()):
+    for peak, (radiation, reaction) in zip(
+        peak_list,
+        response_matrix.items(),
+        strict=False,
+    ):
         if nom(peak.energy) < (gamma_range[0] * keV) or nom(peak.energy) > (
             gamma_range[1] * keV
         ):
             continue
         if exclusion_zone_511 and np.isclose(
-            nom(peak.energy), 510.998950 * keV, atol=exclusion_zone_511 * keV, rtol=0.0
+            nom(peak.energy),
+            510.998950 * keV,
+            atol=exclusion_zone_511 * keV,
+            rtol=0.0,
         ):
             continue
         new_peak_list.append(peak.copy())
@@ -400,9 +420,9 @@ def fold_background(
     bg_multipler = matrix @ apriori_fluence
 
     bgs = []
-    for dist, multiplier in zip(list(background.keys()), bg_multipler):
+    for dist, multiplier in zip(list(background.keys()), bg_multipler, strict=False):
         bgs.append(
-            ContinuousRadiationDistribution(dist.distribution * multiplier, dist.source)
+            ContinuousRadiationDistribution(dist.distribution * multiplier, dist.source),
         )
     return bgs
 
@@ -434,17 +454,19 @@ def make_compton_distribution(
     if not np.isclose(sigma_at_lower_bound, sigma, rtol=0.4, atol=0):
         warnings.warn(
             "The kernel width changes too much over the smearing area!"
-            "Simulated gamma-spectrum may yield an inaccurate Compton continuum."
+            "Simulated gamma-spectrum may yield an inaccurate Compton continuum.",
         )
     smearing_range = np.logical_and(
-        test_energies >= (Ecomp - 6 * sigma), test_energies <= (Ecomp + 10 * sigma)
+        test_energies >= (Ecomp - 6 * sigma),
+        test_energies <= (Ecomp + 10 * sigma),
     )
     smearing_scaler = get_smeared_multiplier(
-        (test_energies[smearing_range] - Ecomp) / sigma
+        (test_energies[smearing_range] - Ecomp) / sigma,
     )
     rhs_of_smearing_range = np.logical_and(test_energies > Ecomp, smearing_range)
     compton_dist[rhs_of_smearing_range] = make_sharp_compton_distribution(
-        photopeak_energy, np.array([Ecomp])
+        photopeak_energy,
+        np.array([Ecomp]),
     )[0]
     compton_dist[smearing_range] = smearing_scaler * compton_dist[smearing_range]
     return compton_dist
@@ -488,7 +510,8 @@ def corresponding_background_level(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
     compton_peak_ratio_curve: Callable[
-        [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
+        [float | np.ndarray | AffineScalarFunc],
+        float | np.ndarray | AffineScalarFunc,
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     test_energies: np.ndarray[float],
@@ -521,13 +544,16 @@ def corresponding_background_level(
         list of background levels at the test_energies, given in unit [counts/eV].
     """
     bg_heights = np.zeros(
-        len(test_energies), dtype=object if include_uncertainties else float
+        len(test_energies),
+        dtype=object if include_uncertainties else float,
     )
 
     for peak_zeta in peak_list:
         c_counts = compton_peak_ratio_curve(peak_zeta.energy) * peak_zeta.intensity
         comp_dist = make_compton_distribution(
-            peak_zeta.energy, test_energies, resolution_curve
+            peak_zeta.energy,
+            test_energies,
+            resolution_curve,
         )
 
         bg_heights += comp_dist * (c_counts if include_uncertainties else nom(c_counts))
@@ -560,7 +586,8 @@ def simulate_full_spectrum(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
     compton_peak_ratio_curve: Callable[
-        [float | np.ndarray | AffineScalarFunc], float | np.ndarray | AffineScalarFunc
+        [float | np.ndarray | AffineScalarFunc],
+        float | np.ndarray | AffineScalarFunc,
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     sampling_points: np.ndarray[float],
@@ -716,7 +743,9 @@ def plot_in_sqrt_scale(
 
 
 def normal_dist_factory(
-    mu0: float, sigma: float, area: float = 1.0
+    mu0: float,
+    sigma: float,
+    area: float = 1.0,
 ) -> Callable[[float | np.ndarray], float | np.ndarray]:
     """
     Function factory that makes normal distributions of the specified mean location,
@@ -735,11 +764,9 @@ def integrate_peak_area(
     peak_list: list[DiscreteRadiation],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     background_levels: list[float | AffineScalarFunc],
-    *,
-    how_many_fwhm: float = 1.0,
 ) -> list[float | AffineScalarFunc]:
     """
-    Get the number of background counts under a peak.
+    Get the number of counts under a peak, accounting for the thing.
 
     Parameters
     ----------
@@ -751,25 +778,21 @@ def integrate_peak_area(
         unit: [counts/eV]
     resolution_curve:
         resolution curve that gives the FWHM [eV] at energy E [eV].
-    how_many_fwhm:
-        how many times of the FWHM to integrate over.
 
     Returns
     -------
     truncated_net_peak_areas:
-        Net area of the peak from E=(energy-FWHM/2*how_many_fwhm)
-        to E=(energy+FWHM/2*how_many_fwhm), with the appropriate uncertainties expected
-        of it.
+        Net area of the peak, with the appropriate uncertainties expected of it.
     """
-    truncated_net_peak_areas = []
-    for peak, bg_lvl in zip(peak_list, background_levels):
+    net_peak_areas = []
+    for peak, bg_lvl in zip(peak_list, background_levels, strict=False):
         bg_area = integrate_bg_area(
-            bg_lvl, resolution_curve(peak.energy) * how_many_fwhm
+            bg_lvl,
+            resolution_curve(peak.energy) * 2 * NUM_SIGMA_INTEGRATED,
         )
-        truncated_peak_area = peak.intensity * contained_by_interval(how_many_fwhm)
-        full_trunc_peak_area = add_Poisson_error(truncated_peak_area + nom(bg_area))
-        truncated_net_peak_areas.append(full_trunc_peak_area - bg_area)
-    return truncated_net_peak_areas
+        peak_gross_area = add_Poisson_error(peak.intensity + bg_area)
+        net_peak_areas.append(peak_gross_area - bg_area)
+    return net_peak_areas
 
 
 def add_Poisson_error(count_rate: float | AffineScalarFunc) -> AffineScalarFunc:
