@@ -8,9 +8,13 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from numpy import typing as npt
+
 
 GROUP_STRUCTURE_FILENAME = ".gs.csv"
 APRIORI_FILENAME = ".integrated_apriori.csv"
@@ -29,11 +33,10 @@ RESULT_CSV = "each_foil.csv"
 def save_atomic_composition_json(
     processed_composition: dict[str, float],
     json_filename: Path | str = ATOMIC_COMPOSITION_FILENAME,
-    cwd: str | None = None,
+    directory: str | None = None,
 ) -> None:
     """Save the atomic composition as a json file."""
-    cwd = cwd or Path.cwd()
-    json_fullpath = Path(cwd, json_filename)
+    json_fullpath = Path(directory or Path.cwd(), json_filename)
     print("saving the processed composition file to", json_fullpath)
     with json_fullpath.open("w") as j:
         json.dump(processed_composition, j, indent=1)
@@ -46,10 +49,6 @@ def read_atomic_composition_json(
         return json.load(j)
 
 
-def read_gs(file_path: Path | str = GROUP_STRUCTURE_FILENAME) -> pd.DataFrame:
-    return pd.read_csv(Path(file_path)).to_numpy()
-
-
 def save_gs(
     gs_df: pd.DataFrame,
     file_path: Path | str = GROUP_STRUCTURE_FILENAME,
@@ -57,41 +56,8 @@ def save_gs(
     return gs_df.to_csv(Path(file_path), index=False)
 
 
-def read_flux(file_path: Path) -> np.ndarray[float]:
-    return np.squeeze(pd.read_csv(Path(file_path)).values)
-
-
-def get_durations_from_csv(file: Path) -> float:
-    """Get the durations saved at the comments before the header of the csv file.
-
-    Parameters
-    ----------
-    file:
-        a plain text file (.csv file) that should start with at least 3 comments lines,
-        each of them started with a '#' character.
-
-    Returns
-    -------
-    irradiation_duration:
-        The length of the irradiation, in [seconds].
-    transport_duration:
-        The length of the transport period, in [seconds].
-    measurement_duration:
-        The length of the measurement/gamma-spectrum acquisition period, in [seconds].
-    """
-    with Path(file).open() as csv:
-        while True:
-            comment_line = csv.readline()
-            if not comment_line.startswith("#"):
-                break
-            if "duration" in comment_line:
-                if "irradiation" in comment_line:
-                    irradiation_duration = float(comment_line.split()[-1])
-                elif "trans" in comment_line:
-                    transit_duration = float(comment_line.split()[-1])
-                elif ("measurement" in comment_line) or ("acquisition" in comment_line):
-                    acquisition_duration = float(comment_line.split()[-1])
-    return irradiation_duration, transit_duration, acquisition_duration
+def read_gs(file_path: Path | str = GROUP_STRUCTURE_FILENAME) -> pd.DataFrame:
+    return pd.read_csv(Path(file_path)).to_numpy()
 
 
 def save_apriori(
@@ -104,7 +70,7 @@ def save_apriori(
 def read_apriori(
     directory: Path,
     irradiation_duration: float | None = None,
-) -> np.ndarray[float] | tuple[np.ndarray[float], np.ndarray[float]]:
+) -> npt.NDArray[float] | tuple[npt.NDArray[float], npt.NDArray[float]]:
     """Get the apriori neutron spectrum, as flux (and potentially fluence).
 
     Parameters
@@ -145,10 +111,6 @@ def read_apriori(
         apriori_fluence = apriori_flux * irradiation_duration
         return apriori_flux, apriori_fluence
     return apriori_flux
-
-
-def find_efficiency_file() -> Path:
-    return next(Path(Path.cwd()).glob(".efficiency.*"))
 
 
 def append_to_json(obj: dict, json_path: Path) -> None:

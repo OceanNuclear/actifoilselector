@@ -26,7 +26,6 @@ Files saved
     more details.
 """
 
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -67,6 +66,7 @@ from foilselector.simulation.efficiency import (
     EfficiencyCurve,
     get_default_efficiency_curve_path,
     list_dir_eff_files,
+    save_as_efficiency_file,
 )
 from foilselector.simulation.resolution import (
     ResolutionMaxCountRate,
@@ -719,10 +719,7 @@ def stage7_load_and_save_gamma_efficiency() -> None:
                 chosen_eff_file = default_efficiency_file
             eff_curve = one_loop(chosen_eff_file)
             if ask_yn_question("Is this curve satisfactory?"):
-                shutil.copyfile(
-                    chosen_eff_file,
-                    ".efficiency" + Path(chosen_eff_file).suffix,
-                )
+                save_as_efficiency_file(chosen_eff_file)
                 break
             print(
                 "Add/change datapoints/ use a different data file, and try again...",

@@ -3,6 +3,7 @@ classes.
 """
 
 import itertools
+import shutil
 from collections import namedtuple
 from pathlib import Path
 
@@ -55,6 +56,36 @@ def list_dir_eff_files(directory: Path) -> list[Path]:
     print("------------------------")
     print("########################")
     return fnames
+
+
+def save_as_efficiency_file(fname: Path | str, directory: Path | str = ".") -> None:
+    """Save the efficiency file by simply copying into one named .efficiency.*.
+
+    Parameters
+    ----------
+    fname:
+        The file that already contains the data points of efficiency.
+    directory:
+        The directory at at which we want to save our .efficiency.* file.
+    """
+    save_location = Path(Path(directory), ".efficiency" + Path(fname).suffix)
+    shutil.copyfile(fname, save_location)
+
+
+def find_efficiency_file(directory: Path | str = ".") -> Path:
+    """Find the .efficiency file already saved at the directory specified.
+
+    Parameters
+    ----------
+    directory:
+        The working directory at which we want to search for a .efficiency.* file.
+
+    Returns
+    -------
+    :
+        The first (and hopefully only) match to the search pattern ".efficiency.*".
+    """
+    return next(Path(directory).glob(".efficiency.*"))
 
 
 def read_mcnp_output(fname: Path) -> MCNPOut:  # noqa: D103

@@ -35,7 +35,6 @@ from foilselector.foldermanagement import (
     RAW_RESPONSE_MATRICES,
     append_to_csv,
     append_to_json,
-    find_efficiency_file,
     read_apriori,
     read_gs,
     save_atomic_composition_json,
@@ -73,7 +72,7 @@ from foilselector.simulation.compton import (
 )
 from foilselector.simulation.decay import build_decay_chain_tree, linearize_decay_chain
 from foilselector.simulation.decay.bateman import mat_exp_num_decays
-from foilselector.simulation.efficiency import EfficiencyCurve
+from foilselector.simulation.efficiency import EfficiencyCurve, find_efficiency_file
 from foilselector.simulation.resolution import (
     ResolutionMaxCountRate,
     resolution_curve_factory,
