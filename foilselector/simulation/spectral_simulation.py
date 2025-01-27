@@ -516,7 +516,6 @@ def corresponding_background_level(
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     test_energies: np.ndarray[float],
     *,
-    # broadening_matrix: np.ndarray | None = None,
     include_uncertainties: bool = False,
 ) -> list[AffineScalarFunc]:
     """

@@ -11,16 +11,16 @@
 []Confirm the width of peaks are sensible using the default values.
 ----code maintainability (specific)
 []Mixing foldermanagement.py with filereading.py
-[]physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton}.py
+[]physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton,resolution}.py
 []Apply validation (via the setter) on DiscreteRadiation.source
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
     - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
-    - efficiency (default stored as .csv file) -> stored data as various file endings -> re-load from data
+    - efficiency (default stored as .csv file) -> copied as data with various file endings -> re-load from data
     - peak-to-Compton (default stored as .csv file) -> coefficients stored in .txt file -> re-load from coefs
-[]Raise issues for all of the TODO notes
-[]Remove step1 stage4+5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.
+[]Raise issues for all of the remaining TODO notes
 []Open issue to add tutorial for future use
     - Write simple tutorial in README
+[]Remove step1.stage4 & step1.stage5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.
 
 ----Nice-to-have physics features
 []Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
