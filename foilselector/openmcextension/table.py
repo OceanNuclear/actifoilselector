@@ -288,7 +288,13 @@ class Integral:
         return (
             y1 * dx
             + dy * x2
-            - dy * np.nan_to_num(dx / dlnx, nan=x1, posinf=x1, neginf=x1)
+            - dy
+            * np.nan_to_num(
+                dx / dlnx,
+                nan=x1,
+                posinf=x1,
+                neginf=x1,
+            )  # TODO: RuntimeWarning: invalid value encountered in divide
         )
 
     @staticmethod
@@ -297,7 +303,8 @@ class Integral:
         dlny = ln(y2) - ln(y1)
         # m = dlny/dx
         return (
-            np.nan_to_num(dy / dlny, nan=y1, posinf=y1, neginf=y1) * dx
+            np.nan_to_num(dy / dlny, nan=y1, posinf=y1, neginf=y1)
+            * dx  # TODO: RuntimeWarning: invalid value encountered in divide
         )  # nan_to_num is needed to take care of y2 = y1,
         # which makes dy/dlny appraoch the value of y1. (since dlny-> 0 one order of magnitude faster than 1 dy->0)
         # if dy is exactly zero, dy/dlny would've returned nan.
@@ -323,7 +330,10 @@ class Integral:
         """
         resulting_area = np.empty(x1.shape)
         dx, dy = x2 - x1, y2 - y1  # noqa: F841
-        dlnx, dlny = ln(x2) - ln(x1), ln(y2) - ln(y1)
+        dlnx, dlny = (
+            ln(x2) - ln(x1),
+            ln(y2) - ln(y1),
+        )  # TODO: invalid value encountered in subtract
         # shouldn't raise any warnings so far unless x1==0 or y1==0, which isn't well defined (but we can extend the definition to cover it)
 
         # find the special cases: dlnx==0; x^-1; all others.
@@ -350,8 +360,12 @@ class Integral:
         # normal case
         m = dlny[normal] / dlnx[normal]
         #   problematic if any(x1==0, y1==0, dx==0)
-        inv_x1_m = y1[normal] / (x1[normal] ** m)
-        diff_over_expo = (x2[normal] ** (m + 1) - x1[normal] ** (m + 1)) / (m + 1)
+        inv_x1_m = y1[normal] / (
+            x1[normal] ** m
+        )  # TODO: RuntimeWarning: overflow encountered in power,
+        diff_over_expo = (
+            (x2[normal] ** (m + 1) - x1[normal] ** (m + 1)) / (m + 1)
+        )  # TODO: this is where it fails with `RuntimeWarning: overflow encountered in power`, and `RuntimeWarning: invalid value encountered in subtract`
 
         resulting_area[normal] = np.nan_to_num(
             inv_x1_m * diff_over_expo,

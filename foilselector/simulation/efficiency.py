@@ -3,8 +3,8 @@ classes.
 """
 
 import itertools
-from pathlib import Path
 from collections import namedtuple
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,7 +32,7 @@ APPROVED_EFFICIENCY_FILE_EXTENSIONS = {
 }
 
 
-def list_dir_eff_files(directory: Path):
+def list_dir_eff_files(directory: Path) -> list[Path]:
     """Pretty print the list of all efficiency files in a specified directory.
 
     Returns
@@ -57,7 +57,7 @@ def list_dir_eff_files(directory: Path):
     return fnames
 
 
-def read_mcnp_output(fname: Path):  # noqa: D103
+def read_mcnp_output(fname: Path) -> MCNPOut:  # noqa: D103
     with Path(fname).open() as f:
         data = f.readlines()
     llim_lines = data[1::4]
@@ -91,7 +91,7 @@ def read_mcnp_output(fname: Path):  # noqa: D103
     )  # relative uncertainty on the ^ number
 
 
-def read_dat(fname: Path):  # noqa: D103
+def read_dat(fname: Path) -> tuple[np.ndarray[float], np.ndarray[float]]:  # noqa: D103
     with Path(fname).open() as f:
         data = f.readlines()[1:]
     E = [float(line.split()[0]) for line in data]
@@ -99,7 +99,7 @@ def read_dat(fname: Path):  # noqa: D103
     return ary(E) * keV, ary(eff)
 
 
-def read_ecc(fname: Path):  # noqa: D103
+def read_ecc(fname: Path) -> ISOCSOut:  # noqa: D103
     with Path(fname).open() as f:
         file = f.readlines()[11:]
     table = [[float(i) for i in line.split()[1:]] for line in file]
@@ -107,7 +107,7 @@ def read_ecc(fname: Path):  # noqa: D103
     return ISOCSOut(*tabularized)
 
 
-def read_csv(fname: Path):  # noqa: D103
+def read_csv(fname: Path) -> pd.DataFrame:  # noqa: D103
     df = pd.read_csv(fname)  # noqa: PD901
     if "MeV" in df.columns[0]:
         df[df.columns[0]] = df[df.columns[0]] * MeV  # noqa: PLR6104
@@ -177,7 +177,7 @@ class EfficiencyCurve:
 
     def __init__(
         self,
-        eff_curve_object,
+        eff_curve_object: EffCurve,
         extrapolation_inference_threshold_keV: float = 800,
     ):
         self.E = ary(eff_curve_object.E)
@@ -206,7 +206,10 @@ class EfficiencyCurve:
         ]  # dirty hack to find the efficiency at the largest recorded energy.
         self._extrapolate = lambda x: eff_at_max_E + fitted_slope * (x - self._log_max_E)
 
-    def _fitted_func_in_loglog_space(self, scalar_or_vector):
+    def _fitted_func_in_loglog_space(
+        self,
+        scalar_or_vector: float | np.ndarray[float],
+    ) -> float | np.ndarray[float]:
         """
         Calculate the efficiencies using the stored list of energies and efficiencies.
         Below the min stored E value : 0.
@@ -221,7 +224,7 @@ class EfficiencyCurve:
 
         Returns
         -------
-        :
+        output:
             scalar efficiency if input is scalar; vector efficiency if input is vector.
         """
         # extrapolate by drawing a line with slope = fitted slope, crossing the rightmost
@@ -246,7 +249,7 @@ class EfficiencyCurve:
         return output
 
     @classmethod
-    def from_file(cls, fname):
+    def from_file(cls, fname: Path):
         """Create an EfficiencyCurve by fitting from a file."""
         return cls(efficiency_curve_from_file(fname))  # noqa: DOC201
 
@@ -271,9 +274,12 @@ class EfficiencyCurve:
             The efficiency in the same shape, either as a single float (scalar) or as an
             1D array of floats [vector].
         """
-        return np.exp(self._fitted_func_in_loglog_space(ln(nom(required_E_in_eV))))
+        E = nom(required_E_in_eV)
+        if np.isclose(E, 0):
+            return 0.0
+        return np.exp(self._fitted_func_in_loglog_space(ln(E)))
 
-    def plot(self, ax: plt.Axes | None = None):
+    def plot(self, ax: plt.Axes | None = None) -> None:
         """Plot to examine how well the fit is.
 
         Even though the underlying constants are in eV,
@@ -293,7 +299,7 @@ class EfficiencyCurve:
         plt.show()
 
 
-def get_default_efficiency_curve_path():
+def get_default_efficiency_curve_path() -> Path:
     """Get the file path of the efficiency file.
 
     Returns
