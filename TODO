@@ -25,23 +25,27 @@
 ----code maintainability (specific)
 [x]Make the foilselector write to a .csv instead of five separate .jsons?
 []Put the following file names all in foldermanagement.py:
-    [].atomic_composition.json
-    [].gs.csv
-    [].continuous_apriori.csv
-    [].response_matrices.json
-    [].background_response_matrices.json
-    [].effective_response_matrices.json
+    [x].atomic_composition.json
+    [x].gs.csv
+    [x].continuous_apriori.csv
+    [x].response_matrices.json
+    [x].background_response_matrices.json
+    [x].effective_response_matrices.json
     [x].gamma-resolution-count-rate-coefs.txt
     [x].gamma-Compton-to-peak-coefs.txt
     [x]Add the list of radiations into f"gamma_spectra/{foil_name}.json" (might need to re-jig the list saving files) as key="peaks", and don't save it as .effective_peaks.json?
         - Or as a separate .csv file.
-    [].effective_peaks.json
+    [-].effective_peaks.json
     - foilselector.openmcextension.extended_io.load_endf_directories()
     []Mixing foldermanagement.py with filereading.py
 []git rm
-    - physicalparameters/efficiency.py
-    - unpack_reactions and strip_mt_brackets in reactionnaming.py
-    - optimizer/selection_sum.py
+    [ ]physicalparameters/efficiency.py
+    [x]unpack_reactions and strip_mt_brackets in reactionnaming.py
+    [x]optimizer/selection_sum.py
+    [x]simulation/helper.py
+    [ ]{SIGMA_CSV,PARAM_JSON_FILE,read_self_shielding,save_self_shielding,read_flux,get_durations_from_csv} in foldermanagement.py
+    [ ]script/step*.py
+[]{ResolutionMaxCountRate,PeakToComptonCoefficients} in foldermanagement.py -> simulation?
 []physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton}.py
 [x]os.path -> pathlib.Path
 [x]spectral_simulation.py is growing out of control. Split into multiple modules?
