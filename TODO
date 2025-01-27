@@ -12,9 +12,6 @@
 []Mixing foldermanagement.py with filereading.py
 []physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton}.py
 []Apply validation (via the setter) on DiscreteRadiation.source
-[x]{ResolutionMaxCountRate,PeakToComptonCoefficients} in foldermanagement.py -> simulation?
-[x]os.path -> pathlib.Path
-[]spectral_simulation.py is growing out of control. Split into multiple modules?
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
     - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
     - efficiency (default stored as .csv file) -> stored data as various file endings -> re-load from data
@@ -29,6 +26,7 @@
 []Make simulation/visualize/ work again
 []Make physicalparameters/price.py work again
 []Incorporate pair-production effects? And multiple Compton scatter effects?
+[]spectral_simulation.py is growing out of control. Split into multiple modules?
 
 ----General code maintainability/quality (generic)
 []Tests/Unittest
