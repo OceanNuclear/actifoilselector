@@ -1,0 +1,12 @@
+Issue 1: Apply resolution curve blurring to the Compton Edge.
+    1. Tried approach one: big resolution matrix.
+        Problem: Takes up a lot of memory, and may not work when the sampling gamma-energy step size is too small. Also causes an undesirable/false artifact when >1.
+    2. Tried approach two: blur only at the Compton edge.
+        Problem/result: Works much better, but is limited to use cases where the Compton edge is located where the resolution curve is not so steep.
+
+Issue 2: Trying to find a good way to approximate the rank of the response matrix n
+    1. Using np.linalg.svd on an m × n matrix (where m<n) would give m singular values of descending magnitude.
+        Problem: An arbitrary threshold would have to be applied to decide which of the singular values are actually too small to be considered (and shall be counted as contributing +0 to the matrix rank), while the rest of the singular values shall be considered as contributing +1 to the rank.
+    2. Tried using Gaussian elimination to approach row-echelon, such that we can count the thing simply.
+        Problem: using the methods in commit e849b1a29220d8e6b28d47ce1bcdc3b2246c9fa2, sometimes rows cannot be cancelled to exactly zero during the Gaussian elimination due to floating-point arithmetic issues. As a result, the rightmost row of the augmented matrix (i.e. the response vector after the Gaussian elimination operations) reaches some impossible numbers, e.g. very large number of strongly negative numbers, causing the program to fail to reduce to row-echelon form.
+    3. It was decided that simply counting the number of distinct neutron-induced transmutation reaction (bounded above by the number of non-zero bins in the response matrix) is a good enough approximation of the matrix rank.

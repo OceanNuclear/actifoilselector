@@ -1,80 +1,37 @@
 ----code accuracy improvement (and high priority maintenance/code quality issues)
-[x]Fix git commit hooks
-[x]Merged rows: how do we deal with their scale factors???
-[x]speed up corresponding_background_level
-[x]Populate the covariance matrix in get_precision correctly, rather than simply using the inverse of the variance in counts as the main diagonal.
-[x]Change the name of `Integrate` to `Intergral`
-[x]Instead of a flat distribution, use a better (Klein-Nishina) simulation of the Compton continuum
-[x]Tab1DExtended: Addition and multiplication
-[x]compton.py
-    [x]Fix the callable compton_to_peak curves everywhere else
 []Deal with double-counting of some reactions,
     - example: see [i for i in xs_dict.keys() if i.startswith("Pd106")]:
-    - "Pd106-Rh105-MT=28"
-    - "Pd106-Rh105-MT=(650-669)"
-    - "Pd106-Ru103-MT=107"
-    - "Pd106-Ru103-MT=(800-819,849)"
+        - "Pd106-Rh105-MT=28"
+        - "Pd106-Rh105-MT=(650-669)"
+        - "Pd106-Ru103-MT=107"
+        - "Pd106-Ru103-MT=(800-819,849)"
     - use "~/Others/FoilSelector/JEFF/JEFF33-n/endf6/46-Pd-106g.jeff33" compared to another library's 46-Pd-106.
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
-[x]Why is Vanadium's specificity=5 when there's only 3 reactions?
-[x]Write the optimization part of the step2 script
-    - No longer needed! Optimization is simple, by inspection alone.
-[x]Merge peak should give a list of peaks (depending on how many is detectible) of {0<=len(output_peaks)<len(peak_group)} rather than a single peak.
-[x]Peak-to-total ratio: give a better estimate (See reference/)
 []COMPARE against JET LTIS data!
 ----code maintainability (specific)
-[x]Make the foilselector write to a .csv instead of five separate .jsons?
-[x]Put the following file names all in foldermanagement.py:
-    [x].atomic_composition.json
-    [x].gs.csv
-    [x].continuous_apriori.csv
-    [x].response_matrices.json
-    [x].background_response_matrices.json
-    [x].effective_response_matrices.json
-    [x].gamma-resolution-count-rate-coefs.txt
-    [x].gamma-Compton-to-peak-coefs.txt
-    [x]Add the list of radiations into f"gamma_spectra/{foil_name}.json" (might need to re-jig the list saving files) as key="peaks", and don't save it as .effective_peaks.json?
-        - Or as a separate .csv file.
-    [-].effective_peaks.json
-    - foilselector.openmcextension.extended_io.load_endf_directories()
-    []Mixing foldermanagement.py with filereading.py
-[x]git rm
-    [x]physicalparameters/efficiency.py
-    [x]unpack_reactions and strip_mt_brackets in reactionnaming.py
-    [x]optimizer/selection_sum.py
-    [x]simulation/helper.py
-    [x]{SIGMA_CSV,PARAM_JSON_FILE,read_self_shielding,save_self_shielding,read_flux,get_durations_from_csv} in foldermanagement.py
-    [x]script/step*.py
-    [x]selfshielding
-[]{ResolutionMaxCountRate,PeakToComptonCoefficients} in foldermanagement.py -> simulation?
+[]Mixing foldermanagement.py with filereading.py
 []physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton}.py
-[x]os.path -> pathlib.Path
-[x]spectral_simulation.py is growing out of control. Split into multiple modules?
 []Apply validation (via the setter) on DiscreteRadiation.source
+[x]{ResolutionMaxCountRate,PeakToComptonCoefficients} in foldermanagement.py -> simulation?
+[x]os.path -> pathlib.Path
+[]spectral_simulation.py is growing out of control. Split into multiple modules?
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
     - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
     - efficiency (default stored as .csv file) -> stored data as various file endings -> re-load from data
     - peak-to-Compton (default stored as .csv file) -> coefficients stored in .txt file -> re-load from coefs
-[x]Ruff seems to be disabled for some small things (capitalization, documentation, etc.) - find out where!
-[]Remove all of the TODO notes
+[]Raise issues for all of the TODO notes
 []Remove step1 stage4+5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.
+[]Open issue to add tutorial for future use
+    - Write simple tutorial in README
 
 ----Nice-to-have physics features
-[x]Apply resolution curve blurring to the Compton Edge.
-    [x]Tried approach one: big resolution matrix.
-        - Takes up a lot of memory, and may not work when the sampling gamma-energy step size is too small. Also causes an undesirable/false artifact when >1.
-    [x]Tried approach two: blur only at the Compton edge.
-        - Works much better, but is limited to use cases where the Compton edge is located where the resolution curve is not so steep.
 []Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
 []Make simulation/visualize/ work again
 []Make physicalparameters/price.py work again
 []Incorporate pair-production effects? And multiple Compton scatter effects?
 
 ----General code maintainability/quality (generic)
-[]Open issue to add tutorial for future use
-    - Write simple tutorial in README
-[x]For some reason ruff hasn't been fully working?
-[x]Tests/Unittest
+[]Tests/Unittest
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
 []Sphinx Documentation
 []Make a copy of step2, but handles irradiation differently to more closely simulate the actual irradiation schedule?
