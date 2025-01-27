@@ -24,8 +24,7 @@ RAW_RESPONSE_MATRICES = ".response_matrices.json"
 BG_RESPONSE_MATRICES = ".background_response_matrices.json"
 EFFECTIVE_RESPONSE_MATRICES = ".effective_response_matrices.json"
 
-SIGMA_CSV = "microscopic_xs.csv"
-PARAM_JSON_FILE = ".parameters_used.json"
+RESULT_CSV = "each_foil.csv"
 
 
 # atomic_composition
@@ -168,70 +167,6 @@ def find_efficiency_file() -> Path:
     return next(Path(Path.cwd()).glob(".efficiency.*"))
 
 
-def get_microscopic_cross_sections_df(directory: Path | str = ".") -> pd.DataFrame:
-    """Read the .csv of microscopic cross-sections from stated directory,
-    And return it as a pandas dataframe.
-
-    Parameters
-    ----------
-    directory:
-        directory to load the SIGMA_CSV from.
-
-    Returns
-    -------
-    microscopic_xs:
-        The entire database of microscopic cross-sections used.
-
-    Raises
-    ------
-    FileNotFoundError
-        Raised if SIGMA_CSV does not already exist at the directory.
-    """
-    expected_microscopic_xs_path = Path(directory, SIGMA_CSV)
-    if not expected_microscopic_xs_path.exists():
-        raise FileNotFoundError(f"Output directory must already contain {SIGMA_CSV}")
-    return pd.read_csv(expected_microscopic_xs_path, index_col=[0])
-
-
-def get_parameters_json(directory: Path | str) -> dict:
-    """Open the PARAM_JSON_FILE file if it exists at the directory provided.
-    Else return an empty dict.
-
-    Returns
-    -------
-    json_data:
-        The dictionary stored in the PARAM_JSON_FILE file.
-    """
-    json_filename = Path(directory, PARAM_JSON_FILE)
-    # read the json file if it exist
-    if json_filename.exists():
-        with json_filename.open() as f:
-            json_data = json.load(f)
-    else:
-        json_data = {}
-    return json_data
-
-
-def save_parameters_as_json(directory: Path | str, parameter_dict: dict) -> None:
-    """
-    Search for PARAM_JSON_FILE in the directory, open it and append the
-    parameter_dict, and then save at the same location.
-
-    Parameters
-    ----------
-    parameter_dict:
-        The dictionary of data to be added to the existing parameter dict.
-    """
-    json_data = get_parameters_json(directory)
-
-    # update the content
-    json_data.update(parameter_dict)
-
-    json_filename = Path(directory, PARAM_JSON_FILE)
-    with json_filename.open("w") as f:
-        json.dump(json_data, f)
-
-
 def append_to_json(obj: dict, json_path: Path) -> None:
     """Open a json file, and append to its data dictionary, while adhering to the
     indent=1 json syntax, without deleting previous data.
@@ -257,7 +192,7 @@ def append_to_json(obj: dict, json_path: Path) -> None:
 def append_to_csv(
     row_name: str,
     data: dict,
-    csv_path: Path = Path("each_foil.csv"),
+    csv_path: Path | str = RESULT_CSV,
 ) -> None:
     """Append to a .csv, where the column names order are supposed to match the ordering
     of the keys of the data dictionary.
