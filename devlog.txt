@@ -10,3 +10,15 @@ Issue 2: Trying to find a good way to approximate the rank of the response matri
     2. Tried using Gaussian elimination to approach row-echelon, such that we can count the thing simply.
         Problem: using the methods in commit e849b1a29220d8e6b28d47ce1bcdc3b2246c9fa2, sometimes rows cannot be cancelled to exactly zero during the Gaussian elimination due to floating-point arithmetic issues. As a result, the rightmost row of the augmented matrix (i.e. the response vector after the Gaussian elimination operations) reaches some impossible numbers, e.g. very large number of strongly negative numbers, causing the program to fail to reduce to row-echelon form.
     3. It was decided that simply counting the number of distinct neutron-induced transmutation reaction (bounded above by the number of non-zero bins in the response matrix) is a good enough approximation of the matrix rank.
+
+Note for developer:
+Multiplicative factors required to turn "cross-section" into "number of counts at photopeak"
+    = collpased_single_xs
+    * BARN
+    @ apriori_fluence
+    * number of reactants
+    * atomic_fraction
+    * line intensity (AffineScalarFunc)
+    * decay_correction_factor (AffineScalarFunc)
+    * efficiency(line.energy) OR dist*efficiency
+    (optionally: * Compton_to_peak -> to get the Compton plateau)
