@@ -3,7 +3,7 @@ Module created to read in fispact input file format that specifies the irradiati
 """
 
 import os
-from collections import namedtuple as _named_tuple
+from collections import namedtuple
 from numpy import cumsum as _cumulative_sum
 from foilselector.simulation.efficiency import EfficiencyCurve
 
@@ -89,7 +89,7 @@ class GammaSpectrometryStep(CoolingStep):
         super(GammaSpectrometryStep, self).__init__(duration)
 
 
-times_and_flux = _named_tuple("times_and_flux", ["fluence", "flux", "a", "b", "c"])
+times_and_flux = namedtuple("times_and_flux", ["fluence", "flux", "a", "b", "c"])
 
 
 class Schedule:

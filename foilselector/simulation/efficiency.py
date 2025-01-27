@@ -4,7 +4,7 @@ classes.
 
 import itertools
 from pathlib import Path
-from typing import namedtuple
+from collections import namedtuple
 
 import matplotlib.pyplot as plt
 import numpy as np

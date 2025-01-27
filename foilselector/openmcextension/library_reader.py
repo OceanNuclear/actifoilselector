@@ -3,19 +3,15 @@
 # typical system/python stuff
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, namedtuple
+from typing import NamedTuple
 
 import numpy as np
-from numpy import typing as npt
+from openmc.data import Tabulated1D
 from uncertainties import nominal_value as nom
+from uncertainties.core import AffineScalarFunc, Variable
 
 from foilselector.constants import keV
 from foilselector.openmcextension.table import Integral, Tab1DExtended
-
-if TYPE_CHECKING:
-    from openmc.data import Tabulated1D
-    from uncertainties.core import Variable
-
 
 __all__ = [
     "ContinuousRadiationDistribution",
@@ -25,7 +21,7 @@ __all__ = [
 ]
 
 
-def collapse_single_xs(xs_entry: Tabulated1D, gs_array: npt.NDArray):
+def collapse_single_xs(xs_entry: Tabulated1D | Tab1DExtended, gs_array: np.ndarray):
     """
     Parameters
     ----------
@@ -39,7 +35,7 @@ def collapse_single_xs(xs_entry: Tabulated1D, gs_array: npt.NDArray):
     Returns
     -------
     cross-section:
-
+        The cross-section collapsed into the appropriate group structure.
     """
     return (
         Integral(xs_entry).definite_integral(*gs_array.T)
@@ -47,7 +43,7 @@ def collapse_single_xs(xs_entry: Tabulated1D, gs_array: npt.NDArray):
     )
 
 
-class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"])):
+class DiscreteRadiation(NamedTuple):
     """
     Attributes
     ----------
@@ -60,6 +56,10 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         decay radiation type, immediate parent's name, and decay mode inducing the
         release of this radiation. e.g. "gamma from Y101 beta-"
     """
+
+    energy: AffineScalarFunc | np.float64
+    intensity: AffineScalarFunc | np.float64
+    source: str
 
     def __hash__(self) -> int:
         """Create a hash out of the contents."""
@@ -84,6 +84,19 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         """
         return self.__class__(self.energy, self.intensity, self.source)
 
+    def deepcopy(self) -> DiscreteRadiation:
+        """Shallow copy the discrete radiation.
+
+        Returns
+        -------
+        :
+            A copy of the discrete radiation with the identical self.energy and
+            self.intensity, but (new.energy-self.energy) and
+            (new.intensity-self.intensity) != 0.0+/-0.0.
+            self.source (which should be a string) is duplicated as it is immutable.
+        """
+        return self.__class__(self.energy.copy(), self.intensity.copy(), self.source)
+
     def plot_label_format(self) -> str:
         """
         Return a str representation of itself that that can be used as a label for itself
@@ -96,9 +109,7 @@ class DiscreteRadiation(namedtuple("Radiation", ["energy", "intensity", "source"
         )
 
 
-class ContinuousRadiationDistribution(
-    namedtuple("RadiationDistribution", ["distribution", "source"]),
-):
+class ContinuousRadiationDistribution(NamedTuple):
     """
     Attributes
     ----------
@@ -113,6 +124,12 @@ class ContinuousRadiationDistribution(
         release of this radiation. e.g. "gamma from Y101 beta-"
     """
 
+    distribution: Tabulated1D
+    source: str
+
+    def __hash__(self):
+        return hash((self.distribution, self.source))
+
     def copy(self) -> ContinuousRadiationDistribution:
         """Shallow copy.
 
@@ -124,7 +141,7 @@ class ContinuousRadiationDistribution(
         """
         return self.__class__(self.distribution, self.source)
 
-    def deep_copy(self) -> ContinuousRadiationDistribution:
+    def deepcopy(self) -> ContinuousRadiationDistribution:
         """Deep copy.
 
         Returns
