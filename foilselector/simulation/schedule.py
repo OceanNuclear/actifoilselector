@@ -4,7 +4,9 @@ Module created to read in fispact input file format that specifies the irradiati
 
 import os
 from collections import namedtuple
+
 from numpy import cumsum as _cumulative_sum
+
 from foilselector.simulation.efficiency import EfficiencyCurve
 
 
@@ -28,9 +30,8 @@ def parse_fispact_input_text(text_block):
             bracket_level += 1
         elif char == ">":
             bracket_level -= 1
-        else:
-            if bracket_level == 0:
-                keywords_and_params += char
+        elif bracket_level == 0:
+            keywords_and_params += char
 
     # merge delimiters
     keywords_and_params = [word for word in keywords_and_params.split() if len(word) > 0]
@@ -57,26 +58,24 @@ class Step:
     """a base class defining an Irradiation or cooling step"""
 
     def __init__(self, duration, flux):
-        """f"""
+        """F"""
         assert flux >= 0, "Accepts non-negative flux only"
         self.duration = duration  # the duration where this flux is held for.
         self.flux = flux
 
     def __str__(self):
-        return "< {} lasting {}s >".format(self.__class__.__name__, self.duration)
+        return f"< {self.__class__.__name__} lasting {self.duration}s >"
 
 
 class IrradiationStep(Step):
     """A step involving non-zero flux irradiation, and no gamma acquision."""
 
     def __init__(self, duration, flux):
-        assert flux > 0.0, "Use {} instead if flux==0.0".format(CoolingStep)
+        assert flux > 0.0, f"Use {CoolingStep} instead if flux==0.0"
         super().__init__(duration, flux)
 
     def __str__(self):
-        return "< {} of flux={}cm^2 s^-1 lasting {}s >".format(
-            self.__class__.__name__, self.flux, self.duration
-        )
+        return f"< {self.__class__.__name__} of flux={self.flux}cm^2 s^-1 lasting {self.duration}s >"
 
 
 class CoolingStep(Step):
@@ -115,7 +114,7 @@ class Schedule:
         for curr_step_num in range(len(self.is_gamma_measurement)):
             if self.is_gamma_measurement[curr_step_num]:
                 for prev_step_num in range(
-                    len(self.is_irradiation[: curr_step_num + 1])
+                    len(self.is_irradiation[: curr_step_num + 1]),
                 ):
                     if self.is_irradiation[prev_step_num]:
                         zero = self.step_start_times[prev_step_num]
@@ -135,7 +134,7 @@ class Schedule:
         return new_obj
 
     def __truediv__(self, denominator):
-        """div is implemented to reduce the number of denominator."""
+        """Div is implemented to reduce the number of denominator."""
         new_obj = self.copy()
         new_obj.fluxes = [f / denominator for f in new_obj.fluxes]
         return new_obj
@@ -166,7 +165,7 @@ def process_one_material_schedule_text(keywords_and_params):
             numerical_duration = float(keywords_and_params.pop(0))  # expects a parameter
 
             next_word_probably_unit = keywords_and_params.pop(
-                0
+                0,
             )  # expects a keyword which is a time unit.
             try:
                 unit = next_word_probably_unit.upper()
@@ -235,7 +234,7 @@ def cut_text_at_sample(full_control_text):
             # create a new list
         else:
             material_schedule_text[-1].append(new_word)
-    return dict(zip(material_names, material_schedule_text))
+    return dict(zip(material_names, material_schedule_text, strict=False))
 
 
 def read_fispact_irradiation_schedule(schedule_text_block):

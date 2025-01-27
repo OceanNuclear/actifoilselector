@@ -160,7 +160,6 @@ def efficiency_curve_from_file(fname: Path) -> EffCurve:
 
     if fname.suffix == ".csv":
         dataframe = read_csv(fname)
-        # cols = dataframe.columns
         if dataframe.shape[1] == 2:  # noqa: PLR2004
             return EffCurve(*dataframe.to_numpy().T, None)
         if dataframe.shape[1] == 3:  # noqa: PLR2004

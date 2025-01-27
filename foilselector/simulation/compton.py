@@ -147,7 +147,10 @@ class ComptonToPeakRatioCurve:
         :
             output in the y-coordinates
         """
-        return np.exp(self._fitted_func_in_loglog_space(np.log(nom(required_E_in_eV))))
+        E = nom(required_E_in_eV)
+        if np.isclose(E, 0):
+            return 0.0
+        return np.exp(self._fitted_func_in_loglog_space(np.log(E)))
 
     @classmethod
     def from_file(cls, filename: Path, degree_of_fit: int = 6):
