@@ -19,6 +19,7 @@ APRIORI_FILENAME = ".integrated_apriori.csv"
 CONT_APRIORI_FILENAME = ".continuous_apriori.csv"
 ATOMIC_COMPOSITION_FILENAME = ".atomic_composition.json"
 
+# TODO @OceanNuclear: convert these to Enums?
 RAW_RESPONSE_MATRICES = ".response_matrices.json"
 BG_RESPONSE_MATRICES = ".background_response_matrices.json"
 EFFECTIVE_RESPONSE_MATRICES = ".effective_response_matrices.json"

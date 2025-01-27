@@ -30,12 +30,13 @@ from uncertainties import nominal_value as nom
 
 from foilselector.constants import BARN, keV
 from foilselector.foldermanagement import (
-    PeakToComptonCoefficients,
-    ResolutionMaxCountRate,
+    BG_RESPONSE_MATRICES,
+    EFFECTIVE_RESPONSE_MATRICES,
+    RAW_RESPONSE_MATRICES,
     append_to_csv,
     append_to_json,
     find_efficiency_file,
-    get_apriori,
+    read_apriori,
     read_gs,
     save_atomic_composition_json,
 )
@@ -66,11 +67,17 @@ from foilselector.reactionnaming import (
     commonname_to_atnum_massnum,
     specify_isotopic_composition,
 )
-from foilselector.simulation.compton import ComptonToPeakRatioCurve
+from foilselector.simulation.compton import (
+    ComptonToPeakRatioCurve,
+    PeakToComptonCoefficients,
+)
 from foilselector.simulation.decay import build_decay_chain_tree, linearize_decay_chain
 from foilselector.simulation.decay.bateman import mat_exp_num_decays
 from foilselector.simulation.efficiency import EfficiencyCurve
-from foilselector.simulation.resolution import resolution_curve_factory
+from foilselector.simulation.resolution import (
+    ResolutionMaxCountRate,
+    resolution_curve_factory,
+)
 from foilselector.simulation.spectral_simulation import (
     corresponding_background_level,
     delete_peaks,
@@ -248,11 +255,11 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     cwd = Path.cwd()
     gspec_directory = Path(cwd, "gamma_spectra")
 
-    gs_array = read_gs(".gs.csv")
+    gs_array = read_gs()
     w_vector = get_precision_weight_vector(gs_array)
     precision_unit = get_precision_unit()
 
-    _apriori_flux, apriori_fluence = get_apriori(cwd, irradiation_duration)
+    _apriori_flux, apriori_fluence = read_apriori(cwd, irradiation_duration)
     resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load()
     resolution_curve = resolution_curve_factory(resolution_coefficients)
     max_counts_per_foil = max_num_counts(max_count_rate, measurement_duration)
@@ -284,9 +291,9 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     mass_record = {}
     effective_foil_matrices, effective_foil_peaks = {}, {}
     foil_precision, foil_accuracy = {}, {}
-    Path(cwd, ".response_matrices.json").unlink(missing_ok=True)
-    Path(cwd, ".background_response_matrices.json").unlink(missing_ok=True)
-    Path(cwd, ".effective_response_matrices.json").unlink(missing_ok=True)
+    Path(cwd, RAW_RESPONSE_MATRICES).unlink(missing_ok=True)
+    Path(cwd, BG_RESPONSE_MATRICES).unlink(missing_ok=True)
+    Path(cwd, EFFECTIVE_RESPONSE_MATRICES).unlink(missing_ok=True)
     Path(cwd, "each_foil.csv").unlink(missing_ok=True)
     for foil_name, foil_comp in (
         pbar := tqdm(
@@ -318,12 +325,12 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
         )
         append_to_json(
             serialize_radiation_dict({foil_name: final_response_matrix}),
-            json_path=Path(cwd, ".response_matrices.json"),
+            json_path=Path(cwd, RAW_RESPONSE_MATRICES),
         )
 
         append_to_json(
             serialize_radiation_dict({foil_name: final_background}),
-            json_path=Path(cwd, ".background_response_matrices.json"),
+            json_path=Path(cwd, BG_RESPONSE_MATRICES),
         )
         mass_record[foil_name] = {
             "number of atoms": foil_num_atoms,
@@ -379,15 +386,14 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
         # This mixing ratio is only correct if neutron spectrum == a priori.
         # Hence, if we want to reload the effective response matrix during the
         # experiment, the best course of action is to reconstruct from
-        # .response_matrices.json + .background_response_matrices.json.
+        # RAW_RESPONSE_MATRICES + BG_RESPONSE_MATRICES
         effective_foil_matrices[foil_name] = effective_matrix
         effective_foil_peaks[foil_name] = reaction_info
 
         append_to_json(
             serialize_radiation_dict({foil_name: effective_matrix}),
-            json_path=Path(cwd, ".effective_response_matrices.json"),
+            json_path=Path(cwd, EFFECTIVE_RESPONSE_MATRICES),
         )
-        # [deserialize_radiation_dict(rad) for rad in json.load(j)]
         foil_precision[foil_name] = get_precision(
             effective_matrix,
             ary([peak.intensity for peak in reaction_info]),

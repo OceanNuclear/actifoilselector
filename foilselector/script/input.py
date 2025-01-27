@@ -4,19 +4,19 @@ in later steps.
 
 Files saved
 -----------
-.gs.csv
+.gs.csv (foldermanagement.GROUP_STRUCTURE_FILENAME)
     group structure (lower to upper bound) saved as a 2-column .csv file.
-.integrated_apriori.csv
+.integrated_apriori.csv (foldermanagement.APRIORI_FILENAME)
     neutron flux (group-flux, hence the name 'integrated') in each group of the a priori
     spectrum, saved as a .csv file with as many rows as .gs.csv. Potentially includes
     the error on each bin.
-.continuous_apriori.csv
+.continuous_apriori.csv (foldermanagement.CONT_APRIORI_FILENAME)
     A priori spectrum saved as a continuous function. This can be decoded as a thing.
-.gamma-resolution-coefs.txt
+.gamma-resolution-coefs.txt (foldermanagement.GAMMA_RES_AND_COUNT_RATE_FILENAME)
     The list of Gamma-ray detector resolution coefficients, stored in ascending degrees,
     newline-delimited, such that we can express the resolution as
     R(E) = √(x_0 + x_1 * E + x_2 * E^2 + ...)
-.gamma-Compton-to-peak-coefs.txt
+.gamma-Compton-to-peak-coefs.txt (foldermanagement.PEAK_TO_COMPTON_FILENAME)
     The list of Gamma-ray detector Compton-to-peak ratio coefficients, stored in
     ascending degrees, newline-delimited, such that we can express the Compton-to-peak
     ratio as P/C(E) = x_0 + x_1 * E + x_2 * E^2 + ...
@@ -49,11 +49,15 @@ from foilselector.fluxconversion import (
 )
 from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
 from foilselector.foldermanagement import (
-    PeakToComptonCoefficients,
-    ResolutionMaxCountRate,
+    APRIORI_FILENAME,
+    CONT_APRIORI_FILENAME,
+    GROUP_STRUCTURE_FILENAME,
+    save_apriori,
+    save_gs,
 )
 from foilselector.generic import SilenceNumpyDivisionError, minmax
 from foilselector.openmcextension import Integral, detabulate
+from foilselector.openmcextension.table import Tab1DExtended
 from foilselector.simulation.compton import (
     ComptonToPeakRatioCurve,
     get_default_peak_to_Compton_file,
@@ -65,20 +69,21 @@ from foilselector.simulation.efficiency import (
     list_dir_eff_files,
 )
 from foilselector.simulation.resolution import (
+    ResolutionMaxCountRate,
     fit_fwhms,
     get_default_resolution_coefficients,
     resolution_curve_factory,
 )
 
 
-def section_title(title: str):
+def section_title(title: str) -> None:
     """Print the title for the step that follows."""
     window_width = 124
     pad_length = max([0, len(title) - window_width])
     print(title + "-" * pad_length)
 
 
-def stage1_read_raw_ap_gs() -> tuple[np.ndarray, str, str]:
+def stage1_read_raw_ap_gs() -> tuple[npt.NDArray, str, str]:
     """Read the apriori value.
 
     Returns
@@ -122,8 +127,8 @@ def stage2_interpret_ap_energy(
     *,
     group_or_point: str,
 ) -> tuple[
-    np.ndarray[float],
-    np.ndarray[float],
+    npt.NDArray[float],
+    npt.NDArray[float],
     Tabulated1D,
     int,
 ]:
@@ -219,10 +224,15 @@ def stage2_interpret_ap_energy(
     return E_values, apriori, continuous_apriori, apriori_gs, scheme
 
 
-def calculate_x_points(E_values):
+def _calculate_x_points(E_values: npt.NDArray[float]) -> npt.NDArray[float]:
     """
     Calculate the optimal list of points to be sampled to fully capture a histogramic
     function represented by a Tabulated1D file.
+
+    Parameters
+    ----------
+    E_values:
+        A 1D list of floats denoting the class mark of each energy bin.
 
     Returns
     -------
@@ -241,10 +251,10 @@ def stage2_plot_apriori(
     apriori: npt.NDArray[float],
     continuous_apriori: Tabulated1D,
     apriori_gs: npt.NDArray,
-):
+) -> None:
     """Plot the a priori neutron spectrum."""
     # plot in per eV scale
-    x = calculate_x_points(E_values)
+    x = _calculate_x_points(E_values)
     plt.plot(x, continuous_apriori(x))
     plt.title("Neutron flux per eV")
     (
@@ -277,11 +287,28 @@ def stage2_plot_apriori(
 def stage3_modify_apriori(
     E_values: npt.NDArray[float],
     apriori: npt.NDArray[float],
-    continuous_apriori: Tabulated1D,
-):
-    """
-    Modify the a priori neutron spectrum to something that the user wants, by
+    continuous_apriori: Tab1DExtended,
+) -> tuple[npt.NDArray[float], npt.NDArray[float], Tabulated1D | Tab1DExtended]:
+    """Modify the a priori neutron spectrum to something that the user wants, by
     transforming the energy scale and scaling the y-axis.
+
+    Parameters
+    ----------
+    E_values:
+        Location where the a priori is defined from data.
+    apriori:
+        The a priori neutron spectrum at the energies specified before modification.
+    continuous_apriori:
+        A distribution of a priori, continuous in energy space.
+
+    Returns
+    -------
+    E_values:
+        Location where the a priori is defined from data, possibly after modification.
+    apriori:
+        The a priori neutron spectrum at the energies specified after modification.
+    continuous_apriori:
+        A distribution of a priori, continuous in energy space.
     """
     section_title("3. [optional] Modifying the a priori.")
     # scale the peak up and down (while keeping the total flux the same)
@@ -298,7 +325,7 @@ def stage3_modify_apriori(
                 E_values = scale_factor * E_values + offset
                 apriori *= scale_factor
                 # plotting
-                x = calculate_x_points(E_values)
+                x = _calculate_x_points(E_values)
                 plt.loglog(x, continuous_apriori(x))
                 plt.show()
                 if ask_yn_question("Is this scaling satisfactory?"):
@@ -322,7 +349,7 @@ def stage3_modify_apriori(
         continuous_apriori *= scale_factor
         total_flux = sum(apriori)
         # plotting
-        x = calculate_x_points(E_values)
+        x = _calculate_x_points(E_values)
         plt.loglog(x, continuous_apriori(x))
         plt.show()
     print(f"{total_flux = }")
@@ -331,12 +358,20 @@ def stage3_modify_apriori(
 
 def stage4_add_uncertainty(
     apriori: npt.NDArray[float],
-    continuous_apriori: Tabulated1D,
+    continuous_apriori: Tab1DExtended,
     apriori_copy: npt.NDArray[float],
     scheme: int,
     E_values: npt.NDArray[float],
 ) -> tuple[Tabulated1D, Tabulated1D] | None:
-    """Add an uncertainty quantification to the a priori."""
+    """Add an uncertainty quantification to the a priori.
+
+    Returns
+    -------
+    continuous_apriori_lower:
+        the a priori neutron spectrum -1 sigma
+    continuous_apriori_upper:
+        the a priori neutron spectrum +1 sigma
+    """
     section_title("4. [optional] adding an uncertainty to the a priori.")
     if ask_yn_question(
         "Does the a priori spectrum comes with an associated error (y-error bars) on "
@@ -376,7 +411,7 @@ def stage4_add_uncertainty(
                 scheme,
             ],
         )
-        x = calculate_x_points(E_values)
+        x = _calculate_x_points(E_values)
         plt.fill_between(x, continuous_apriori_upper(x), continuous_apriori_lower(x))
         plt.loglog(x, continuous_apriori(x), color="orange")
         plt.show()
@@ -387,9 +422,17 @@ def stage4_add_uncertainty(
 def stage5_load_group_structure(
     apriori_gs: npt.NDArray,
     E_values: npt.NDArray[float],
-    continuous_apriori: Tabulated1D,
-):
-    """Choose a different group structure than what the a priori used."""
+    continuous_apriori: Tab1DExtended,
+) -> npt.NDArray:
+    """Choose a different group structure than what the a priori used.
+
+    Returns
+    -------
+    gs_array:
+        2D group structure array, with shape = (n,2) where n = number of neutron energy
+        bins, and the two elements shows the lower and upper energy boundary of the bin
+        respsectively.
+    """
     section_title("5. [optional] Load in new group structure.")
     if ask_yn_question(
         "Should a different group structure than the apriori_gs (entered above) be used?",
@@ -456,7 +499,7 @@ def stage5_load_group_structure(
     _fig, ax = plt.subplots()
     ax.set_xlabel("E(eV)")
     ax.set_ylabel("flux(per eV)")
-    x = calculate_x_points(E_values)
+    x = _calculate_x_points(E_values)
     ax.plot(x, continuous_apriori(x))
     ybounds = ax.get_ybound()
     for limits in gs_array:
@@ -476,12 +519,12 @@ def stage5_load_group_structure(
 
 def stage5_save_apriori_files(
     gs_array: npt.NDArray,
-    continuous_apriori,
+    continuous_apriori: Tab1DExtended,
     error_present: tuple[Tabulated1D, Tabulated1D] | None,
-):
+) -> None:
     """Save the a priori as a file to be used in the next step."""
     gs_df = pd.DataFrame(gs_array, columns=["min", "max"])
-    gs_df.to_csv(".gs.csv", index=False)
+    save_gs(gs_df)
 
     integrated_flux = Integral(continuous_apriori).definite_integral(*gs_array.T)
 
@@ -504,7 +547,7 @@ def stage5_save_apriori_files(
     else:
         apriori_vector_df = pd.DataFrame(integrated_flux, columns=["value"])
 
-    apriori_vector_df.to_csv(".integrated_apriori.csv", index=False)
+    save_apriori(apriori_vector_df)
 
     # save the continuous a priori distribution (an openmc.data.Tabulated1D object) as a
     # csv, by specifying the interpolation scheme as well.
@@ -519,18 +562,18 @@ def stage5_save_apriori_files(
         "interpolation"
     ].astype(int)
     detabulated_apriori_df.to_csv(
-        ".continuous_apriori.csv",
+        CONT_APRIORI_FILENAME,
         index=False,
     )  # x already acts pretty well as the index.
     print(
-        """Preprocessing completed. The outputs are saved to:
-group structure                                         => .gs.csv,
-apriori flux                                            => .integrated_apriori.csv,
-continuous apriori (an openmc.data.Tabulated1D object)  => .continuous_apriori.csv""",
+        f"""Preprocessing completed. The outputs are saved to:
+group structure                                         => {GROUP_STRUCTURE_FILENAME},
+apriori flux                                            => {APRIORI_FILENAME},
+continuous apriori (an openmc.data.Tabulated1D object)  => {CONT_APRIORI_FILENAME}""",
     )
 
 
-def stage6_load_and_save_gamma_resolution():
+def stage6_load_and_save_gamma_resolution() -> None:
     """
     Write to file the gamma-ray detector's resolution.
 
@@ -615,7 +658,88 @@ def stage6_load_and_save_gamma_resolution():
     return ResolutionMaxCountRate(coefficients, max_count_rate).save()
 
 
-def stage8_load_and_save_gamma_peak_to_Compton_ratio():
+def stage7_load_and_save_gamma_efficiency() -> None:
+    """Write to file the gamma-ray detector's absolute efficiency curve."""
+    cwd = Path.cwd()
+    section_title("7. Save photopeak efficiency file")
+    endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS)
+
+    def one_loop(eff_file_path: Path | str) -> EfficiencyCurve:
+        """A single iteration of opening an efficiency file and plotting it."""  # noqa: D401
+        eff_file_path = Path(eff_file_path)
+        with eff_file_path.open() as f:
+            print(f"Opened {eff_file_path.name}, which has `head` = ")
+            for _ in range(3):
+                print(f.readline()[:-1])
+        print("...")
+
+        efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
+        E, eff = efficiency_curve.E / keV, efficiency_curve.eff
+        if efficiency_curve.unc is not None:
+            plt.errorbar(
+                E,
+                eff,
+                yerr=efficiency_curve.unc,
+                linestyle="",
+                capsize=2.5,
+                marker="x",
+                label="efficiency data-points",
+            )
+        else:
+            plt.scatter(E, eff, label="efficiency data-points")
+        x = np.geomspace(
+            np.min(E),
+            max([np.max(E), 2000]),
+            300,
+        )  # from the lowest E point to 2000 keV.
+        plt.semilogy(
+            x,
+            efficiency_curve(x * keV),
+            color="C1",
+            label="efficiency curve fitted from this data",
+        )
+        plt.legend()
+        plt.xlabel(r"$E_\gamma$ (keV)")
+        plt.ylabel(r"efficiency $\epsilon$")
+        plt.show()
+        plt.close()
+        return efficiency_curve  # noqa: DOC201
+
+    while True:
+        try:
+            default_efficiency_file = EfficiencyCurve.from_file(
+                get_default_efficiency_curve_path(),
+            )
+            chosen_eff_file = input(
+                f"Please choose file from the list above (file must end in {endings});"
+                "\nOr enter nothing to use the example efficiency file stored at "
+                f"{default_efficiency_file}:",
+            )
+            if not chosen_eff_file:
+                chosen_eff_file = default_efficiency_file
+            eff_curve = one_loop(chosen_eff_file)
+            if ask_yn_question("Is this curve satisfactory?"):
+                shutil.copyfile(
+                    chosen_eff_file,
+                    ".efficiency" + Path(chosen_eff_file).suffix,
+                )
+                break
+            print(
+                "Add/change datapoints/ use a different data file, and try again...",
+            )
+        except FileNotFoundError as e:
+            print(
+                e,
+                f", please confirm that file name is correct and exists in {cwd}. "
+                "Trying again...",
+            )
+        except ValueError as e:
+            print(e, ", Perhaps not enough data points were given? Trying again...")
+
+    return eff_curve
+
+
+def stage8_load_and_save_gamma_peak_to_Compton_ratio() -> None:
     """
     Write to file the gamma-ray detector's Compton-to-peak ratio.
 
@@ -684,91 +808,10 @@ def stage8_load_and_save_gamma_peak_to_Compton_ratio():
                     print(e, ", trying again...")
     else:
         curve = default_CS_func
-    return PeakToComptonCoefficients(curve.coefficients).save()
+    return curve.save()
 
 
-def stage7_load_and_save_gamma_efficiency():
-    """Write to file the gamma-ray detector's absolute efficiency curve."""
-    cwd = Path.cwd()
-    section_title("7. Save photopeak efficiency file")
-    endings = list(APPROVED_EFFICIENCY_FILE_EXTENSIONS)
-
-    def one_loop(eff_file_path):
-        """A single iteration of opening an efficiency file and plotting it."""  # noqa: D401
-        eff_file_path = Path(eff_file_path)
-        with eff_file_path.open() as f:
-            print(f"Opened {eff_file_path.name}, which has `head` = ")
-            for _ in range(3):
-                print(f.readline()[:-1])
-        print("...")
-
-        efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
-        E, eff = efficiency_curve.E / keV, efficiency_curve.eff
-        if efficiency_curve.unc is not None:
-            plt.errorbar(
-                E,
-                eff,
-                yerr=efficiency_curve.unc,
-                linestyle="",
-                capsize=2.5,
-                marker="x",
-                label="efficiency data-points",
-            )
-        else:
-            plt.scatter(E, eff, label="efficiency data-points")
-        x = np.geomspace(
-            np.min(E),
-            max([np.max(E), 2000]),
-            300,
-        )  # from the lowest E point to 2000 keV.
-        plt.semilogy(
-            x,
-            efficiency_curve(x * keV),
-            color="C1",
-            label="efficiency curve fitted from this data",
-        )
-        plt.legend()
-        plt.xlabel(r"$E_\gamma$ (keV)")
-        plt.ylabel(r"efficiency $\epsilon$")
-        plt.show()
-        plt.close()
-        return efficiency_curve
-
-    while True:
-        try:
-            default_efficiency_file = EfficiencyCurve.from_file(
-                get_default_efficiency_curve_path(),
-            )
-            chosen_eff_file = input(
-                f"Please choose file from the list above (file must end in {endings});"
-                "\nOr enter nothing to use the example efficiency file stored at "
-                f"{default_efficiency_file}:",
-            )
-            if not chosen_eff_file:
-                chosen_eff_file = default_efficiency_file
-            eff_curve = one_loop(chosen_eff_file)
-            if ask_yn_question("Is this curve satisfactory?"):
-                shutil.copyfile(
-                    chosen_eff_file,
-                    ".efficiency" + Path(chosen_eff_file).suffix,
-                )
-                break
-            print(
-                "Add/change datapoints/ use a different data file, and try again...",
-            )
-        except FileNotFoundError as e:
-            print(
-                e,
-                f", please confirm that file name is correct and exists in {cwd}. "
-                "Trying again...",
-            )
-        except ValueError as e:
-            print(e, ", Perhaps not enough data points were given? Trying again...")
-
-    return eff_curve
-
-
-def main():
+def main() -> None:
     """Main script of step1:input."""  # noqa: D401
     cwd = Path.cwd()
     print(
@@ -794,7 +837,9 @@ In the current directory {cwd}, the following .csv files are found:""",
     stage2_plot_apriori(E_values, apriori, continuous_apriori, apriori_gs)
 
     # stage 3
-    E_values, apriori, continuous_apriori = stage3_modify_apriori(continuous_apriori)
+    E_values, apriori, continuous_apriori = stage3_modify_apriori(
+        Tab1DExtended.from_openmc(continuous_apriori),
+    )
 
     # stage 4
     error_present = stage4_add_uncertainty(

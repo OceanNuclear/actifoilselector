@@ -111,6 +111,6 @@ convention = "numpy"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 "__init__.py" = ["F401", "F403"]
 "foilselector/foldermanagement.py" = ["D103"]
-"foilselector/script/*.py" = ["W505", "E501", "PLR0913", "PLR0917"]
+"foilselector/script/*.py" = ["W505", "E501", "PLR0913", "PLR0917", "PLR0914", "PLR0915"]
 "foilselector/cli.py" = ["PLR0913", "PLR0917"]
 "*/__init__.py" = ["D104"]
