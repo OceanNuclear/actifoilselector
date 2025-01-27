@@ -1,17 +1,17 @@
 """Define its behaviour on the command line. (e.g. `foilselector step? ...`)."""
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import click
 
-from foilselector.script.input import main as main_step1
-from foilselector.script.simulate import main as main_step2
-from foilselector.script.step3 import main as main_step3
+from foilselector.script.input import main as input_preparation_script
+from foilselector.script.simulate import main as simulate_script
 
 
 @click.group()
 @click.version_option()
-def cli():
+def cli() -> None:
     """
     Foil selector CLI
     Tools and scripts used to read nuclear data and thus select foils used in activation
@@ -20,13 +20,12 @@ def cli():
 
 
 @cli.command("step1", no_args_is_help=False)
-@click.argument("filepath", type=click.Path(exists=True), default=Path.cwd())
-def step1():
+def step1() -> None:
     """Interact with the user to convert the neutorn spectrum into the desired input
     format and group structure.
     """
     print(f"Acting on directory {Path.cwd()}")
-    main_step1()
+    input_preparation_script()
 
 
 @cli.command("step2", no_args_is_help=True)
@@ -92,18 +91,18 @@ def step1():
     nargs=3,
 )
 def step2(
-    composition,
-    library,
-    irradiation_duration,
-    transit_duration,
-    measurement_duration,
-    gamma_spectrum_parameters,
-):
+    composition: Path,
+    library: Iterable[Path],
+    irradiation_duration: float,
+    transit_duration: float,
+    measurement_duration: float,
+    gamma_spectrum_parameters: tuple[float, float, float],
+) -> None:
     """Extract the relevant cross-sections and decay data from the nuclear data library.
     Then save them as functionst ath will never be used again.
     This is analogous to the 'collapse' and 'condense' step in FISPACT.
     """
-    main_step2(
+    simulate_script(
         composition,
         library,
         irradiation_duration,
@@ -111,22 +110,3 @@ def step2(
         measurement_duration,
         gamma_spectrum_parameters,
     )
-
-
-@cli.command("step3", no_args_is_help=True)
-@click.option(
-    "-N",
-    "--number-of-foils",
-    type=int,
-    required=True,
-    help=("Number of foils per foil-set. Foil set requires that 100%" "foil sample."),
-)
-def step3(number_of_foils):
-    """Calculate the number of decays from each reaction."""
-    main_step3(number_of_foils)
-
-
-@cli.command("step4", no_args_is_help=False)
-@click.argument("filepath", type=click.Path(exists=True))
-def step4(filepath):
-    """TODO help docs."""

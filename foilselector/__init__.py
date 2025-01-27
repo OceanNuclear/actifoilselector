@@ -9,6 +9,5 @@ from foilselector import (
     physicalparameters,
     reactionnaming,
     script,
-    selfshielding,
     simulation,
 )
