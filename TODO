@@ -24,7 +24,7 @@
 []COMPARE against JET LTIS data!
 ----code maintainability (specific)
 [x]Make the foilselector write to a .csv instead of five separate .jsons?
-[]Put the following file names all in foldermanagement.py:
+[x]Put the following file names all in foldermanagement.py:
     [x].atomic_composition.json
     [x].gs.csv
     [x].continuous_apriori.csv
