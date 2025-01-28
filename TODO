@@ -55,7 +55,7 @@
         - Should I make them methods of resolution_curve? Probably not.
     []Put stage 4.2-4.4 of simulate.py into a single file, so it doesn't overcrowd simulate.py
         - The following functions are used: simulate_peaks_with_uncertainties, merge_peaks, delete_peaks, fold_background, corresponding_background_level, integrate_peak_area, discoverable, plot_spectrum, simulate_full_spectrum
-[]delete get_broadening_matrix, contained_by_interval
+[x]delete get_broadening_matrix, contained_by_interval
 []Tests/Unittest
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
 

@@ -480,32 +480,6 @@ def get_smeared_multiplier(displacement_in_terms_of_sigma):
     return scipy.special.erf(-displacement_in_terms_of_sigma / np.sqrt(2)) / 2 + 0.5
 
 
-def get_broadening_matrix(
-    resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
-    test_energies: np.ndarray[float],
-) -> np.ndarray[float]:
-    """
-    A quick way to simulate Gaussian broadening due to the resolution limit of the
-    detector without using integration, by simply broadening from the curent sampled
-    points on to their neighbouring points.
-
-    Parameters
-    ----------
-    test_energies:
-        energies where we want to evaluate the Gaussian broadening matrix's points over,
-        unit: [eV].
-    """
-    n = len(test_energies)
-    weights = np.zeros([n, n])
-    # Normal distributions lying in the COLUMN direction. Every new column = a new normal distribution.
-    for i in range(n):
-        mu, sigma = test_energies[i], fwhm_to_sigma(resolution_curve(test_energies[i]))
-        normal = normal_dist_factory(mu, sigma)(test_energies)
-        # Normalize each column
-        weights[:, i] += normal / normal.sum()
-    return weights
-
-
 def corresponding_background_level(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
@@ -569,18 +543,6 @@ def integrate_bg_area(
     return add_Poisson_error(background_level * width)
 
 
-def contained_by_interval(standard_score: float) -> float:
-    """
-    The 68-95-99.7 Rule
-
-    Returns
-    -------
-    area enclosed by a unit-Gaussian function (i.e. a normal distribution whose integral
-    under the curve = 1) from -standard_score*sigma to +standard_score*sigma.
-    """
-    return scipy.special.erf(standard_score / np.sqrt(2))
-
-
 def simulate_full_spectrum(
     peak_list: list[DiscreteRadiation],
     folded_background: list[ContinuousRadiationDistribution],
@@ -600,8 +562,6 @@ def simulate_full_spectrum(
         FWHM (width) of the peak [eV].
     sampling_points:
         gamma-ray energies [eV] where we want to know the count density [1/eV].
-    # broadening_matrix:
-    #     See get_broadening_matrix. Shape must match sampling_points^2.
     all other parameters:
         See corresponding_background_level
 
