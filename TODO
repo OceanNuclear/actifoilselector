@@ -12,8 +12,6 @@
 
 ----Feature suggestions that can be converted into Github issues
 []Turn on Sphinx
-[x]Mixing foldermanagement.py with filereading.py
-[x]physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton,resolution}.py
 []Apply validation (via the setter) on DiscreteRadiation.source
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves.
     - See the following table for details of how it's currently done:
@@ -55,7 +53,6 @@
         - Should I make them methods of resolution_curve? Probably not.
     []Put stage 4.2-4.4 of simulate.py into a single file, so it doesn't overcrowd simulate.py
         - The following functions are used: simulate_peaks_with_uncertainties, merge_peaks, delete_peaks, fold_background, corresponding_background_level, integrate_peak_area, discoverable, plot_spectrum, simulate_full_spectrum
-[x]delete get_broadening_matrix, contained_by_interval
 []Tests/Unittest
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
 
