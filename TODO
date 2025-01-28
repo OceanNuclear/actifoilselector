@@ -8,31 +8,62 @@
     - use "~/Others/FoilSelector/JEFF/JEFF33-n/endf6/46-Pd-106g.jeff33" compared to another library's 46-Pd-106.
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
 []COMPARE against JET LTIS data!
-[]Confirm the width of peaks are sensible using the default values.
-----code maintainability (specific)
-[]Mixing foldermanagement.py with filereading.py
-[]physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton,resolution}.py
+[]Confirm the width of peaks are sensible when using the default resolution coefficients.
+
+----Feature suggestions that can be converted into Github issues
+[]Turn on Sphinx
+[x]Mixing foldermanagement.py with filereading.py
+[x]physicalparameters/filepaths.py -> use this file in simulation/{efficiency,compton,resolution}.py
 []Apply validation (via the setter) on DiscreteRadiation.source
-[]unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves. Currently:
+[]unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves.
+    - See the following table for details of how it's currently done:
+    -------------------------------------------------------------------------------------------------------------------------------------------------
+    |           Quantity            |      Resolution & count rate          | Efficiency                        | Compton-to-peak ratio             |
+    --------------------------------|----------------------------------------------------------------------------------------------------------------
+    |Class (callable?)              | ResolutionMaxCountRate (no)           | EfficiencyCurve (yes)             | ComptonToPeakRatioCurve (yes)     |
+    |Support Class (callable?)      |                                       |                                   | PeakToComptonCoefficients (no)    |
+
+    |How the default data is stored | Outputted as magic values by          | Raw datapoint file, referenced by | Raw datapoint file, referenced by |
+    |(& How to point to file path)  | get_default_resolution_coefficients() | physicalparameters/filepaths.py   | physicalparameters/filepaths.py   |
+    |                               | (no default for count rate)           |                                   |                                   |
+
+    |How to load the default data   | resolution_curve_factory(             | EfficiencyCurve.from_file(        | ComptonToPeakRatioCurve.from_file(|
+    |                               |get_default_resolution_coefficients()  |get_default_efficiency_curve_path()|get_default_peak_to_Compton_file() |
+    |                               | )                                     | )                                 | )                                 |
+
+    |How to load custom data        | ResolutionMaxCountRate(               | EfficiencyCurve.from_file() ONLY  | ComptonToPeakRatioCurve(floats) OR|
+    |                               | fit_fwhms(), max_count_rate )         |                                   |ComptonToPeakRatioCurve.from_file()|
+
+    |How to save the coefficients/  | ResolutionMaxCountRate.save()         | desired: EfficiencyCurve.save()   | ComptonToPeakRatioCurve.save()    |
+    |data used for this run         |                                       | current: save_as_efficiency_file()|                                   |
+
+    |How to reload the saved data   | ResolutionMaxCountRate.load()         | desired: EfficiencyCurve.load()   | desired:                          |
+    |                               |                                       |                                   |   ComptonToPeakRatioCurve.load()  |
+    |                               |                                       | current: find_efficiency_file()   | current: ComptonToPeakRatioCurve( |
+    |                               |                                       |                                   |   PeakToComptonCoefficients.load()|
+    |                               |                                       |                                   | )                                 |
+    -------------------------------------------------------------------------------------------------------------------------------------------------
     - resolution (default stored in python file) -> stored in plain .txt file -> re-load from coefs
     - efficiency (default stored as .csv file) -> copied as data with various file endings -> re-load from data
     - peak-to-Compton (default stored as .csv file) -> coefficients stored in .txt file -> re-load from coefs
-[]Raise issues for all of the remaining TODO notes
+    If possible, follow the API used by the Compton-to-peak ratio column
 []Open issue to add tutorial for future use
     - Write simple tutorial in README
-[]Remove step1.stage4 & step1.stage5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.
-
-----Nice-to-have physics features
 []Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
+[]spectral_simulation.py has gotten pretty long. Is it worth splitting into multiple modules?
+    []Put the merging functionality (L137 - L273) into a separate file?
+        - Should I make them methods of resolution_curve? Probably not.
+    []Put stage 4.2-4.4 of simulate.py into a single file, so it doesn't overcrowd simulate.py
+        - The following functions are used: simulate_peaks_with_uncertainties, merge_peaks, delete_peaks, fold_background, corresponding_background_level, integrate_peak_area, discoverable, plot_spectrum, simulate_full_spectrum
+[]delete get_broadening_matrix, contained_by_interval
+[]Tests/Unittest
+[]CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
+
+----Features that warrant further discussions (do not convert Github issues to unless there is user demand)
+[]Remove step1.stage4 & step1.stage5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.
 []Make simulation/visualize/ work again
 []Make physicalparameters/price.py work again
 []Incorporate pair-production effects? And multiple Compton scatter effects?
-[]spectral_simulation.py is growing out of control. Split into multiple modules?
-
-----General code maintainability/quality (generic)
-[]Tests/Unittest
-[]CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
-[]Sphinx Documentation
 []Make a copy of step2, but handles irradiation differently to more closely simulate the actual irradiation schedule?
     []Takes in --irradiation-schedule as an extra argument
         []Make a document describing the syntax of the --irradiation-schedule file
