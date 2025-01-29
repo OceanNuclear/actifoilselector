@@ -14,6 +14,7 @@ from foilselector.constants import FWHM_SIGMA, keV
 from foilselector.openmcextension.library_reader import (
     ContinuousRadiationDistribution,
     DiscreteRadiation,
+    merge_sources_from_multiple_radiations,
 )
 from foilselector.simulation.compton import compton_edge, make_sharp_compton_distribution
 
@@ -96,7 +97,7 @@ def merge_peaks(
     # standard lengths
     len_response = len(response_matrix_list[0][1])
 
-    def clear_buffers():
+    def clear_buffers() -> None:
         """
         Private function to wrap up the content of the buffer and add them to the
         merged_peaks, merged_response_matrix queues.
@@ -218,11 +219,6 @@ def merge_peaks_and_responses(
     """
     Merge a big group of peaks as a single peak.
     This differ from combine_as_single_peak by also merging the response.
-
-    Parameters
-    ----------
-    peak_list:
-        list
     """
     this_peak = combine_as_single_peak(peak_list)
     this_row_response = np.zeros(len_response, dtype=float)
@@ -230,7 +226,6 @@ def merge_peaks_and_responses(
     if normalization_factor:
         for rad, resp in zip(radiations, responses, strict=False):
             this_row_response += nom(rad.intensity) / normalization_factor * resp
-    # else: this_row_response = np.zeros(len_response)
     return this_peak, this_row_response
 
 
@@ -238,36 +233,61 @@ def gradient_factory(
     peak_list: list[DiscreteRadiation],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
 ) -> Callable[[float | np.ndarray], float | np.ndarray]:
+    """Create a function that calculates the gradient at the specified point on the
+    spectrum.
     """
-    A function factory that returns a function that calculates the gradient.
-    """
-    curve_container = []
-    for peak in peak_list:
-        curve_container.append(
-            gradient_contribution(
-                nom(peak.energy),
-                fwhm_to_sigma(resolution_curve(nom(peak.energy))),
-                nom(peak.intensity),
-            ),
+    curve_container = [
+        gradient_contribution(
+            nom(peak.energy),
+            fwhm_to_sigma(resolution_curve(nom(peak.energy))),
+            nom(peak.intensity),
         )
+        for peak in peak_list
+    ]
 
     def total_gradient_calculator(x: float | np.ndarray) -> float | np.ndarray:
-        """Function that takes in energy and output the gradient at that energy due to
-        contributions from every single peak listed.
+        """Take in energy and output the gradient at that energy due to contributions
+        from every single peak listed.
         """
         return np.sum([curve(x) for curve in curve_container], axis=0)
 
     return total_gradient_calculator
 
 
-def gradient_contribution(mu: float, sigma: float, amplitude: float):
-    """
-    Function factory that calculates the contribution to gradient of a single peak.
+def gradient_contribution(
+    mu: float,
+    sigma: float,
+    amplitude: float,
+) -> Callable[[float], float]:
+    """Create function that calculates the contribution to gradient of a single peak.
+
+    Parameters
+    ----------
+    mu, sigma, amplitude:
+        The centroid location, standard deviation, and amplitude of the normal
+        distribution.
+
+    Returns
+    -------
+    gradient_calculator:
+        The function that outputs the gradient for the normal distribution satisfying
+        the specified parameters.
     """
     gaussian = normal_dist_factory(mu, sigma)
 
-    def gradient_calculator(x):
-        """Functoin that outputs the gradient contribution from a single peak."""
+    def gradient_calculator(x: float) -> float:
+        """Calculate the gradient contribution from a single peak.
+
+        Parameters
+        ----------
+            input value x, where we want to find the gradient contributed by the normal
+            distribution.
+
+        Returns
+        -------
+        :
+            The gradient at the specified x.
+        """
         return amplitude * (mu - x) / sigma * gaussian(x)
 
     return gradient_calculator
@@ -310,7 +330,7 @@ def combine_as_single_peak(peak_group: list[DiscreteRadiation]) -> DiscreteRadia
     return DiscreteRadiation(
         peak_energy,
         sum(p.intensity for p in peak_group),
-        "; ".join([f"{p.source} at {nom(p.energy)} eV" for p in peak_group]),
+        merge_sources_from_multiple_radiations(peak_group),
     )
 
 
@@ -358,18 +378,14 @@ def peaks_are_distinct(
         smaller_E, larger_E = peak_1.energy, peak_2.energy
     else:
         smaller_E, larger_E = peak_2.energy, peak_1.energy
-    if (smaller_E.n + smaller_E.s) > (
-        larger_E.n - larger_E.s
-    ):  # if unc interval overlaps
-        return False
-    return True
+    return not (smaller_E.n + smaller_E.s) > (larger_E.n - larger_E.s)
 
 
 def delete_peaks(
     peak_list: list[DiscreteRadiation],
     response_matrix: dict[DiscreteRadiation, np.ndarray],
     *,
-    gamma_range: list[float] = [20.0, 2800.0],
+    gamma_range: tuple[float] = (20.0, 2800.0),
     exclusion_zone_511: float = 0.5,
 ) -> tuple[list[DiscreteRadiation], dict[DiscreteRadiation, np.ndarray]]:
     """
@@ -421,9 +437,7 @@ def fold_background(
 
     bgs = []
     for dist, multiplier in zip(list(background.keys()), bg_multipler, strict=False):
-        bgs.append(
-            ContinuousRadiationDistribution(dist.distribution * multiplier, dist.source),
-        )
+        bgs.append(dist * multiplier)
     return bgs
 
 
@@ -472,9 +486,8 @@ def make_compton_distribution(
     return compton_dist
 
 
-def get_smeared_multiplier(displacement_in_terms_of_sigma):
-    """
-    Convolving a step function that is +1 at x<0, 0 at x>0, with a normal distribution
+def get_smeared_multiplier(displacement_in_terms_of_sigma: float) -> float:
+    """Convolving a step function that is +1 at x<0, 0 at x>0, with a normal distribution
     (with unit area) of standard deviation = sigma.
     """
     return scipy.special.erf(-displacement_in_terms_of_sigma / np.sqrt(2)) / 2 + 0.5
@@ -537,9 +550,28 @@ def corresponding_background_level(
 
 
 def integrate_bg_area(
-    background_level: float | AffineScalarFunc,
+    background_level: float,
     width: float,
 ) -> AffineScalarFunc:
+    """Calculate the total number of background counts at the width given, add the
+    appropriate error to that number.
+
+    Parameters
+    ----------
+    background_level:
+        A float describing the number of background counts per unit energy (i.e.
+        [per eV]) at the region that we'd like to integrate over.
+
+    width:
+        Integration width (energy/ [eV]), over which we want to find the number of
+        counts, we assume that the background is constant (i.e. flat) across this area.
+
+    Returns
+    -------
+    :
+        A float describing how much counts we expect the background number of counts
+        is expected to be (and its expected error), spanned across the integration width.
+    """
     return add_Poisson_error(background_level * width)
 
 
@@ -552,7 +584,6 @@ def simulate_full_spectrum(
     ],
     resolution_curve: Callable[[float | np.ndarray], float | np.ndarray],
     sampling_points: np.ndarray[float],
-    # broadening_matrix: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Parameters
@@ -577,7 +608,6 @@ def simulate_full_spectrum(
         compton_peak_ratio_curve,
         resolution_curve,
         sampling_points,
-        # broadening_matrix=broadening_matrix,
     )
     for peak in peak_list:
         spectrum += normal_dist_factory(
@@ -651,7 +681,7 @@ def plot_in_sqrt_scale(
     peak_labels: list[DiscreteRadiation],
     *,
     ax: plt.Axes | None = None,
-):
+) -> plt.Axes:
     """
     Plot the entire gamma-ray spectrum, in unit [1/keV], with a sqrt(counts) y-axis.
 
@@ -706,14 +736,34 @@ def normal_dist_factory(
     sigma: float,
     area: float = 1.0,
 ) -> Callable[[float | np.ndarray], float | np.ndarray]:
-    """
-    Function factory that makes normal distributions of the specified mean location,
+    """Create the makes normal distributions of the specified mean location,
     width, and height.
+
+    Parameters
+    ----------
+    mu, sigma, area:
+        The centroid, standard deviation, and area of the normal distribution.
+
+    Returns
+    -------
+    normal_dist_with_specified_params:
+        A normal distribution scaled to have these properties.
     """
     normal_dist_generated = scipy.stats.norm(loc=mu0, scale=sigma)
 
     def normal_dist_with_specified_params(x: float | np.ndarray) -> float | np.ndarray:
-        """Returns that normal distribution evaluated at the required x."""
+        """Evaluate the normal distribution at the required x.
+
+        Parameters
+        ----------
+        x:
+            Location of the x-coordinate that we want to find the PDF value at.
+
+        Returns
+        -------
+        :
+            The normal distribution PDF evaluated at the standard-score provided.
+        """
         return normal_dist_generated.pdf(x) * area
 
     return normal_dist_with_specified_params
@@ -763,7 +813,7 @@ def add_Poisson_error(count_rate: float | AffineScalarFunc) -> AffineScalarFunc:
     return count_rate + Variable(0.0, np.sqrt(np.clip(counts, 0, np.inf)))
 
 
-def discoverable(count: AffineScalarFunc, *, num_sigmas=3) -> bool:
+def discoverable(count: AffineScalarFunc, *, num_sigmas: float = 3) -> bool:
     """
     Parameters
     ----------
