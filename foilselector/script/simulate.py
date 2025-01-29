@@ -211,8 +211,7 @@ def calculate_response_matrix(
                         this_background[
                             ContinuousRadiationDistribution(
                                 continuum.distribution.apply_scaling(efficiency_curve),
-                                # path_string+" "+
-                                continuum.source,
+                                path_string + " " + continuum.source,
                             )
                         ] += scaled_collapsed_xs * nom(decay_correction_factor)
     return this_foil, this_background
@@ -278,7 +277,10 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
         for foil_name, foil_comp in _composition_used_here.items()
     }
     # stage 2.2: save a version of the processed_composition dictionary
-    save_atomic_composition_json(processed_composition, cwd=cwd)  # for future reference
+    save_atomic_composition_json(
+        processed_composition,
+        directory=cwd,
+    )  # for future reference
 
     # stage 3: get nuclear data
     xs_dict, decay_dict = load_relevant_xs_and_decay_info(

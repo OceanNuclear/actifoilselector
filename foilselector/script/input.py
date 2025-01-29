@@ -675,7 +675,7 @@ def stage7_load_and_save_gamma_efficiency() -> None:
 
         efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
         E, eff = efficiency_curve.E / keV, efficiency_curve.eff
-        if efficiency_curve.unc is not None:
+        if efficiency_curve.unc:
             plt.errorbar(
                 E,
                 eff,
