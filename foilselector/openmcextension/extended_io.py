@@ -106,7 +106,8 @@ def _extract_decay(dec_file: openmc.data.Decay) -> dict:
 
 
 def _rename_branching_ratio(
-    decay_dict: dict, isomeric_to_excited_state: dict[str, str]
+    decay_dict: dict,
+    isomeric_to_excited_state: dict[str, str],
 ) -> dict:
     """Modify the 'branching_ratio' entry of the decay_dict to use the correct names,
     showing the excited state rather than the metastable/isomeric state.
@@ -137,7 +138,8 @@ def _rename_branching_ratio(
 
 
 def sparsely_load_xs_and_decay_dict(
-    required_isotopes: Iterable[str], folder_list: Iterable[Path]
+    required_isotopes: Iterable[str],
+    folder_list: Iterable[Path],
 ) -> tuple[dict[str, openmc.data.Tabulated1D], dict]:
     """
     Load in ONLY cross-sections of the required isotopes from a list of folders.
@@ -203,10 +205,12 @@ def sparsely_load_xs_and_decay_dict(
                         # is very important for later use.
                         name = _name_from_at_mass(atnum, massnum)
                         isomeric_name = _add_isomeric_state(
-                            name, isotope_data.target["isomeric_state"],
+                            name,
+                            isotope_data.target["isomeric_state"],
                         )
                         excited_name = _add_excited_state(
-                            name, isotope_data.target["state"]
+                            name,
+                            isotope_data.target["state"],
                         )
                         isomeric_to_excited_state[isomeric_name] = excited_name[3:]
                         decay_dict[excited_name] = _extract_decay(dec_f)
@@ -230,8 +234,10 @@ def sparsely_load_xs_and_decay_dict(
     xs_dict = _sort_and_trim_ordered_dict(xs_dict)
     return xs_dict, decay_dict
 
+
 def _name_from_at_mass(atomic_number: int, mass_number: int) -> tuple[str, str]:
     """Create name of the isotope from atomic number and mass number alone.
+
     Parameters
     ----------
     atomic_number:
@@ -248,6 +254,7 @@ def _name_from_at_mass(atomic_number: int, mass_number: int) -> tuple[str, str]:
         4 = mass number
     """
     return str(atomic_number).zfill(3) + ATOMIC_SYMBOL[atomic_number] + str(mass_number)
+
 
 def _add_isomeric_state(name: str, isomeric_state: int) -> str:
     """Append the isomeric state onto the end of the name.
@@ -269,6 +276,7 @@ def _add_isomeric_state(name: str, isomeric_state: int) -> str:
         return name + f"_m{isomeric_state}"
     return name
 
+
 def _add_excited_state(name: str, excited_state: int) -> str:
     """Append the isomeric state onto the end of the name.
 
@@ -289,9 +297,10 @@ def _add_excited_state(name: str, excited_state: int) -> str:
         return name + f"_m{excited_state}"
     return name
 
+
 def endf_data_list_to_xs_dict(
     inc_nuc_list: Iterable[openmc.data.endf.Evaluation],
-    isomeric_to_excited_state: dict[str, str]
+    isomeric_to_excited_state: dict[str, str],
 ) -> dict[str, openmc.data.Tabulated1D]:
     """
     Unpack openmc.data.IncidentNeutron objects into a dictionary of xs_dict.
@@ -325,8 +334,9 @@ def endf_data_list_to_xs_dict(
             ):  # ignore the weird products that means nothing meaningful
                 gnd_name = ATOMIC_SYMBOL[atomic_number] + str(mass_number)
                 isomeric_name = _add_isomeric_state(gnd_name, isomeric_state)
-                e_name = isomeric_to_excited_state.get(isomeric_name,
-                    isomeric_to_excited_state.get(gnd_name, gnd_name)
+                e_name = isomeric_to_excited_state.get(
+                    isomeric_name,
+                    isomeric_to_excited_state.get(gnd_name, gnd_name),
                 )
                 # default to using the ground state's name if N/A.
                 long_name = nuc_sort_name + "-" + e_name + "-MT=5"
@@ -358,7 +368,10 @@ def reactions_matching(xs_dict: dict, isotope: str) -> dict:
 
 
 def _extract_xs(
-    parent_atomic_number, parent_atomic_mass, rx_file, tabulated=True
+    parent_atomic_number,
+    parent_atomic_mass,
+    rx_file,
+    tabulated=True,
 ) -> tuple[list[str], list[openmc.data.Tabulated1D]]:
     """
     For a given (mf, mt) file,
@@ -486,8 +499,8 @@ def serialize_radiation_dict(obj):
             return {}
         k0 = list(obj.keys())[0]
         if isinstance(k0, DiscreteRadiation | ContinuousRadiationDistribution):
-            # dict -> list[{             'DiscreteRadiation' : dict, 'xs':list[float]}, ...]
-            # dict -> list[{'ContinuousRadiationDistribution': dict, 'xs':list[float]}, ...]
+            # dict -> list[{             'DiscreteRadiation' : dict, 'xs':list[float]}]
+            # dict -> list[{'ContinuousRadiationDistribution': dict, 'xs':list[float]}]
             return [
                 {
                     type(k).__name__: serialize_radiation_dict(k),
@@ -548,8 +561,11 @@ def deserialize_radiation_dict(obj):
 
 def serialize_radiation_list(obj):
     if isinstance(obj, list):
+        # list[DiscreteRadiation|ContinuousRadiationDistribution] -> list[{...}]
         return [serialize_radiation_list(o) for o in obj]
     if isinstance(obj, DiscreteRadiation | ContinuousRadiationDistribution):
+        # DiscreteRadiation -> {"energy": float, "intensity": float, source: Source}
+        # ContinuousRadiationDistribution -> {"distribution": detabulate(Tab1DExtended), source: Source}
         return {k: serialize_radiation_dict(v) for k, v in obj._asdict().items()}
 
 

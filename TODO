@@ -64,7 +64,7 @@
     - library_reader.flatten_photon_spectrum -> endf_decay.py
     - library_reader.{RadiationSource,merge_sources_from_multiple_radiations,DiscreteRadiation,ContinuousRadiationDistribution} -> radiation.py
     - library_reader.collapse_single_xs -> endf_neutron.py
-    - extended_io.{_extract_xs,MF10} -> endf_neutron.py
+    - extended_io.{_extract_xs,MF10,reactions_matching} -> endf_neutron.py
     - extended_io.{_extract_decay,_rename_branching_ratio} -> endf_decay.py
     - extended_io._sort_and_trim_ordered_dict -> ../generic.py
     - extended_io.sparsely_load_xs_and_decay_dict -> library_reader.py
