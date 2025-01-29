@@ -398,7 +398,7 @@ class Tab1DExtended:
         if (
             (np.shape(x) != np.shape(y))
             or (np.ndim(x) != 1)
-            or (len(interpolation) == len(x) - 1)
+            or (len(interpolation) != len(x) - 1)
         ):
             raise ValueError("Expected 1D array of the correct shape.")
         self.x = ary(x)
