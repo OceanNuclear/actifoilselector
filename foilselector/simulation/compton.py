@@ -15,10 +15,10 @@ import pandas as pd
 from uncertainties import nominal_value as nom
 
 from foilselector.constants import MeV, keV, me_eV
+from foilselector.physicalparameters import PEAK_TO_COMPTON_FILE
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-
     from uncertainties.core import AffineScalarFunc
 
 __all__ = [
@@ -208,14 +208,7 @@ def get_default_peak_to_Compton_file() -> Path:
     :
         The absolute path to the default peak-to-Compton-ratio file.
     """
-    return Path(
-        # relative path, relative to
-        Path(__file__).parent,  # THIS particular file, compton.py right here.
-        "..",
-        "physicalparameters",
-        "efficiency",
-        "Compton_to_peak_ratio.csv",
-    ).resolve()
+    return PEAK_TO_COMPTON_FILE
 
 
 def compton_edge(peak_energy: float) -> float:

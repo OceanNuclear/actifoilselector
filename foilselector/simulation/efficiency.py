@@ -15,6 +15,7 @@ from numpy import log as ln
 from uncertainties import nominal_value as nom
 from uncertainties.core import AffineScalarFunc
 
+from foilselector.physicalparameters import HPGE_EFF_FILE
 from foilselector.constants import MeV, keV
 
 MCNPOut = namedtuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
@@ -337,11 +338,4 @@ def get_default_efficiency_curve_path() -> Path:
     :
         The absolute path to the default efficiency file.
     """
-    return Path(
-        # relative path, relative to
-        Path(__file__).parent,  # THIS particular file, compton.py right here.
-        "..",
-        "physicalparameters",
-        "efficiency",
-        "Absolute_photopeak_efficiencyMeV.csv",
-    ).resolve()
+    return HPGE_EFF_FILE

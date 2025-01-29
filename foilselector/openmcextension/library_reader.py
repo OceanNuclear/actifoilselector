@@ -3,15 +3,17 @@
 # typical system/python stuff
 from __future__ import annotations
 
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-from openmc.data import Tabulated1D
 from uncertainties import nominal_value as nom
-from uncertainties.core import AffineScalarFunc, Variable
 
 from foilselector.constants import keV
 from foilselector.openmcextension.table import Integral, Tab1DExtended
+
+if TYPE_CHECKING:
+    from openmc.data import Tabulated1D
+    from uncertainties.core import AffineScalarFunc, Variable
 
 __all__ = [
     "ContinuousRadiationDistribution",
@@ -21,8 +23,13 @@ __all__ = [
 ]
 
 
-def collapse_single_xs(xs_entry: Tabulated1D | Tab1DExtended, gs_array: np.ndarray):
-    """
+def collapse_single_xs(
+    xs_entry: Tabulated1D | Tab1DExtended,
+    gs_array: np.ndarray,
+) -> np.ndarray[float]:
+    """Collapse a cross-section (continuous function) into the provided group structure
+    (a which yields a vector, i.e. a discrete list of floats).
+
     Parameters
     ----------
     xs_entry:
@@ -43,6 +50,98 @@ def collapse_single_xs(xs_entry: Tabulated1D | Tab1DExtended, gs_array: np.ndarr
     )
 
 
+class RadiationSource:
+    """Contain all information that needs to be expressed about where the radiation came
+    from.
+    """
+
+    def __init__(
+        self,
+        source: list[str] | list[RadiationSource],
+        decay_mode: str,
+        energy: float | AffineScalarFunc,
+    ):
+        """Create a RadiationSource corresponding to a single peak, containing all
+        information about where it came from.
+
+        Parameters
+        ----------
+        source:
+            The isotopes in the decay chain that led to this radiation being emitted,
+            starting with the reactant and ending with the daughter of the decay.
+        decay_mode:
+            The method of the final decay that released this gamma-ray.
+            This data is stored but won't be presented to the user if the radiation
+            origintated from a single decay pathway.
+        energy:
+            The energy of the isotope, given in eV.
+            This data is stored but won't be presented to the user if the radiation
+            origintated from a single decay pathway.
+        """
+        self.is_multiple_sources = self._check_multiple_source(source)
+        self.source = source
+        self.decay_mode = decay_mode
+        self.energy = energy
+
+    @staticmethod
+    def _check_multiple_source(test_source: list[str] | list[RadiationSource]) -> None:
+        """Validate that self.source is either a list of str (i.e. isotopes),
+        or a list of sources.
+
+        Raises
+        ------
+        ValueError
+            Raised if the validation doesn't pass.
+        """
+        if all(isinstance(source, str) for source in test_source):
+            return False
+        if not any(source.is_multiple_sources for source in test_source):
+            return True
+        raise ValueError(
+            f"Incorrect source type provided: {test_source} should be either a list of "
+            "strings or list of RadiationSource whose .source is a list of strings",
+        )
+        # can never be deeper than 1 level.
+
+    def __str__(self):
+        """Return the str expression of the RadiationSource.
+
+        Returns
+        -------
+        :
+            if it's a single radiation: just the decay chain and decay mode.
+            if it's multiple radiations: decay chains and decay modes of each, plus their
+                true energies.
+        """
+        if self.is_multiple_sources:
+            each_expression = [
+                str(source) + " at " + str(round(nom(source.energy), 5))
+                for source in self.source
+            ]
+            return "; ".join(each_expression)
+        return (
+            self.source[0] + "+n->" + "->".join(self.source[1]) + " " + self.decay_mode
+        )
+
+    def __repr__(self):
+        return str(self)
+
+
+def merge_sources_from_multiple_radiations(
+    rad_list: list[DiscreteRadiation | ContinuousRadiationDistribution],
+) -> str:
+    """Combine multiple radiation's sources into one.
+
+    Returns
+    -------
+    :
+        An item that can be used as the .source part of a DiscreteRadiation or
+        ContinuousRadiationDistribution.
+    """
+    return "; ".join(rad.source for rad in rad_list)  # to be replaced by the line below
+    # return RadiationSource([rad.source for rad in rad_list])
+
+
 class DiscreteRadiation(NamedTuple):
     """
     Attributes
@@ -51,7 +150,7 @@ class DiscreteRadiation(NamedTuple):
         mean energy of this discrete radiation line.
     intensity: openmc.core.Variable
         number of this radiation line released per decay of the immediate parent.
-    source: str
+    source: RadiationSource
         description of where the radiation originated from.
         decay radiation type, immediate parent's name, and decay mode inducing the
         release of this radiation. e.g. "gamma from Y101 beta-"
@@ -59,7 +158,7 @@ class DiscreteRadiation(NamedTuple):
 
     energy: AffineScalarFunc | np.float64
     intensity: AffineScalarFunc | np.float64
-    source: str
+    source: RadiationSource
 
     def __hash__(self) -> int:
         """Create a hash out of the contents."""
@@ -118,16 +217,23 @@ class ContinuousRadiationDistribution(NamedTuple):
         the immediate parent.
         Area under the distribution integrates to the value given by
         `nom(openmc_decay_spectrum[radiation_type]["continuous_normalization"])`.
-    source: str
+    source: RadiationSource
         description of where the radiation originated from.
         decay radiation type, immediate parent's name, and decay mode inducing the
         release of this radiation. e.g. "gamma from Y101 beta-"
     """
 
-    distribution: Tabulated1D
-    source: str
+    distribution: Tab1DExtended
+    source: RadiationSource
 
-    def __hash__(self):
+    def __hash__(self) -> int:
+        """Overloads the definition of hash().
+
+        Returns
+        -------
+        :
+            A hash that corresponds to the data of the Radiation.
+        """
         return hash((self.distribution, self.source))
 
     def copy(self) -> ContinuousRadiationDistribution:
@@ -152,8 +258,20 @@ class ContinuousRadiationDistribution(NamedTuple):
         """
         return self.__class__(self.distribution.copy(), self.source)
 
+    def __mul__(self, multiplier: float) -> ContinuousRadiationDistribution:
+        """Allow the distribution itself to be scaled directly (with no effect to the
+        source).
 
-def flatten_photon_spectrum(
+        Returns
+        -------
+        :
+            A ContinuousRadiationDistribution with a scaled copy of the radiation
+            distribution.
+        """
+        return self.__class__(self.distribution * multiplier, self.source)
+
+
+def flatten_photon_spectrum(  # noqa: C901
     openmc_decay_spectrum: dict,
     isotope_name: str,
 ) -> tuple[list[DiscreteRadiation], list[ContinuousRadiationDistribution]]:
@@ -182,7 +300,7 @@ def flatten_photon_spectrum(
         discrete: list[dict],
         discrete_normalization: Variable,
         source: str,
-    ):
+    ) -> None:
         """Flatten a decay["spectrum"][radiation_type]["discrete"]."""
         if nom(discrete_normalization):
             for line in discrete:
@@ -204,7 +322,7 @@ def flatten_photon_spectrum(
         if "continuous" in openmc_decay_spectrum["xray"]:
             prob_table = openmc_decay_spectrum["xray"]["continuous"]["probability"]
             cont_norm = nom(openmc_decay_spectrum["xray"]["continuous_normalization"])
-            xray_dist = (Tab1DExtended.from_openmc(prob_table) * cont_norm,)
+            xray_dist = Tab1DExtended.from_openmc(prob_table) * cont_norm
 
             if cont_norm:
                 src = ",".join(openmc_decay_spectrum["xray"]["continuous"]["from_mode"])
