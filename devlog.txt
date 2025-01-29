@@ -11,6 +11,12 @@ Issue 2: Trying to find a good way to approximate the rank of the response matri
         Problem: using the methods in commit e849b1a29220d8e6b28d47ce1bcdc3b2246c9fa2, sometimes rows cannot be cancelled to exactly zero during the Gaussian elimination due to floating-point arithmetic issues. As a result, the rightmost row of the augmented matrix (i.e. the response vector after the Gaussian elimination operations) reaches some impossible numbers, e.g. very large number of strongly negative numbers, causing the program to fail to reduce to row-echelon form.
     3. It was decided that simply counting the number of distinct neutron-induced transmutation reaction (bounded above by the number of non-zero bins in the response matrix) is a good enough approximation of the matrix rank.
 
+Issue 3: To simulate the Compton edge's blurriness (rather than a sharp drop off), we can either:
+    1. Convolve the theoretical (sharp) Compton plateau with a (square) blurring matrix (formed by sliding a WIDENING Gaussian kernel across the energy spectrum)
+        This is very memory and time intensive, also it creates some artifacts on the left side (an unphysical dip at 0eV), so this approach has been abandoned, see commit 00694a558a2cf608b1d4d3a003bb707ffb96b1ec get_broadening_matrix.
+    2. Simply convolve region around the Compton edge with a CONSTANT Gaussian kernel, and leave the rest of the Compton plateau untouched.
+        This assumes that the blurring has almost no effect on the bulk of the Compton plateau, because the plateau has such a small 2nd order derivative everywhere.
+        This seems to work well, and is the final approach taken.
 Note for developer:
 Multiplicative factors required to turn "cross-section" into "number of counts at photopeak"
     = collpased_single_xs
