@@ -1,4 +1,2 @@
-from .filepaths import *
-from .efficiency import *
-from .choosematerial import *
-from .price import *
+from foilselector.physicalparameters import choosematerial, filepaths, price
+from foilselector.physicalparameters.filepaths import *
