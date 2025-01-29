@@ -9,9 +9,7 @@
     - This can be solved by `get_reaction_components(mt)` specified by https://docs.openmc.org/en/latest/pythonapi/generated/openmc.data.IncidentNeutron.html#openmc.data.IncidentNeutron.get_reaction_components
 []COMPARE against JET LTIS data!
 []Confirm the width of peaks are sensible when using the default resolution coefficients.
-
 ----Feature suggestions that can be converted into Github issues
-[]Turn on Sphinx
 []Apply validation (via the setter) on DiscreteRadiation.source
 []unitfy the process for loading default data/coefs, storing data/coefs, and then re-loading the stored coefs/data, for {efficiency,resolution,peak_to_compton} curves.
     - See the following table for details of how it's currently done:
@@ -45,16 +43,32 @@
     - efficiency (default stored as .csv file) -> copied as data with various file endings -> re-load from data
     - peak-to-Compton (default stored as .csv file) -> coefficients stored in .txt file -> re-load from coefs
     If possible, follow the API used by the Compton-to-peak ratio column
-[]Open issue to add tutorial for future use
-    - Write simple tutorial in README
-[]Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
 []spectral_simulation.py has gotten pretty long. Is it worth splitting into multiple modules?
-    []Put the merging functionality (L137 - L273) into a separate file?
+    []Put the merging functionality into a separate file:
+        - merge_peak_group, mask_to_slice, merge_peaks_and_responses, gradient_factory, gradient_contribution, fwhm_to_sigma, combine_as_single_peak, peaks_are_distinct -> a file imported by spectral_simulation
         - Should I make them methods of resolution_curve? Probably not.
     []Put stage 4.2-4.4 of simulate.py into a single file, so it doesn't overcrowd simulate.py
-        - The following functions are used: simulate_peaks_with_uncertainties, merge_peaks, delete_peaks, fold_background, corresponding_background_level, integrate_peak_area, discoverable, plot_spectrum, simulate_full_spectrum
+        - The following functions are used directly by simulate.py:
+        - simulate_peaks_with_uncertainties, merge_peaks, delete_peaks, fold_background, corresponding_background_level, integrate_peak_area, discoverable, plot_spectrum, simulate_full_spectrum
+[]Turn on Sphinx
+[]Open issue to add tutorial for entry level users
+[]Improve Tab1DExtended's multiplication with another Tab1D? because the current scheme does not take into account the interpolation scheme.
 []Tests/Unittest
 []CI: https://carpentries-incubator.github.io/python-intermediate-development/23-continuous-integration-automated-testing/index.html
+[]extended_io:
+    [x]Remove {De,En}coderOpenMC, (un)serialize_dict, save_csv_with_uncertainty, unserialize_pd_DataFrame, load_endf_directories
+    []daughter_name = deduce_daughter_from_mt may not be needed for every single file?
+    [](de)serialize_radiation_{dict,list} may be turned into something like the DecoderOpenMC and EncoderOpenMC
+        - needs to be carefully monitored by tests
+[]Relocate functions inside foilselector/openmcextension/:
+    - library_reader.flatten_photon_spectrum -> endf_decay.py
+    - library_reader.{RadiationSource,merge_sources_from_multiple_radiations,DiscreteRadiation,ContinuousRadiationDistribution} -> radiation.py
+    - library_reader.collapse_single_xs -> endf_neutron.py
+    - extended_io.{_extract_xs,MF10} -> endf_neutron.py
+    - extended_io.{_extract_decay,_rename_branching_ratio} -> endf_decay.py
+    - extended_io._sort_and_trim_ordered_dict -> ../generic.py
+    - extended_io.sparsely_load_xs_and_decay_dict -> library_reader.py
+    - extended_io.{_name_from_at_mass,_add_isomeric_state,_add_excited_state} -> naming.py
 
 ----Features that warrant further discussions (do not convert Github issues to unless there is user demand)
 []Remove step1.stage4 & step1.stage5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.

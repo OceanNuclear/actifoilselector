@@ -91,6 +91,7 @@ ignore = [
   "TRY003",  # put error messages in error class
   # "SLF001",  # private method use
   "T201",   # Allow print statements for now. May be changed to a log file later.
+  "C408",   # Allow dict(A=...) instead of {"A":...}.
 ]
 
 [tool.ruff.lint.isort]
