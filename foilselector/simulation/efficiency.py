@@ -15,8 +15,8 @@ from numpy import log as ln
 from uncertainties import nominal_value as nom
 from uncertainties.core import AffineScalarFunc
 
-from foilselector.physicalparameters import HPGE_EFF_FILE
 from foilselector.constants import MeV, keV
+from foilselector.physicalparameters import HPGE_EFF_FILE
 
 MCNPOut = namedtuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
 ISOCSOut = namedtuple("ISOCSOut", ["E", "eff", "integer", "e1", "deviation", "e2", "ID"])

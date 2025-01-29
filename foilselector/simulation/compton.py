@@ -19,6 +19,7 @@ from foilselector.physicalparameters import PEAK_TO_COMPTON_FILE
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
     from uncertainties.core import AffineScalarFunc
 
 __all__ = [
