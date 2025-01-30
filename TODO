@@ -69,6 +69,8 @@
     - extended_io._sort_and_trim_ordered_dict -> ../generic.py
     - extended_io.sparsely_load_xs_and_decay_dict -> library_reader.py
     - extended_io.{_name_from_at_mass,_add_isomeric_state,_add_excited_state} -> naming.py
+[]Convert DiscreteRadiation and  into dataclasses/class with __slots__?
+[]Put foldermanagement.py.{RAW_RESPONSE_MATRICES, BG_RESPONSE_MATRICES, EFFECTIVE_RESPONSE_MATRICES} into an Enum class
 
 ----Features that warrant further discussions (do not convert Github issues to unless there is user demand)
 []Remove step1.stage4 & step1.stage5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.

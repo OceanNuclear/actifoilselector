@@ -84,12 +84,7 @@ ignore = [
   "EXE",    # shebang not needed at the beginning of file.
   "N80",    # Allow uppercase variables because physics variables.
   "N816",
-  # The following are no longer ignored:
-  # "COM812",  # enforce trailing comma, disagrees with black/ruff format
-  # "TD",  # standardise TODOs
-  # "PTH123",  # use Path.open
-  "TRY003",  # put error messages in error class
-  # "SLF001",  # private method use
+  "TRY003", # put error messages in error class
   "T201",   # Allow print statements for now. May be changed to a log file later.
   "C408",   # Allow dict(A=...) instead of {"A":...}.
 ]
