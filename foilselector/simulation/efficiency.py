@@ -15,7 +15,7 @@ from numpy import log as ln
 from uncertainties import nominal_value as nom
 from uncertainties.core import AffineScalarFunc
 
-from foilselector.constants import MeV, keV
+from foilselector.constants import ZERO_E_THRESHOLD, MeV, keV
 from foilselector.physicalparameters import HPGE_EFF_FILE
 
 MCNPOut = namedtuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
@@ -305,10 +305,18 @@ class EfficiencyCurve:
             The efficiency in the same shape, either as a single float (scalar) or as an
             1D array of floats [vector].
         """
+        if isinstance(required_E_in_eV, np.ndarray):
+            E = vectorized_nom(required_E_in_eV)
+            efficiency = np.zeros_like(E)
+            valid_effs = required_E_in_eV >= ZERO_E_THRESHOLD
+            efficiency[valid_effs] = np.exp(
+                self._fitted_func_in_loglog_space(np.log(E[valid_effs])),
+            )
+            return efficiency
         E = nom(required_E_in_eV)
-        if np.isclose(E, 0):
+        if E < ZERO_E_THRESHOLD:
             return 0.0
-        return np.exp(self._fitted_func_in_loglog_space(ln(E)))
+        return np.exp(self._fitted_func_in_loglog_space(np.log(E)))
 
     def plot(self, ax: plt.Axes | None = None) -> None:
         """Plot to examine how well the fit is.

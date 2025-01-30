@@ -38,7 +38,8 @@ import numpy as np
 import scipy.linalg as spln
 import uncertainties.unumpy as unpy
 from numpy import array as ary
-from uncertainties import nominal_value as nom
+
+from foilselector.generic import vectorized_nom
 
 __all__ = [
     "Bateman_convolved_generator",
@@ -47,22 +48,6 @@ __all__ = [
     "mat_exp_num_decays",
     "mat_exp_population_convolved",
 ]
-
-
-def kahan_sum(a, axis=0):
-    """
-    Carefully add together sum to avoid floating point precision problem.
-    Retrieved (and then modified) from
-    https://github.com/numpy/numpy/issues/8786
-    """
-    s = np.zeros(a.shape[:axis] + a.shape[axis + 1 :])
-    c = np.zeros(s.shape)
-    for i in range(a.shape[axis]):
-        # http://stackoverflow.com/42817610/353337
-        y = a[(slice(None),) * axis + (i,)] - c
-        t = s + y
-        c = (t - s) - y
-    return t
 
 
 # (Function factory) population variation due to decay-in minus decay-out after flash irradiation, calculated using the Bateman equation
@@ -309,7 +294,7 @@ def create_lambda_matrix(l_vec, decay_constant_threshold=1e-23):
     """
     Remove the uncertainties part because the scipy linalg matrix exponentiation can't deal with that.
     """
-    lambda_vec = [nom(lamb_i) for lamb_i in l_vec]
+    lambda_vec = vectorized_nom(l_vec)
     return -np.diag(lambda_vec, 0) + np.diag(lambda_vec[:-1], -1)
 
 
@@ -320,9 +305,7 @@ def _expm(M):
     without ignoring the invalids! Or see if this ignoring of error is acceptable or not!
     """
     # with SilenceNumpyInvalidError():  # dangerous to use? TODO: audit safety.
-    with warnings.catch_warnings(record=True):
-        exponentiated = spln.expm(M)
-    return exponentiated
+    return spln.expm(M)
 
 
 # population after drawn out irrdiation, calculated by matrix exponentiation
@@ -488,20 +471,34 @@ def mat_exp_num_decays(
 
     matrix = create_lambda_matrix(decay_constants)
     iden = np.identity(len(decay_constants))
-    multiplier = (
-        1
-        / a
-        * (_expm(matrix * (b - a)))
-        @ (_expm(matrix * (c - b)) - iden)
-        @ (_expm(matrix * (a)) - iden)
-    )
+    with warnings.catch_warnings(record=True) as _warn_list:
+        transit = _expm(matrix * (b - a))
+        measurement = _expm(matrix * (c - b)) - iden
+        irradiation = _expm(matrix * (a)) - iden
+        multiplier = np.nan_to_num(
+            1 / a * transit @ measurement @ irradiation,
+            nan=0.0,
+            posinf=np.inf,
+        )
+        # TODO: Upgrade this with a better implementation of the convolved Bateman
+        # equation to avoid warnings altogether.
+
+    # for w in transit_list:
+    #     print(f"{w.category}: {w.message} at transit matrix calculation")
+    #     print(matrix * (b - a))
+    # for w in measurement_list:
+    #     print(f"{w.category}: {w.message} at measurement matrix calculation")
+    #     print(matrix * (c - b))
+    # for w in irradiation_list:
+    #     print(f"{w.category}: {w.message} at irradiation matrix calculation")
+    #     print(matrix * (a))
+    # if transit_list or measurement_list or irradiation_list:
+    #     print(f"Chain in question is: {decay_constants}")
+    #     print(f"Resulting in {multiplier=}")
+
     inv = np.linalg.inv(matrix)
-    initial_population_vector = ary(
-        [
-            1,
-        ]
-        + [0 for _ in decay_constants[1:]],
-    )  # initial population of all nuclides = 0 except for the very first isotope, which has 1.0.
+    initial_population_vector = ary([1.0] + [0.0 for _ in decay_constants[1:]])
+    # initial population of all nuclides = 0 except for the very first isotope, which has 1.0.
     final_fractions = (
         multiplier @ inv @ inv @ initial_population_vector
     )  # result of the (population * dt) integral

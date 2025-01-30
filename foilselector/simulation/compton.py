@@ -14,13 +14,14 @@ import numpy as np
 import pandas as pd
 from uncertainties import nominal_value as nom
 
-from foilselector.constants import MeV, keV, me_eV
+from foilselector.constants import ZERO_E_THRESHOLD, MeV, keV, me_eV
 from foilselector.physicalparameters import PEAK_TO_COMPTON_FILE
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from uncertainties.core import AffineScalarFunc
+
 
 __all__ = [
     "PEAK_TO_COMPTON_FILENAME",
@@ -32,6 +33,8 @@ __all__ = [
 ]
 
 PEAK_TO_COMPTON_FILENAME = ".gamma-Compton-to-peak-coefs.txt"
+
+vectorized_nom = np.vectorize(nom)
 
 
 class PeakToComptonCoefficients:
@@ -148,8 +151,16 @@ class ComptonToPeakRatioCurve:
         :
             output in the y-coordinates
         """
+        if isinstance(required_E_in_eV, np.ndarray):
+            E = vectorized_nom(required_E_in_eV)
+            efficiency = np.zeros_like(E)
+            valid_effs = required_E_in_eV >= ZERO_E_THRESHOLD
+            efficiency[valid_effs] = np.exp(
+                self._fitted_func_in_loglog_space(np.log(E[valid_effs])),
+            )
+            return efficiency
         E = nom(required_E_in_eV)
-        if np.isclose(E, 0):
+        if E < ZERO_E_THRESHOLD:
             return 0.0
         return np.exp(self._fitted_func_in_loglog_space(np.log(E)))
 
@@ -298,7 +309,7 @@ def make_sharp_compton_distribution(
     """
     energy_deposited = np.zeros(len(test_energies))
     Eg = nom(photopeak_energy)
-    if np.isclose(Eg, 0, atol=1, rtol=0):  # anything between 0 - 1 eV -> no Compton.
+    if Eg < ZERO_E_THRESHOLD:  # anything between 0 - 1 eV -> no Compton.
         return energy_deposited
     Ecomp = compton_edge(Eg)
     affected_bins = test_energies <= Ecomp

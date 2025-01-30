@@ -18,6 +18,7 @@ __all__ = [
     "ordered_set",
     "sorted_dict",
     "vectorized_nom",
+    "kahan_sum",
 ]
 
 vectorized_nom = np.vectorize(nom)
