@@ -14,11 +14,11 @@ if TYPE_CHECKING:
 __all__ = [
     "SilenceNumpyDivisionError",
     "SilenceNumpyInvalidError",
+    "kahan_sum",
     "minmax",
     "ordered_set",
     "sorted_dict",
     "vectorized_nom",
-    "kahan_sum",
 ]
 
 vectorized_nom = np.vectorize(nom)

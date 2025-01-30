@@ -198,7 +198,7 @@ def sparsely_load_xs_and_decay_dict(
 
                 # indiscriminantly collect every single isotope below the max. mass number.
                 elif isotope_data.info["sublibrary"] == "Radioactive decay data":
-                    if mass_number <= max_mass_number:
+                    if massnum <= max_mass_number:
                         # extract only if we can reach this mass number by decaying.
                         dec_f = openmc.data.Decay.from_endf(isotope_data)
                         # just for convenience of figuring out the isomeric names, which
