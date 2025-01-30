@@ -4,6 +4,7 @@ classes).
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Iterable
 
 import matplotlib.pyplot as plt
@@ -270,49 +271,63 @@ class Integral:
         return areas
 
     @staticmethod
-    def area_scheme_1(x1, x2, y1, y2):
+    def area_scheme_1(
+        x1: npt.NDArray[float],
+        x2: npt.NDArray[float],
+        y1: npt.NDArray[float],
+        y2: npt.NDArray[float],
+    ) -> npt.NDArray[float]:
         dx = x2 - x1
         return y1 * dx
 
     @staticmethod
-    def area_scheme_2(x1, x2, y1, y2):
+    def area_scheme_2(
+        x1: npt.NDArray[float],
+        x2: npt.NDArray[float],
+        y1: npt.NDArray[float],
+        y2: npt.NDArray[float],
+    ) -> npt.NDArray[float]:
         dx, dy = x2 - x1, y2 - y1
         return dy * dx / 2 + y1 * dx
 
     @staticmethod
-    def area_scheme_3(x1, x2, y1, y2):
+    def area_scheme_3(
+        x1: npt.NDArray[float],
+        x2: npt.NDArray[float],
+        y1: npt.NDArray[float],
+        y2: npt.NDArray[float],
+    ) -> npt.NDArray[float]:
         dx, dy = x2 - x1, y2 - y1
-        # expected 0<x1<=x2
-        dlnx = ln(x2) - ln(x1)
         # m = dy/dlnx
-        return (
-            y1 * dx
-            + dy * x2
-            - dy
-            * np.nan_to_num(
-                dx / dlnx,
-                nan=x1,
-                posinf=x1,
-                neginf=x1,
-            )  # TODO: RuntimeWarning: invalid value encountered in divide
-        )
+        # expected 0<x1<=x2
+        dx_dlnx = x1.copy()
+        valid = np.logical_and(x2 != x1, x1 > 0.0)
+        dx_dlnx[valid] = dx[valid] / (ln(x2[valid]) - ln(x1[valid]))
+
+        return y1 * dx + dy * x2 - dy * dx_dlnx
 
     @staticmethod
-    def area_scheme_4(x1, x2, y1, y2):
+    def area_scheme_4(
+        x1: npt.NDArray[float],
+        x2: npt.NDArray[float],
+        y1: npt.NDArray[float],
+        y2: npt.NDArray[float],
+    ) -> npt.NDArray[float]:
         dx, dy = x2 - x1, y2 - y1
-        dlny = ln(y2) - ln(y1)
         # m = dlny/dx
-        return (
-            np.nan_to_num(dy / dlny, nan=y1, posinf=y1, neginf=y1)
-            * dx  # TODO: RuntimeWarning: invalid value encountered in divide
-        )  # nan_to_num is needed to take care of y2 = y1,
-        # which makes dy/dlny appraoch the value of y1. (since dlny-> 0 one order of magnitude faster than 1 dy->0)
-        # if dy is exactly zero, dy/dlny would've returned nan.
-        # if dy is slightly less, dy/dlny would've returned neginf.
-        # if dy is slightly more, dy/dlny would've returned posinf.
+
+        dy_dlny = y1.copy()
+        valid = np.logical_and(y2 != y1, np.logical_and(y1 > 0.0, y2 > 0.0))
+        dy_dlny[valid] = dy[valid] / (ln(y2[valid]) - ln(y1[valid]))
+        return dy_dlny * dx
 
     @staticmethod
-    def area_scheme_5(x1, x2, y1, y2):
+    def area_scheme_5(
+        x1: npt.NDArray[float],
+        x2: npt.NDArray[float],
+        y1: npt.NDArray[float],
+        y2: npt.NDArray[float],
+    ) -> npt.NDArray[float]:
         """
         if m==-1:
             should give y1/x1**m *(dlnx)
@@ -328,44 +343,44 @@ class Integral:
         inv_x1_m = 1/x1**m
         diff_over_expo = (x2**(m+1) - x1**2(m+1)) / (m+1)
         """
-        resulting_area = np.empty(x1.shape)
-        dx, dy = x2 - x1, y2 - y1  # noqa: F841
-        dlnx, dlny = (
-            ln(x2) - ln(x1),
-            ln(y2) - ln(y1),
-        )  # TODO: invalid value encountered in subtract
-        # shouldn't raise any warnings so far unless x1==0 or y1==0, which isn't well defined (but we can extend the definition to cover it)
+        resulting_area = np.zeros_like(y1)
+        dx = x2 - x1
+        zero_width = x2 == x1
+        zero_height = y2 == y1
 
-        # find the special cases: dlnx==0; x^-1; all others.
-        dlnx_0 = dlnx == 0
-        inverse_special_case = np.logical_and(
+        dlnx = np.zeros_like(x1)
+        x0 = np.logical_or(x1 > 0.0, x2 > 0.0)
+        valid_x = np.logical_and(~zero_width, x0)
+        dlnx[valid_x] = ln(x2[valid_x]) - ln(x1[valid_x])
+
+        dlny = np.zeros_like(x1)
+        y0 = np.logical_or(y1 > 0.0, y2 > 0.0)
+        valid_y = np.logical_and(~zero_height, y0)
+        dlny[valid_y] = ln(y2[valid_y]) - ln(y1[valid_y])
+
+        # zero_width area = 0.0
+        resulting_area[zero_height] = y1[zero_height] * dx[zero_height]
+        resulting_area[np.logical_or(x1 > 0.0, x2)] = dx * y2
+
+        # find the special cases: dlnx==0; x^-1.
+        m_1_case = np.logical_and(
             np.isclose(dlnx, -dlny),
-            ~dlnx_0,
-        )  # not already included by dlnx==0 case
-        normal = ~np.logical_or(
-            inverse_special_case,
-            dlnx_0,
-        )  # no dlnx==0 and no slope ==-1
-
-        # dlnx==0 case
-        resulting_area[dlnx_0] = 0
+            np.logical_and(valid_x, valid_y),
+        )
+        normal = np.logical_and(~m_1_case, np.logical_and(valid_x, valid_y))
+        # normal case: no dlnx==0 and no slope ==-1
 
         # x^-1 case
-        resulting_area[inverse_special_case] = (
-            y1[inverse_special_case]
-            * dlnx[inverse_special_case]
-            * x1[inverse_special_case]
-        )  # y1*dlnx*x1
+        resulting_area[m_1_case] = y1[m_1_case] * dlnx[m_1_case] * x1[m_1_case]
 
         # normal case
         m = dlny[normal] / dlnx[normal]
         #   problematic if any(x1==0, y1==0, dx==0)
-        inv_x1_m = y1[normal] / (
-            x1[normal] ** m
-        )  # TODO: RuntimeWarning: overflow encountered in power,
-        diff_over_expo = (
-            (x2[normal] ** (m + 1) - x1[normal] ** (m + 1)) / (m + 1)
-        )  # TODO: this is where it fails with `RuntimeWarning: overflow encountered in power`, and `RuntimeWarning: invalid value encountered in subtract`
+        with warnings.catch_warnings(record=True) as _warn_list:
+            inv_x1_m = y1[normal] * (x1[normal] ** -m)
+            diff_over_expo = (x2[normal] ** (m + 1) - x1[normal] ** (m + 1)) / (m + 1)
+            # TODO @OceanNuclear: if m is too big (+ve), this usually throws a warning.
+            # Re-write integral expression to make this less error-prone?
 
         resulting_area[normal] = np.nan_to_num(
             inv_x1_m * diff_over_expo,
@@ -374,19 +389,6 @@ class Integral:
             neginf=dx[normal],
         )
         return resulting_area
-        # m is problematic if
-        # any(x1==0, y1==0, dx==0)
-        # which respectively gives:
-        # T, F, F:  x2*y2 =       = dx*(y1+dy)
-        # F, T, F: 0 = y1 = dx*y1
-        # F, F, T: 0 = dx = dx*y1 = dx*(y1+dy)
-        # T, T, F: 0 = y1 = dx*y1
-        # T, F, T: 0 = dx = dx*y1 = dx*(y1+dy)
-        # F, T, T: 0 =      dx*y1 = y2 * (y1/y2)
-        # T, T, T: 0 = y2 = dx*y1 = dx*(y1+dy)
-        # if we loosen the constraints a bit by "blaming it on the user",
-        # and say that if x1==0 then (y1 must== y2), ("otherwise it's your fault it integrated wrongly"),
-        # then expression (dx*y1) becomes valid for all of the above edge cases listed.
 
 
 class Tab1DExtended:
