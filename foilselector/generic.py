@@ -1,8 +1,15 @@
 """Generic functions and context managers."""
 
+from __future__ import annotations
+
 import contextlib  # to silence numpy error
+from typing import TYPE_CHECKING
 
 import numpy as np
+from uncertainties import nominal_value as nom
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 __all__ = [
     "SilenceNumpyDivisionError",
@@ -10,10 +17,34 @@ __all__ = [
     "minmax",
     "ordered_set",
     "sorted_dict",
+    "vectorized_nom",
 ]
 
+vectorized_nom = np.vectorize(nom)
 
-def ordered_set(sequence) -> list:
+
+def kahan_sum(a: np.ndarray, axis: int = 0) -> float:
+    """Carefully add together sum to avoid floating point precision problem.
+
+    Retrieved (and then modified) from
+    https://github.com/numpy/numpy/issues/8786
+
+    Returns
+    -------
+    t:
+        The sum
+    """
+    s = np.zeros(a.shape[:axis] + a.shape[axis + 1 :])
+    c = np.zeros(s.shape)
+    for i in range(a.shape[axis]):
+        # http://stackoverflow.com/42817610/353337
+        y = a[(slice(None),) * axis + (i,)] - c
+        t = s + y
+        c = (t - s) - y
+    return t
+
+
+def ordered_set(sequence: Iterable) -> list:
     """
     Get the sorted set, sorted according to the order of element first appearing in the
     sequence.
@@ -66,7 +97,7 @@ def sorted_dict(dictionary: dict) -> dict:
     return new_dict
 
 
-def minmax(array) -> tuple[float, float]:
+def minmax(array: Iterable[float]) -> tuple[float, float]:
     """
     Alias function to quickly return the min. and max. among all values in an array.
 
@@ -90,7 +121,7 @@ class SilenceNumpyDivisionError(contextlib.ContextDecorator):
         np.seterr(divide="ignore")  # force ignore all division errors
         return self  # noqa: DOC201
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):  # noqa: ANN001
         """Unset error status."""
         np.seterr(divide=self.prev_divide_error_state)
         return exc_type is None  # noqa: DOC201
@@ -108,7 +139,7 @@ class SilenceNumpyInvalidError(contextlib.ContextDecorator):
         np.seterr(invalid="ignore")
         return self  # noqa: DOC201
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):  # noqa: ANN001
         """Unset error status."""
         np.seterr(invalid=self.prev_invalid_error_state)
         return exc_type is None  # noqa: DOC201
