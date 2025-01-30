@@ -16,6 +16,7 @@ from uncertainties import nominal_value as nom
 from uncertainties.core import AffineScalarFunc
 
 from foilselector.constants import ZERO_E_THRESHOLD, MeV, keV
+from foilselector.generic import vectorized_nom
 from foilselector.physicalparameters import HPGE_EFF_FILE
 
 MCNPOut = namedtuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
