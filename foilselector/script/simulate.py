@@ -20,6 +20,7 @@ A nuance that I have to clear up: if a(n advaned) user _knows_ that there's a sp
 
 import json
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -35,6 +36,7 @@ from foilselector.foldermanagement import (
     RAW_RESPONSE_MATRICES,
     append_to_csv,
     append_to_json,
+    get_gamma_spec_directory,
     read_apriori,
     read_gs,
     save_atomic_composition_json,
@@ -58,7 +60,7 @@ from foilselector.optimizer.choose_mass import (
     max_num_counts,
 )
 from foilselector.optimizer.precision import (
-    get_precision,
+    get_precision_contributions,
     get_precision_unit,
     get_precision_weight_vector,
 )
@@ -217,6 +219,78 @@ def calculate_response_matrix(
     return this_foil, this_background
 
 
+class ScriptExecutedOutOfOrderError(RuntimeError):
+    pass
+
+
+def read_inputs(
+    directory: Path,
+    irradiation_duration: float,
+    measurement_duration: float,
+) -> tuple[
+    np.ndarray,
+    np.ndarray[float],
+    Callable[[float | np.ndarray], float | np.ndarray],
+    float,
+    EfficiencyCurve,
+    ComptonToPeakRatioCurve,
+]:
+    """
+    Parameters
+    ----------
+    directory:
+        The working directory
+
+    Raises
+    ------
+    ScriptExecutedOutOfOrderError
+        script not executed int he order of: 1. input 2. simulate 3. examine.
+    """
+    try:
+        gs_array = read_gs()
+        _apriori_flux, apriori_fluence = read_apriori(directory, irradiation_duration)
+    except FileNotFoundError as e:
+        raise ScriptExecutedOutOfOrderError(
+            "Missing group structure and flux. Please complete the input step first!",
+        ) from e
+
+    try:
+        resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load(directory)
+    except FileNotFoundError as e:
+        raise ScriptExecutedOutOfOrderError(
+            "Missing resolution and maximum count rate information,"
+            " please complete the input step properly!",
+        ) from e
+    resolution_curve = resolution_curve_factory(resolution_coefficients)
+    max_counts_per_foil = max_num_counts(max_count_rate, measurement_duration)
+
+    try:
+        eff_curve = EfficiencyCurve.from_file(find_efficiency_file(directory))
+    except StopIteration as e:
+        raise ScriptExecutedOutOfOrderError(
+            "Missing efficiency file, please complete the input step properly!",
+        ) from e
+
+    try:
+        compton_from_peak = ComptonToPeakRatioCurve(
+            PeakToComptonCoefficients.load(directory),
+        )
+    except FileNotFoundError as e:
+        raise ScriptExecutedOutOfOrderError(
+            "Missing peak-to-Compton ratio curve,"
+            " please complete the input step properly!",
+        ) from e
+
+    return (
+        gs_array,
+        apriori_fluence,
+        resolution_curve,
+        max_counts_per_foil,
+        eff_curve,
+        compton_from_peak,
+    )
+
+
 def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     composition: Path,
     libraries: list[Path],
@@ -228,8 +302,29 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     dict[str, float],
     dict[str, np.ndarray],
     dict[str, list[DiscreteRadiation]],
+    dict[str, float],
+    dict[str, float],
 ]:
     """Main script of step2:simulate.
+
+    Parameters
+    ----------
+    composition:
+        Path to the composition JSON file, used by specify_isotopic_composition.
+    libraries:
+        Path to the nuclear data libraries.
+    irradiation_duration:
+        Length of time (in seconds) when the samples is expected to be irradiated
+        continuously.
+    transit_duration:
+        Length of time (in seconds) expected to span between the end of the irradiation
+        and the start of the gamma-ray spectrum acquisition.
+    measurement_duration:
+        Length of time (in seconds) of the gamma-ray spectrum acquisition.
+    gamma_spectrum_parameters:
+        Either a 2-tuple or 3-tuple.
+        The first two parameters are the lowest and highest energies of gamma-rays
+        (in keV) that
 
     Returns
     -------
@@ -251,18 +346,18 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     """  # noqa: D401
     # Stage 1.0: load data from last step.
     cwd = Path.cwd()
-    gspec_directory = Path(cwd, "gamma_spectra")
+    gspec_directory = get_gamma_spec_directory(cwd)
 
-    gs_array = read_gs()
+    (
+        gs_array,
+        apriori_fluence,
+        resolution_curve,
+        max_counts_per_foil,
+        eff_curve,
+        compton_from_peak,
+    ) = read_inputs(cwd, irradiation_duration, measurement_duration)
     w_vector = get_precision_weight_vector(gs_array)
     precision_unit = get_precision_unit()
-
-    _apriori_flux, apriori_fluence = read_apriori(cwd, irradiation_duration)
-    resolution_coefficients, max_count_rate = ResolutionMaxCountRate.load()
-    resolution_curve = resolution_curve_factory(resolution_coefficients)
-    max_counts_per_foil = max_num_counts(max_count_rate, measurement_duration)
-    eff_curve = EfficiencyCurve.from_file(find_efficiency_file())
-    compton_from_peak = ComptonToPeakRatioCurve(PeakToComptonCoefficients.load())
 
     # Stage 1.1: preparation of the gamma-ray spectrum simulation energies, and
     # the broadening matrix.
@@ -291,7 +386,7 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     # stage 4.1: for each foil, optimize mass, and then whittle down radiation list.
     mass_record = {}
     effective_foil_matrices, effective_foil_peaks = {}, {}
-    foil_precision, foil_accuracy = {}, {}
+    foil_precision_cont, foil_accuracy = {}, {}
     Path(cwd, RAW_RESPONSE_MATRICES).unlink(missing_ok=True)
     Path(cwd, BG_RESPONSE_MATRICES).unlink(missing_ok=True)
     Path(cwd, EFFECTIVE_RESPONSE_MATRICES).unlink(missing_ok=True)
@@ -395,7 +490,7 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
             serialize_radiation_dict({foil_name: effective_matrix}),
             json_path=Path(cwd, EFFECTIVE_RESPONSE_MATRICES),
         )
-        foil_precision[foil_name] = get_precision(
+        foil_precision_cont[foil_name] = get_precision_contributions(
             effective_matrix,
             ary([peak.intensity for peak in reaction_info]),
             w_vector,
@@ -409,7 +504,7 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
             {
                 "recommended number of atoms": mass_record[foil_name]["number of atoms"],
                 "recommended mass (mg)": mass_record[foil_name]["mass (g)"] * 1000,
-                f"sensitivity ({precision_unit})": foil_precision[foil_name],
+                f"sensitivity ({precision_unit})": foil_precision_cont[foil_name].sum(),
                 f"specificity upper limit (max value = {len(gs_array)})": foil_accuracy[
                     foil_name
                 ],
@@ -457,6 +552,6 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
         mass_record,
         effective_foil_matrices,
         effective_foil_peaks,
-        foil_precision,
+        foil_precision_cont,
         foil_accuracy,
     )
