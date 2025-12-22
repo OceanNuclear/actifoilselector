@@ -392,6 +392,13 @@ class Integral:
             posinf=dx[normal],
             neginf=dx[normal],
         )
+        if _warn_list:
+            print(_warn_list, "for the numbers:")
+            print(f"{inv_x1_m=}")
+            print(f"{x1[normal]=}")
+            print(f"{x2[normal]=}")
+            print(f"{y1[normal]=}")
+            print(f"{y2[normal]=}")
         return resulting_area
 
 
