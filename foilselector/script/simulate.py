@@ -324,7 +324,7 @@ def main(  # TODO @OceanNuclear: PLR0914, PLR0915; need refactor.
     gamma_spectrum_parameters:
         Either a 2-tuple or 3-tuple.
         The first two parameters are the lowest and highest energies of gamma-rays
-        (in keV) that
+        (in keV) that the gamma-ray detector can record.
 
     Returns
     -------

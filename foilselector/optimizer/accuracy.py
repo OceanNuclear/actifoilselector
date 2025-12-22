@@ -27,6 +27,41 @@ def get_all_reactions(expected_peak_list: list[DiscreteRadiation]) -> set:
     -------
     source_set:
         Set of all reaction pathways (each stored as a string)
+
+    Notes
+    -----
+    # TODO @OceanNuclear:
+    Need to make a function that does this:
+    ---------------------------------
+    reaction| 1 | 2 | 3 | 4 | 5 | 6 |
+    ---------------------------------
+    |peak 1 | Y | Y | Y | N | N | N |
+    |peak 2 | Y | Y | Y | N | N | N |
+    |peak 3 | N | Y | Y | N | N | N | => MAX = 3
+    |-------|---|---|---|---|---|---|
+    |peak 1 | Y | Y | Y | N | N | N |
+    |peak 2 | Y | Y | Y | N | N | N |
+    |peak 3 | N | N | Y | N | N | N | => MAX = 3
+    |-------|---|---|---|---|---|---|
+    |peak 1 | Y | Y | Y | N | N | N |
+    |peak 2 | Y | Y | Y | N | N | N |
+    |peak 3 | N | N | N | Y | N | N | => MAX = 3
+    |-------|---|---|---|---|---|---|
+    |peak 1 | Y | Y | Y | N | N | N |
+    |peak 2 | Y | Y | N | N | N | N |
+    |peak 3 | N | N | N | Y | N | N | => MAX = 3
+    |-------|---|---|---|---|---|---|
+    |peak 1 | Y | Y | Y | N | N | N |
+    |peak 2 | Y | Y | Y | N | N | N |
+    |peak 3 | Y | N | N | N | N | N |
+    |peak 4 | Y | N | N | N | N | N | => MAX =3
+    |-------|---|---|---|---|---|---|
+    |peak 1 | Y | Y | Y | N | N | N |
+    |peak 2 | Y | Y | Y | N | N | N |
+    |peak 3 | Y | N | N | Y | N | N |
+    |peak 4 | Y | N | N | N | N | N | => MAX =4
+    ---------------------------------
+    (Need to figure out a rule here.)
     """
     # TODO: @OceanNuclear:
     # Using str to store and transfer reaction information is not the most secure, nor
@@ -36,6 +71,7 @@ def get_all_reactions(expected_peak_list: list[DiscreteRadiation]) -> set:
     # that validates this syntax is used. Or better yet, make sure
     # DiscreteRadiation.source stores a specialized class rather than a str.
     source_set = set()
+
     for peak in expected_peak_list:
         for source in peak.source.split(";"):
             reaction_chain = source.split(" from")[0][:-5].strip().split("->")
@@ -67,4 +103,9 @@ def get_accuracy_upper_bound(
         Accuracy metric calculated by the get_all_reactions function.
     """
     non_zero_bins = response_matrix.sum(axis=0) > 0.0
-    return min([non_zero_bins.sum(), len(get_all_reactions(expected_peak_list))])
+    num_peaks = response_matrix.shape[0]
+    return min([
+        non_zero_bins.sum(),
+        len(get_all_reactions(expected_peak_list)),
+        num_peaks,
+    ])

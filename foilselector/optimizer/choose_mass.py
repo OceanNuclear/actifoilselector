@@ -60,10 +60,10 @@ def choose_num_reactant_in_foil(
     -------
     num_reactants_in_foil:
         How many reactants can the foil have.
-    largest_foil_response:
+    final_response_matrix:
         similar to input foil_response_matrix, but each row's response is scaled up by
         num_reactants_in_foil to get the foil's total response if it were at max. mass.
-    largest_foil_response:
+    final_foil_background:
         similar to input foil_background, but each row's response is scaled up by
         num_reactants_in_foil to get the foil's total response if it were at max. mass.
     """

@@ -70,7 +70,10 @@
     - extended_io.sparsely_load_xs_and_decay_dict -> library_reader.py
     - extended_io.{_name_from_at_mass,_add_isomeric_state,_add_excited_state} -> naming.py
 []Convert DiscreteRadiation and  into dataclasses/class with __slots__?
-[]Put foldermanagement.py.{RAW_RESPONSE_MATRICES, BG_RESPONSE_MATRICES, EFFECTIVE_RESPONSE_MATRICES} into an Enum class
+[]foldermanagement.py:
+    []{RAW_RESPONSE_MATRICES, BG_RESPONSE_MATRICES, EFFECTIVE_RESPONSE_MATRICES} -> into an Enum class
+    []unify the behaviour of {get_gamma_spec_directory,read_atomic_composition_json,read_gs,read_apriori} (take in directory, default as ".", ensure it exists as a directory, append the hard-coded filename)
+    []unify the behaviour of {save_atomic_composition_json,save_gs,save_apriori} (take in directory, default as ".", ensure it exists as a directory, append the hard-coded filename)
 
 ----Features that warrant further discussions (do not convert Github issues to unless there is user demand)
 []Remove step1.stage4 & step1.stage5: we don't need to help the user re-scale their neutron spectrum in the energy/flux space, we can just disable it while leaving the functions intact and available.

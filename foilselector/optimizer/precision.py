@@ -3,7 +3,11 @@
 import numpy as np
 import uncertainties
 
-__all__ = ["get_precision", "get_precision_unit", "get_precision_weight_vector"]
+__all__ = [
+    "get_precision_contributions",
+    "get_precision_unit",
+    "get_precision_weight_vector",
+]
 
 
 def get_precision_weight_vector(
@@ -76,13 +80,14 @@ def get_precision_unit(*, log_flux: bool = False, const_lethargy: bool = False):
     return "cm^2"
 
 
-def get_precision(
+def get_precision_contributions(
     foil_response_matrix: np.ndarray,
     foil_response_vector: np.ndarray[uncertainties.core.AffineScalarFunc],
     weight_vector: np.ndarray[float],
-) -> float:
+) -> np.ndarray[float]:
     """
-    Calculate the precision metric as defined in the thesis.
+    Calculate the precision metric as defined in the thesis. Don't perform the summation
+    yet.
 
     Parameters
     ----------
@@ -110,9 +115,9 @@ def get_precision(
         This change is minor and does not cause any meaningful difference to the result.
     """
     if len(foil_response_matrix) == 0:
-        return 0.0
+        return np.zeros_like(weight_vector)
     covariance_matrix = uncertainties.covariance_matrix(foil_response_vector)
-    return weight_vector @ np.diag(
+    return weight_vector * np.diag(
         foil_response_matrix.T
         @ np.linalg.pinv(covariance_matrix)
         @ foil_response_matrix,

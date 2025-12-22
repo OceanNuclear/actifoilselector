@@ -505,7 +505,5 @@ def mat_exp_num_decays(
     # total number of decays = branching_ratios * the integral * decay constant of that isotope .
     fraction = final_fractions[-1]
     fraction = np.clip(np.nan_to_num(fraction), 0, np.inf)
-    answer = (
-        np.prod(branching_ratios[1:]) * fraction * decay_constants[-1]
-    )  # multiplied by its own decay rate will give the number of decays over time period b to c.1
-    return answer
+    return np.prod(branching_ratios[1:]) * fraction * decay_constants[-1]
+    # multiplied by its own decay rate will give the number of decays over time period b to c.1

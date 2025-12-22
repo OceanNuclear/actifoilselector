@@ -5,6 +5,7 @@ from pathlib import Path
 
 import click
 
+from foilselector.script.examine import main as examine_script
 from foilselector.script.input import main as input_preparation_script
 from foilselector.script.simulate import main as simulate_script
 
@@ -110,3 +111,18 @@ def step2(
         measurement_duration,
         gamma_spectrum_parameters,
     )
+
+
+@cli.command("step3", no_args_is_help=False)
+@click.argument(
+    "gamma_json_paths",
+    required=True,
+    nargs=-1,
+    # help="Name of all json files that needs to be plotted.",
+)
+def step3(gamma_json_paths: Path):
+    """Plot (interactively) the json file stored from step2.
+    E.g.1 `foilselector step3 Au Fe Si`
+    E.g.2 `foilselector step3 gamma_spectra/Au.json gamma_spectra/Fe gamma_spectra/Si`
+    """
+    examine_script(gamma_json_paths)

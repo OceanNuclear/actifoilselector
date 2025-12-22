@@ -378,8 +378,12 @@ class Integral:
         #   problematic if any(x1==0, y1==0, dx==0)
         with warnings.catch_warnings(record=True) as _warn_list:
             inv_x1_m = y1[normal] * (x1[normal] ** -m)
-            diff_over_expo = (x2[normal] ** (m + 1) - x1[normal] ** (m + 1)) / (m + 1)
-            # TODO @OceanNuclear: if m is too big (+ve), this usually throws a warning.
+
+            factor = x2[normal] ** (m + 1)
+            quotient = (x1[normal] / x2[normal]) ** (m + 1)
+            diff_over_expo = factor * (1 - quotient) / (m + 1)
+            # TODO @OceanNuclear: if m is too big (+ve), this usually throws a
+            # RuntimeWarning: overflow due to the exponent.
             # Re-write integral expression to make this less error-prone?
 
         resulting_area[normal] = np.nan_to_num(

@@ -29,6 +29,10 @@ EFFECTIVE_RESPONSE_MATRICES = ".effective_response_matrices.json"
 RESULT_CSV = "each_foil.csv"
 
 
+def get_gamma_spec_directory(parent_directory="."):
+    return Path(parent_directory, "gamma_spectra")
+
+
 # atomic_composition
 def save_atomic_composition_json(
     processed_composition: dict[str, float],
