@@ -18,3 +18,4 @@ energy(keV),Compton_to_peak_ratio
 4000.0,11.341607
 5500.0,17.494613
 7000.0,24.051671
+# R. Venkataraman, S. Croft, W. R. Russ: Calculation of peak-to-total ratios for high purity germanium detectors using Monte-Carlo modeling

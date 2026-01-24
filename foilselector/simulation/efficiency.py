@@ -4,8 +4,8 @@ classes.
 
 import itertools
 import shutil
-from collections import namedtuple
 from pathlib import Path
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,9 +19,9 @@ from foilselector.constants import ZERO_E_THRESHOLD, MeV, keV
 from foilselector.generic import vectorized_nom
 from foilselector.physicalparameters import HPGE_EFF_FILE
 
-MCNPOut = namedtuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
-ISOCSOut = namedtuple("ISOCSOut", ["E", "eff", "integer", "e1", "deviation", "e2", "ID"])
-EffCurve = namedtuple("EffCurve", ["E", "eff", "unc"])
+MCNPOut = NamedTuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
+ISOCSOut = NamedTuple("ISOCSOut", ["E", "eff", "integer", "e1", "deviation", "e2", "ID"])
+EffCurve = NamedTuple("EffCurve", ["E", "eff", "unc"])
 
 
 APPROVED_EFFICIENCY_FILE_EXTENSIONS = {
@@ -165,7 +165,7 @@ def efficiency_curve_from_file(fname: Path) -> EffCurve:
     Returns
     -------
     :
-        EffCurve namedtuple, containing the error on each of the efficiency data point
+        EffCurve NamedTuple, containing the error on each of the efficiency data point
         where present.
 
     Raises
@@ -341,6 +341,10 @@ class EfficiencyCurve:
 
 def get_default_efficiency_curve_path() -> Path:
     """Get the file path of the efficiency file.
+
+    Data not publically available as this is a detector used in
+    https://doi.org/10.1016/j.nima.2018.06.016, obtained via private
+    communication.
 
     Returns
     -------

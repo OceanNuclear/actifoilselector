@@ -214,6 +214,17 @@ class ComptonToPeakRatioCurve:
 
 def get_default_peak_to_Compton_file() -> Path:
     """Get the file path of the peak-to-Compton-ratio file.
+    This default file is made by fitting and extrapolating the 40% coaxial
+    detector data  from the reference to form a reasonable (i.e. convergent
+    and monotonically decreasing beyond 2 MeV) curve up to 7 MeV.
+
+    Reference
+    ---------
+    R. Venkataraman,* S. Croft, W. R. Russ
+    Calculation of peak-to-total ratios for high purity germanium detectors
+    using Monte-Carlo modeling
+    Journal of Radioanalytical and Nuclear Chemistry,
+    Vol. 264, No. 1 (2005) 183-191
 
     Returns
     -------

@@ -90,7 +90,7 @@ def get_default_resolution_coefficients() -> np.ndarray[float]:
     Give a set of default resolution coefficient values.
 
     This specific set of values is obtained by fitting
-    01_Cu_001.Spe from
+    01_Cu_001.Spe (data source not publically available) from
     https://github.com/OceanNuclear/PeakFinding/commit/a386d484420d8efd2f5b3132f17fa5a66cc9988c
     using `fit_fwhm_cal_interactively`
     https://github.com/OceanNuclear/PeakFinding/commit/dd17a8d9cbbb80ce62f3bd10f4a24c5c6594b217
