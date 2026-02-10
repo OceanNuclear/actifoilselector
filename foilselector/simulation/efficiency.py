@@ -19,9 +19,38 @@ from foilselector.constants import ZERO_E_THRESHOLD, MeV, keV
 from foilselector.generic import vectorized_nom
 from foilselector.physicalparameters import HPGE_EFF_FILE
 
-MCNPOut = NamedTuple("MCNPOut", ["El", "Eu", "lc1", "lc2", "uc1", "uc2", "tc1", "tc2"])
-ISOCSOut = NamedTuple("ISOCSOut", ["E", "eff", "integer", "e1", "deviation", "e2", "ID"])
-EffCurve = NamedTuple("EffCurve", ["E", "eff", "unc"])
+
+class MCNPOut(NamedTuple):
+    """Efficiency outputted by a MCNP simulation ('.o') file."""
+
+    El: np.ndarray  # gamma-ray energy (lower)
+    Eu: np.ndarray  # gamma-ray energy (upper)
+    lc1: np.ndarray  # number of counts depositing E= 0 to El per source particle
+    lc2: np.ndarray  # relative uncertainty on the ^ number
+    uc1: np.ndarray  # number of counts depositing E=El to Eu per source particle
+    uc2: np.ndarray  # relative uncertainty on the ^ number
+    tc1: np.ndarray  # number of counts depositing E= 0 to Eu per source particle
+    tc2: np.ndarray  # relative uncertainty on the ^ number
+
+
+class ISOCSOut(NamedTuple):
+    """efficiency data recorded by an isocs file ('.ecc')."""
+
+    E: np.ndarray  # Energy
+    eff: np.ndarray  # absolute efficiency
+    integer: np.ndarray
+    e1: np.ndarray
+    deviation: np.ndarray
+    e2: np.ndarray
+    ID: np.ndarray  # ID number of that gamma-line
+
+
+class EffCurve(NamedTuple):
+    """Efficiency raw data curve."""
+
+    E: np.ndarray
+    eff: np.ndarray  # efficiency
+    unc: np.ndarray | None  # uncertainty on the efficiency
 
 
 APPROVED_EFFICIENCY_FILE_EXTENSIONS = {
