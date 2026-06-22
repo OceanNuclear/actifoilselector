@@ -48,7 +48,7 @@ def expand_interpolation_regions(
     return new_interpolation
 
 
-def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
+def detabulate(openmc_tab1d: openmc.data.Tabulated1D | Tab1DExtended) -> dict:
     """Convert a openmc.data.openmc_tab1d into something json serialize-able.
 
     Returns
@@ -56,6 +56,8 @@ def detabulate(openmc_tab1d: openmc.data.Tabulated1D) -> dict:
     :
         A dictionary of the data described by the Tab1D.
     """
+    if isinstance(openmc_tab1d, Tab1DExtended):
+        openmc_tab1d = openmc_tab1d.restore_openmc_copy()
     scheme = expand_interpolation_regions(
         openmc_tab1d.interpolation,
         openmc_tab1d.breakpoints,

@@ -44,7 +44,9 @@ def open_csv(fname: Path):
         the column names of the dataframe.
     """
     sniffer = csv.Sniffer()
-    if sniffer.has_header(fname):
+    with open(fname) as f:
+        text = f.read()
+    if sniffer.has_header(text):
         df = pd.read_csv(fname, sep=",|±", skipinitialspace=True, engine="python")
     else:
         df = pd.read_csv(

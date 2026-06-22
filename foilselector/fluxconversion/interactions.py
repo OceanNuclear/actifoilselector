@@ -153,7 +153,7 @@ def get_column_interactive(
 
             return df[col_i], 0
 
-        except FileNotFoundError as e:
+        except (FileNotFoundError, IsADirectoryError) as e:
             print(e, f"Please enter a valid file in {directory}.")
         except ValueError as e:
             print(e, "Perhaps the column name/ index is wrong. Please try again.")
