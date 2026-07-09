@@ -38,11 +38,11 @@ class ISOCSOut(NamedTuple):
 
     E: np.ndarray  # Energy
     eff: np.ndarray  # absolute efficiency
-    integer: np.ndarray
-    e1: np.ndarray
-    deviation: np.ndarray
-    e2: np.ndarray
-    ID: np.ndarray  # ID number of that gamma-line
+    eff_err_percent: np.ndarray
+    eff_weighted: np.ndarray
+    convergence_i: np.ndarray
+    convergence_i_minus_1: np.ndarray
+    points_N: np.ndarray  # ID number of that gamma-line
 
 
 class EffCurve(NamedTuple):
@@ -218,7 +218,10 @@ def efficiency_curve_from_file(fname: Path) -> EffCurve:
 
     if fname.suffix == ".ecc":
         isocs_output = read_ecc(fname)
-        return EffCurve(isocs_output[0], isocs_output[1], None)
+        return EffCurve(isocs_output[0]*keV,
+            isocs_output[1],
+            isocs_output[1]*(isocs_output[2]/100)
+        )
 
     if fname.suffix == ".csv":
         dataframe = read_csv(fname)
@@ -357,8 +360,7 @@ class EfficiencyCurve:
         """
         ax = ax or plt.axes()
         smoothline_lower, smoothline_upper = min(self.E), max(self.E)
-        energy_keV = np.geomspace(smoothline_lower, smoothline_upper, 300)
-        energy_eV = energy_keV * keV
+        energy_eV = np.geomspace(smoothline_lower, smoothline_upper, 300)
         smooth_eff = self(energy_eV)
         ax.plot(energy_eV / keV, smooth_eff)
         ax.scatter(self.E / keV, self.eff)
