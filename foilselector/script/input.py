@@ -43,7 +43,6 @@ from foilselector.fluxconversion import (
     flux_conversion,
     get_column_interactive,
     histogramic,
-    list_dir_csv,
     scale_to_eV_interactive,
 )
 from foilselector.fluxconversion.schemes import INTERPOLATION_SCHEME
@@ -622,6 +621,7 @@ def stage6_load_and_save_gamma_resolution() -> None:
                         cwd,
                         "Mean energy of the peaks (in keV)",
                         output_full_file_path=True,
+                        first_time_use=True,
                     )
                     fwhm_keV = get_column_interactive(
                         cwd,
@@ -645,7 +645,15 @@ def stage6_load_and_save_gamma_resolution() -> None:
             ax = plt.axes()
             ax.scatter(E_keV, fwhm_keV)
             e_keV_range = np.linspace(0, max(E_keV))
-            ax.plot(e_keV_range, np.sqrt(np.poly1d(coefficients)(e_keV_range*1000))/1000)
+            ax.plot(
+                e_keV_range,
+                np.sqrt(np.poly1d(coefficients[::-1])(e_keV_range * keV)) / keV,
+            )
+            ax.set_title(
+                "Resolution of the gamma-ray detector (i.e.\npeak-width v.s. incident gamma-ray energy)",
+            )
+            ax.set_xlabel("Photopeak energy (keV)")
+            ax.set_ylabel("FWHM (keV)")
             plt.show()
     else:
         coefficients = get_default_resolution_coefficients()
@@ -684,7 +692,7 @@ def stage7_load_and_save_gamma_efficiency() -> None:
 
         efficiency_curve = EfficiencyCurve.from_file(eff_file_path)
         E, eff = efficiency_curve.E / keV, efficiency_curve.eff
-        if efficiency_curve.unc:
+        if efficiency_curve.unc is not None:
             plt.errorbar(
                 E,
                 eff,
@@ -716,16 +724,16 @@ def stage7_load_and_save_gamma_efficiency() -> None:
 
     while True:
         try:
-            default_efficiency_file = EfficiencyCurve.from_file(
-                get_default_efficiency_curve_path(),
+            EfficiencyCurve.from_file(
+                default_efficiency_file := get_default_efficiency_curve_path(),
             )
             chosen_eff_file = input(
                 f"Please choose file from the list above (file must end in {endings});"
                 "\nOr enter nothing to use the example efficiency file stored at "
-                f"{get_default_efficiency_curve_path()}:",
+                f"{default_efficiency_file}:",
             )
             if not chosen_eff_file:
-                chosen_eff_file = get_default_efficiency_curve_path()
+                chosen_eff_file = default_efficiency_file
             eff_curve = one_loop(chosen_eff_file)
             if ask_yn_question("Is this curve satisfactory?"):
                 save_as_efficiency_file(chosen_eff_file)
@@ -792,6 +800,7 @@ def stage8_load_and_save_gamma_peak_to_Compton_ratio() -> None:
                         cwd,
                         "Mean energy of each photopeak (in keV)",
                         output_full_file_path=True,
+                        first_time_use=True,
                     )
                     pc = get_column_interactive(
                         cwd,
@@ -829,8 +838,6 @@ The following inputs are needed:
 The relevant data will be retrieved from the following csv files.
 In the current directory {cwd}, the following .csv files are found:""",
     )
-
-    list_dir_csv(cwd)
 
     # stage 1
     apriori_raw, in_unit, group_or_point = stage1_read_raw_ap_gs()

@@ -5,12 +5,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from foilselector.fluxconversion.filereading import open_csv
+from foilselector.fluxconversion.filereading import list_dir_csv, open_csv
 
 __all__ = ["ask_question", "ask_yn_question", "get_column_interactive"]
 
 
-def ask_yn_question(question: str):
+def ask_yn_question(question: str) -> bool:
     """
     Ask a yes no question.
 
@@ -42,7 +42,12 @@ def ask_yn_question(question: str):
         print(f"Option '{answer}' not recognized; please retry: ")
 
 
-def ask_question(question: str, expected_answer_list: list[str], *, check: bool = True):
+def ask_question(
+    question: str,
+    expected_answer_list: list[str],
+    *,
+    check: bool = True,
+) -> str:
     """
     Ask the user a multiple choice question.
 
@@ -74,7 +79,7 @@ def ask_question(question: str, expected_answer_list: list[str], *, check: bool 
     return answer
 
 
-def _check_is_numpy_numeric(data: np.ndarray):
+def _check_is_numpy_numeric(data: np.ndarray) -> None:
     """
     Ensure that a numpy array is indeed a numeric type (int64, float64, etc.).
 
@@ -124,7 +129,7 @@ def get_column_interactive(
         A 1D np.array containing the data of the user-chosen column in the csv.
     """
 
-    def one_loop(file_path) -> tuple[pd.Series | None, int]:
+    def one_loop(file_path: Path | str) -> tuple[pd.Series | None, int]:
         """
         Perform a single attempt of opening a csv and interactively finding the column.
 
@@ -160,6 +165,8 @@ def get_column_interactive(
 
         return None, 1
 
+    if first_time_use:
+        list_dir_csv(directory)
     exit_status = 1
     if file_path_given:
         dataseries, exit_status = one_loop(file_path_given)
