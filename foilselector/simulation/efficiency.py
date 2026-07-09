@@ -218,9 +218,10 @@ def efficiency_curve_from_file(fname: Path) -> EffCurve:
 
     if fname.suffix == ".ecc":
         isocs_output = read_ecc(fname)
-        return EffCurve(isocs_output[0]*keV,
+        return EffCurve(
+            isocs_output[0] * keV,
             isocs_output[1],
-            isocs_output[1]*(isocs_output[2]/100)
+            isocs_output[1] * (isocs_output[2] / 100),
         )
 
     if fname.suffix == ".csv":
