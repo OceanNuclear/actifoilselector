@@ -287,7 +287,7 @@ def stage2_plot_apriori(
 def stage3_modify_apriori(
     E_values: npt.NDArray[float],
     apriori: npt.NDArray[float],
-    continuous_apriori: Tab1DExtended | Tab1DExtended,
+    continuous_apriori: Tab1DExtended,
 ) -> tuple[npt.NDArray[float], npt.NDArray[float], Tabulated1D | Tab1DExtended]:
     """Modify the a priori neutron spectrum to something that the user wants, by
     transforming the energy scale and scaling the y-axis.
@@ -642,6 +642,11 @@ def stage6_load_and_save_gamma_resolution() -> None:
                     break
                 except ValueError as e:
                     print(e, ", trying again...")
+            ax = plt.axes()
+            ax.scatter(E_keV, fwhm_keV)
+            e_keV_range = np.linspace(0, max(E_keV))
+            ax.plot(e_keV_range, np.sqrt(np.poly1d(coefficients)(e_keV_range*1000))/1000)
+            plt.show()
     else:
         coefficients = get_default_resolution_coefficients()
 
@@ -717,7 +722,7 @@ def stage7_load_and_save_gamma_efficiency() -> None:
             chosen_eff_file = input(
                 f"Please choose file from the list above (file must end in {endings});"
                 "\nOr enter nothing to use the example efficiency file stored at "
-                f"{default_efficiency_file}:",
+                f"{get_default_efficiency_curve_path()}:",
             )
             if not chosen_eff_file:
                 chosen_eff_file = get_default_efficiency_curve_path()
@@ -839,7 +844,9 @@ In the current directory {cwd}, the following .csv files are found:""",
 
     # stage 3
     E_values, apriori, continuous_apriori = stage3_modify_apriori(
-        E_values, apriori, Tab1DExtended.from_openmc(continuous_apriori),
+        E_values,
+        apriori,
+        Tab1DExtended.from_openmc(continuous_apriori),
     )
 
     # stage 4
