@@ -170,7 +170,7 @@ def read_ecc(fname: Path) -> ISOCSOut:  # noqa: D103
 
 
 def read_csv(fname: Path) -> pd.DataFrame:  # noqa: D103
-    df = pd.read_csv(fname)  # noqa: PD901
+    df = pd.read_csv(fname, comment="#")  # noqa: PD901
     if "MeV" in df.columns[0]:
         df[df.columns[0]] = df[df.columns[0]] * MeV  # noqa: PLR6104
     elif "keV" in df.columns[0]:
