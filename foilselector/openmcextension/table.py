@@ -17,9 +17,6 @@ from numpy import log as ln
 from numpy import typing as npt
 from openmc.data import INTERPOLATION_SCHEME
 
-from foilselector.generic import SilenceNumpyDivisionError
-
-
 def plot_tab(tab: openmc.data.Tabulated1D | Tab1DExtended, *args, **kwargs) -> plt.Axes:
     """Quick function to plot the curve described by the Tab1D."""
     return plt.plot(tab.x, tab.y, *args, **kwargs)  # noqa: DOC201
@@ -136,7 +133,6 @@ class Integral:
         )
         self.verbose = verbose
 
-    @SilenceNumpyDivisionError()
     def definite_integral(self, a, b):
         """
         Definite integral that handles an array of (a, b) vs a scalar pair of (a, b) in different manners.
@@ -377,30 +373,10 @@ class Integral:
 
         # normal case
         m = dlny[normal] / dlnx[normal]
-        #   problematic if any(x1==0, y1==0, dx==0)
-        with warnings.catch_warnings(record=True) as _warn_list:
-            inv_x1_m = y1[normal] * (x1[normal] ** -m)
-
-            factor = x2[normal] ** (m + 1)
-            quotient = (x1[normal] / x2[normal]) ** (m + 1)
-            diff_over_expo = factor * (1 - quotient) / (m + 1)
-            # TODO @OceanNuclear: if m is too big (+ve), this usually throws a
-            # RuntimeWarning: overflow due to the exponent.
-            # Re-write integral expression to make this less error-prone?
-
-        resulting_area[normal] = np.nan_to_num(
-            inv_x1_m * diff_over_expo,
-            nan=dx[normal],
-            posinf=dx[normal],
-            neginf=dx[normal],
-        )
-        if _warn_list:
-            print(_warn_list, "for the numbers:")
-            print(f"{inv_x1_m=}")
-            print(f"{x1[normal]=}")
-            print(f"{x2[normal]=}")
-            print(f"{y1[normal]=}")
-            print(f"{y2[normal]=}")
+        # problematic if any(x1==0, y1==0, dx==0)
+        quotient = (x2[normal] / x1[normal]) ** (m + 1)
+        diff_over_expo = (quotient - 1) / (m + 1)
+        resulting_area[normal] = y1[normal] * x1[normal] * diff_over_expo
         return resulting_area
 
 
