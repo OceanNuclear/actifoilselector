@@ -181,17 +181,12 @@ class Integral:
         Raises
         ------
         ValueError
-            When the integration limits aren't in the right shape (1D array or scalar),
-            or is disordered (i.e. not (a<=b).all()).
+            When the integration limits aren't in the right shape (array or scalar).
         """
         if np.shape(a) != np.shape(b):
             raise ValueError("The dimension of (a) must match that of (b)")
         if not isinstance(a, Iterable):
             return self._definite_integral_array(ary([a]), ary([b]))[0]
-        if ary(a).ndim != 1:
-            raise ValueError(f"{a} must be a flat 1D array")
-        if not (np.diff([a, b], axis=0) >= 0).all():
-            raise ValueError("Can only integrate in the positive direction.")
         if np.not_equal(np.clip(a, self.func.x.min(), self.func.x.max()), a).any():
             if self.verbose:
                 print(
@@ -209,71 +204,74 @@ class Integral:
 
         return self._definite_integral_array(ary(a), ary(b))
 
-    def _definite_integral_array(
+    def _definite_integral_array(  # noqa: PLR0914
         self,
         a: npt.NDArray[float],
         b: npt.NDArray[float],
     ) -> npt.NDArray[float]:
+        """Accept any values of (a, b), b doesn't necessarily have to be >a.
+
+        Parameters
+        ----------
+        a:
+            The lower limit to the definite integral.
+        b:
+            The upper limit to the definite integral. Should have the same shape as a.
+
+        Returns
+        -------
+        :
+            The evaluated integral. Should have the same shape as a and b.
+        """
         # finding the completely enveloped cells using l_bounds and u_bounds.
         n = len(self.areas)
-        l_bounds = np.broadcast_to(
-            self.func.x[:-1],
-            [len(a), n],
-        ).T  # we don't care whether or not a is larger than the last x
-        u_bounds = np.broadcast_to(
-            self.func.x[1:],
-            [len(b), n],
-        ).T  # we dont' care whether or not b is smaller than the first x.
+        k = np.ndim(a)
+        flip = (k, *np.arange(k))
+        unflip = (*np.arange(1, k + 1), 0)
+        l_bounds = np.broadcast_to(self.func.x[:-1], (*np.shape(a), n)).transpose(flip)
+        u_bounds = np.broadcast_to(self.func.x[1:], (*np.shape(b), n)).transpose(flip)
 
-        # calculate area.
-        ge_a = np.greater_equal(
-            l_bounds,
-            a,
-        ).T  # 2D array of bin upper bounds which are >= a.
-        le_b = np.less_equal(
-            u_bounds,
-            b,
-        ).T  # 2D array of bin lower bounds which are <= b.
-        # use <= and >= instead of < and > to allow the left-edge and right-edge to
-        # have zero dx.
+        # 2D array of bin whose upper bounds >= a, and lower bounds <= b.
+        ge_a = np.greater_equal(l_bounds, a).transpose(unflip)
+        le_b = np.less_equal(u_bounds, b).transpose(unflip)
+        # Use <=, >= instead of <, > to allow the left- and right-edges to have dx=0.
 
-        area_2d = np.broadcast_to(self.areas, [len(a), n])
-        central_area = (area_2d * (-1 + ge_a + le_b)).sum(axis=1)
+        area_2d = np.broadcast_to(self.areas, (*np.shape(a), n))
+        central_area = (area_2d * (-1 + ge_a + le_b)).sum(axis=-1)
         # -1 + False + False = -1 (cell envelope entire [a, b] interval);
-        # -1 + True + False = 0,
-        # -1 + False - True = 0.
-        # (cell to the right/left of the entire [a, b] interval respectively);
+        # -1 + True + False = 0 (cells to the right of interval [a,b]);
+        # -1 + False + True = 0 (cells to the left of interval [a,b]);
         # -1 + True + True = +1 ([a, b] interval envelopes entire cell).
+        # Written such that if b<a, it STILL gives a valid answer!
 
         # left-edge half-cell
-        l_ind = n - ge_a.sum(axis=1)
+        l_ind = n - ge_a.sum(axis=-1)
         l_edge_x = ary([a, self.func.x[l_ind]])
         l_edge_y = ary([self.func(a), self.func.y[l_ind]])
-        l_edge_scheme = self._interpolation[
-            np.clip(l_ind - 1, 0, None, dtype=int)
-        ]  # make sure it doesn't go below zero when ge_a sums to equal n
+        l_edge_scheme = self._interpolation[np.clip(l_ind - 1, 0, None, dtype=int)]
+        # make sure it doesn't go below zero when ge_a sums to equal n
         # (i.e. a is less than the second x).
 
         # right-edge half-cell.
-        r_ind = le_b.sum(axis=1)
+        r_ind = le_b.sum(axis=-1)
         r_edge_x = ary([self.func.x[r_ind], b])
         r_edge_y = ary([self.func.y[r_ind], self.func(b)])
+        r_edge_scheme = self._interpolation[r_ind]
 
         # calculate the left-edge half cell and right-edge half cell areas.
-        l_edge_area, r_edge_area = np.zeros(len(a)), np.zeros(len(a))
+        l_edge_area, r_edge_area = np.zeros(np.shape(a)), np.zeros(np.shape(a))
         for scheme_number in INTERPOLATION_SCHEME:
             # loop 5 times (x2 area calculations per loop) to get the l/r edges areas
             matching_l = l_edge_scheme == scheme_number
-            matching_r = l_edge_scheme == scheme_number
+            matching_r = r_edge_scheme == scheme_number
             l_edge_area[matching_l] = getattr(self, "area_scheme_" + str(scheme_number))(
-                *l_edge_x.T[matching_l].T,
-                *l_edge_y.T[matching_l].T,
+                *l_edge_x.T[matching_l.T].T,
+                *l_edge_y.T[matching_l.T].T,
             )
             r_edge_area[matching_r] = getattr(self, "area_scheme_" + str(scheme_number))(
-                *r_edge_x.T[matching_r].T,
-                *r_edge_y.T[matching_r].T,
+                *r_edge_x.T[matching_r.T].T,
+                *r_edge_y.T[matching_r.T].T,
             )
-
         return l_edge_area + central_area + r_edge_area
 
     @classmethod

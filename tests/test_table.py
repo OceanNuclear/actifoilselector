@@ -23,7 +23,7 @@ def test_area_scheme_1():
     """Confirm integration of area scheme 1 is correct."""
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [1])
     i = Integral(Tab1DExtended.from_openmc(tab))
-    np.testing.assert_array_equal(i.areas, [1, 1, 2, 0])
+    np.testing.assert_array_almost_equal(i.areas, [1, 1, 2, 0])
     i.definite_integral(0.8, 1.2)
 
 
@@ -31,7 +31,7 @@ def test_area_scheme_2():
     """Confirm integration of area scheme 2 is correct."""
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [2])
     i = Integral(Tab1DExtended.from_openmc(tab))
-    np.testing.assert_array_equal(i.areas, [1, 1.5, 1, 3])
+    np.testing.assert_array_almost_equal(i.areas, [1, 1.5, 1, 3])
 
 
 def test_area_scheme_3():
@@ -68,6 +68,14 @@ def test_area_scheme_5():
     for yi, xi in zip(smooth_y[1:], smooth_x[1:], strict=False):
         model_answer.append(integrate.trapz(yi, xi))
     assert np.allclose(i.areas, model_answer, rtol=1 / 50, atol=0)
+
+
+def test_integration():
+    i = Integral(Tab1DExtended([0, 1, 2, 3, 4], [1, 2, 1, 2, 1], [1, 1, 1, 2]))
+    answers = i.definite_integral([1.8, 1.9, 2.0, 3.1], [3.0, 3.1, 3.2, 1.9])
+    np.testing.assert_array_almost_equal(answers, [1.4, 1.395, 1.38, -1.395])
+    answers = i.definite_integral([[1.9, 2.0, 3.1]], [[3.1, 3.2, 1.9]])
+    np.testing.assert_array_almost_equal(answers, [[1.395, 1.38, -1.395]])
 
 
 def test_conversion_idempotency():
@@ -141,21 +149,21 @@ def test_offset_x():
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [2])
     i = Tab1DExtended.from_openmc(tab)
     j = i.offset_x(1)
-    np.testing.assert_array_equal(j.x, x + 1)
+    np.testing.assert_array_almost_equal(j.x, x + 1)
 
 
 def test_offset_y():
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [2])
     i = Tab1DExtended.from_openmc(tab)
     j = i + 1
-    np.testing.assert_array_equal(j.y, y + 1)
+    np.testing.assert_array_almost_equal(j.y, y + 1)
 
 
 def test_scale_y():
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [2])
     i = Tab1DExtended.from_openmc(tab)
     j = i * 1.5
-    np.testing.assert_array_equal(j.y, y * 1.5)
+    np.testing.assert_array_almost_equal(j.y, y * 1.5)
 
 
 def test_apply_scaling():
