@@ -543,30 +543,56 @@ class Tab1DExtended:
             raise NotImplementedError("Use apply_scaling instead!")
         return self.__class__(self.x, self.y * scale_factor, self.interpolation)
 
-    def apply_scaling(self, other_curve: Callable) -> Tab1DExtended:
-        """
-        If multiplying with another curve, then directly scale its data points by that
-        curve. Depending on what interpolation scheme was used in the other_curve and
+    def apply_scaling(
+        self,
+        other_curve: Callable,
+        subdivision: int = 10,
+    ) -> Tab1DExtended:
+        """More finely divide the current curve into a number of subdivisions,
+        then scale each of these finely divided points up or down by the scale factor
+        specified by the other curve. i.e.
+            scale_factor = other_curve(finely_divided_x)
+            finely_divided_y = self.y * scale_factor
+        Depending on what interpolation scheme was used in the other_curve and
         whether the two curves have the same set of x-values or not, the resultant
         function may not produce the accurately interpolated data. However, it will do
-        for the time being for calcaulating the
-        continuous gamma distribution * absolute efficiency of the detector setup.
+        for the time being for calcaulating the continuous gamma distribution
+        * absolute efficiency of the detector setup.
 
         Parameters
         ----------
         other_curve: Tab1DExtended | openmc.data.Tabulated1D | Callable
-            A function that returns a scale_factor for y when given x.
-            i.e.
-            scale_factor = other_curve(x)
-            self.y *=scale_factor
+            A function that returns a scale_factor for a given x.
+
 
         Returns
         -------
         :
-            A bodge
+            newly constructed data where
         """
-        scale_factor = other_curve(self.x)
-        return self * scale_factor
+        new_x, new_y, new_interp = [], [], []
+        openmc_func = self.restore_openmc_copy()
+        other_curve = (
+            other_curve.restore_openmc_copy()
+            if isinstance(other_curve, Tab1DExtended)
+            else other_curve
+        )
+        for start_x, end_x in zip(self.x[:-1], self.x[1:], strict=True):
+            smooth_x = np.linspace(start_x, end_x, subdivision, endpoint=False)
+            new_x.append(smooth_x)
+            new_y.append(openmc_func(smooth_x) * other_curve(smooth_x))
+            new_interp.append(
+                np.ones(subdivision) * 2,
+            )  # choosing scheme 2: lin-lin interpolation.
+        new_x = np.array(new_x).flatten().tolist()
+        new_y = np.array(new_y).flatten().tolist()
+        new_x.append(self.x[-1])
+        new_y.append(openmc_func([self.x[-1]])[0] * other_curve([self.x[-1]])[0])
+        return self.__class__(
+            x=new_x,
+            y=new_y,
+            interpolation=np.array(new_interp).flatten(),
+        )
 
     def __hash__(self) -> int:
         """Turn its data into tuples, then hash the resulting 3-tuple.

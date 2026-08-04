@@ -153,3 +153,13 @@ def test_scale_y():
     i = Tab1DExtended.from_openmc(tab)
     j = i * 1.5
     np.testing.assert_array_equal(j.y, y * 1.5)
+
+
+def test_apply_scaling():
+    tab = openmc.data.Tabulated1D(x, y, [len(x)], [2])
+    i = Tab1DExtended.from_openmc(tab)
+    tab2 = openmc.data.Tabulated1D(nx, ny, [len(nx)], [5])
+    j = Tab1DExtended.from_openmc(tab2)
+    k = j.apply_scaling(i)
+
+    k.plot()
