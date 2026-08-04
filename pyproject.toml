@@ -104,7 +104,7 @@ convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252", "INP001", "SLF001", "ANN201"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "INP001", "ANN201"]
 "__init__.py" = ["F401", "F403"]
 "foilselector/foldermanagement.py" = ["D103"]
 "foilselector/script/*.py" = ["W505", "E501", "PLR0913", "PLR0917", "PLR0914", "PLR0915"]

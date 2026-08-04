@@ -16,14 +16,14 @@ def test_area_scheme_1():
     """Confirm integration of area scheme 1 is correct."""
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [1])
     i = Integral(Tab1DExtended.from_openmc(tab))
-    np.testing.assert_array_equal(i._area, [1, 1, 2, 0])
+    np.testing.assert_array_equal(i.areas, [1, 1, 2, 0])
 
 
 def test_area_scheme_2():
     """Confirm integration of area scheme 2 is correct."""
     tab = openmc.data.Tabulated1D(x, y, [len(x)], [2])
     i = Integral(Tab1DExtended.from_openmc(tab))
-    np.testing.assert_array_equal(i._area, [1, 1.5, 1, 3])
+    np.testing.assert_array_equal(i.areas, [1, 1.5, 1, 3])
 
 
 def test_area_scheme_3():
@@ -35,7 +35,7 @@ def test_area_scheme_3():
     model_answer = [0.9]
     for yi, xi in zip(smooth_y[1:], smooth_x[1:], strict=False):
         model_answer.append(integrate.trapz(yi, xi))
-    assert np.allclose(i._area, model_answer, rtol=1 / 50, atol=0)
+    assert np.allclose(i.areas, model_answer, rtol=1 / 50, atol=0)
 
 
 def test_area_scheme_4():
@@ -47,7 +47,7 @@ def test_area_scheme_4():
     model_answer = [1]
     for yi, xi in zip(smooth_y[1:], smooth_x[1:], strict=False):
         model_answer.append(integrate.trapz(yi, xi))
-    assert np.allclose(i._area, model_answer, rtol=1 / 50, atol=0)
+    assert np.allclose(i.areas, model_answer, rtol=1 / 50, atol=0)
 
 
 def test_area_scheme_5():
@@ -59,4 +59,4 @@ def test_area_scheme_5():
     model_answer = [0.9]
     for yi, xi in zip(smooth_y[1:], smooth_x[1:], strict=False):
         model_answer.append(integrate.trapz(yi, xi))
-    assert np.allclose(i._area, model_answer, rtol=1 / 50, atol=0)
+    assert np.allclose(i.areas, model_answer, rtol=1 / 50, atol=0)
