@@ -568,30 +568,24 @@ class Tab1DExtended:
         Returns
         -------
         :
-            newly constructed data where
+            Linearized curve. While each point's y-value was obtained by scaling the
+            y-values appropriately, the interpolation scheme is no longer preserved,
+            and is chosen to be linear.
         """
-        new_x, new_y, new_interp = [], [], []
-        openmc_func = self.restore_openmc_copy()
-        other_curve = (
-            other_curve.restore_openmc_copy()
-            if isinstance(other_curve, Tab1DExtended)
-            else other_curve
-        )
-        for start_x, end_x in zip(self.x[:-1], self.x[1:], strict=True):
-            smooth_x = np.linspace(start_x, end_x, subdivision, endpoint=False)
-            new_x.append(smooth_x)
-            new_y.append(openmc_func(smooth_x) * other_curve(smooth_x))
-            new_interp.append(
-                np.ones(subdivision) * 2,
-            )  # choosing scheme 2: lin-lin interpolation.
-        new_x = np.array(new_x).flatten().tolist()
-        new_y = np.array(new_y).flatten().tolist()
-        new_x.append(self.x[-1])
-        new_y.append(openmc_func([self.x[-1]])[0] * other_curve([self.x[-1]])[0])
+        new_x = np.linspace(
+            self.x[:-1],
+            self.x[1:],
+            subdivision,
+            endpoint=False,
+        ).T.flatten()
+        new_y = self(new_x) * other_curve(new_x)
+        new_interp = np.ones((len(self.x) - 1) * subdivision, dtype=int) * 2
+        new_x = np.append(new_x, self.x[-1])
+        new_y = np.append(new_y, self([self.x[-1]])[0] * other_curve([self.x[-1]])[0])
         return self.__class__(
             x=new_x,
             y=new_y,
-            interpolation=np.array(new_interp).flatten(),
+            interpolation=new_interp,
         )
 
     def __hash__(self) -> int:
